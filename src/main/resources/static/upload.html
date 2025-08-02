@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF 시간표 업로드</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>PDF 시간표 업로드</h1>
+    
+    <form action="/api/pdf/upload" method="post" enctype="multipart/form-data">
+        <div>
+            <label for="file">PDF 파일 선택:</label><br>
+            <input type="file" id="file" name="file" accept=".pdf" required>
+        </div>
+        <br>
+        <button type="submit">업로드</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        const form = document.querySelector('form');
+        const result = document.getElementById('result');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            result.innerHTML = '<p>업로드 중...</p>';
+            
+            try {
+                const response = await fetch('/api/pdf/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const text = await response.text();
+                result.innerHTML = `<p style="color: ${response.ok ? 'green' : 'red'}">${text}</p>`;
+            } catch (error) {
+                result.innerHTML = `<p style="color: red">오류: ${error.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>

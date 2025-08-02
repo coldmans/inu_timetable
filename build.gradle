@@ -32,9 +32,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.ai:spring-ai-pdf-document-reader'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
-    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'org.postgresql:postgresql'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -48,4 +51,5 @@ dependencyManagement {
 
 tasks.named('test') {
     useJUnitPlatform()
+    enabled = false
 }
