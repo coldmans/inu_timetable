@@ -53,12 +53,19 @@ public class WishlistController {
             @PathVariable Long userId,
             @RequestParam String semester) {
         try {
+            System.out.println(">>> [API] Getting wishlist for userId=" + userId + ", semester=" + semester);
             List<WishlistItem> wishlist = wishlistService.getUserWishlist(userId, semester);
+            System.out.println(">>> [API] Found " + wishlist.size() + " wishlist items");
+            
             List<WishlistItemDto> wishlistDto = wishlist.stream()
                 .map(WishlistItemDto::fromEntity)
                 .collect(Collectors.toList());
+            
+            System.out.println(">>> [API] Returning " + wishlistDto.size() + " wishlist DTOs");
             return ResponseEntity.ok(wishlistDto);
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
+            System.err.println(">>> [API] Error getting wishlist: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -89,6 +96,24 @@ public class WishlistController {
             return ResponseEntity.ok(Map.of("message", "필수 과목 설정이 업데이트되었습니다."));
             
         } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/debug/{userId}")
+    public ResponseEntity<?> debugWishlist(@PathVariable Long userId) {
+        try {
+            List<WishlistItem> allItems = wishlistService.getAllWishlistItems(userId);
+            return ResponseEntity.ok(allItems.stream()
+                .map(item -> Map.of(
+                    "id", item.getId(),
+                    "subjectId", item.getSubject().getId(),
+                    "subjectName", item.getSubject().getSubjectName(),
+                    "semester", item.getSemester(),
+                    "isRequired", item.getIsRequired()
+                ))
+                .collect(Collectors.toList()));
+        } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

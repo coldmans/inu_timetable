@@ -81,4 +81,10 @@ public class WishlistService {
         wishlistItem.setIsRequired(isRequired);
         return wishlistRepository.save(wishlistItem);
     }
+    
+    public List<WishlistItem> getAllWishlistItems(Long userId) {
+        return wishlistRepository.findAll().stream()
+            .filter(item -> item.getUser().getId().equals(userId))
+            .collect(java.util.stream.Collectors.toList());
+    }
 }

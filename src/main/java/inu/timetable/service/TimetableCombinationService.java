@@ -28,13 +28,24 @@ public class TimetableCombinationService {
             return new ArrayList<>();
         }
         
+        // 과목명별로 그룹화하여 중복 제거 (같은 과목명 중 첫 번째만 선택)
+        Map<String, WishlistItem> uniqueSubjects = new LinkedHashMap<>();
+        for (WishlistItem item : wishlist) {
+            String subjectName = item.getSubject().getSubjectName();
+            if (!uniqueSubjects.containsKey(subjectName)) {
+                uniqueSubjects.put(subjectName, item);
+            }
+        }
+        
+        List<WishlistItem> deduplicatedWishlist = new ArrayList<>(uniqueSubjects.values());
+        
         // 필수 과목과 선택 과목 분리
-        List<Subject> requiredSubjects = wishlist.stream()
+        List<Subject> requiredSubjects = deduplicatedWishlist.stream()
             .filter(item -> item.getIsRequired() != null && item.getIsRequired())
             .map(WishlistItem::getSubject)
             .collect(Collectors.toList());
             
-        List<Subject> optionalSubjects = wishlist.stream()
+        List<Subject> optionalSubjects = deduplicatedWishlist.stream()
             .filter(item -> item.getIsRequired() == null || !item.getIsRequired())
             .map(WishlistItem::getSubject)
             .collect(Collectors.toList());
