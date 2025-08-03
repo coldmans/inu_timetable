@@ -2,6 +2,8 @@ package inu.timetable.repository;
 
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.SubjectType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -30,17 +32,27 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
     
     List<Subject> findBySubjectTypeAndDepartment(SubjectType subjectType, String department);
     
-    @Query("SELECT DISTINCT s FROM Subject s LEFT JOIN s.schedules sc " +
+    @Query(value = "SELECT DISTINCT s.id FROM Subject s LEFT JOIN s.schedules sch " +
            "WHERE (:subjectName IS NULL OR s.subjectName LIKE :subjectName) " +
            "AND (:professor IS NULL OR s.professor LIKE :professor) " +
            "AND (:department IS NULL OR s.department LIKE :department) " +
            "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
            "AND (:grade IS NULL OR s.grade = :grade) " +
            "AND (:isNight IS NULL OR s.isNight = :isNight) " +
-           "AND (:dayOfWeek IS NULL OR sc.dayOfWeek = :dayOfWeek) " +
-           "AND (:startTime IS NULL OR sc.startTime >= :startTime) " +
-           "AND (:endTime IS NULL OR sc.endTime <= :endTime)")
-    List<Subject> findWithFilters(
+           "AND (:dayOfWeek IS NULL OR sch.dayOfWeek = :dayOfWeek) " +
+           "AND (:startTime IS NULL OR sch.startTime >= :startTime) " +
+           "AND (:endTime IS NULL OR sch.endTime <= :endTime)",
+           countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch " +
+           "WHERE (:subjectName IS NULL OR s.subjectName LIKE :subjectName) " +
+           "AND (:professor IS NULL OR s.professor LIKE :professor) " +
+           "AND (:department IS NULL OR s.department LIKE :department) " +
+           "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
+           "AND (:grade IS NULL OR s.grade = :grade) " +
+           "AND (:isNight IS NULL OR s.isNight = :isNight) " +
+           "AND (:dayOfWeek IS NULL OR sch.dayOfWeek = :dayOfWeek) " +
+           "AND (:startTime IS NULL OR sch.startTime >= :startTime) " +
+           "AND (:endTime IS NULL OR sch.endTime <= :endTime)")
+    Page<Long> findIdsWithFilters(
         @Param("subjectName") String subjectName,
         @Param("professor") String professor,
         @Param("department") String department,
@@ -49,6 +61,10 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
         @Param("endTime") Double endTime,
         @Param("subjectType") SubjectType subjectType,
         @Param("grade") Integer grade,
-        @Param("isNight") Boolean isNight
+        @Param("isNight") Boolean isNight,
+        Pageable pageable
     );
+
+    @Query("SELECT DISTINCT s FROM Subject s LEFT JOIN FETCH s.schedules WHERE s.id IN :subjectIds")
+    List<Subject> findWithSchedulesByIds(@Param("subjectIds") List<Long> subjectIds);
 }

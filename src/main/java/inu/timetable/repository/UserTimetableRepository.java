@@ -18,6 +18,6 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
     
     Optional<UserTimetable> findByUserIdAndSubjectId(Long userId, Long subjectId);
     
-    @Query("SELECT ut FROM UserTimetable ut JOIN FETCH ut.subject s JOIN FETCH s.schedules WHERE ut.user.id = :userId AND ut.semester = :semester")
+    @Query("SELECT DISTINCT ut FROM UserTimetable ut JOIN FETCH ut.subject s WHERE ut.user.id = :userId AND ut.semester = :semester")
     List<UserTimetable> findByUserIdAndSemesterWithSubjectAndSchedules(@Param("userId") Long userId, @Param("semester") String semester);
 }

@@ -5,6 +5,7 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.repository.SubjectRepository;
+import inu.timetable.dto.SubjectDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @RestController 
 @RequestMapping("/api/subjects")
@@ -62,7 +64,7 @@ public class SubjectController {
     }
 
     @GetMapping("/filter")
-    public List<Subject> filterSubjects(
+    public Page<Subject> filterSubjects(
             @RequestParam(required = false) String subjectName,
             @RequestParam(required = false) String professor,
             @RequestParam(required = false) String department,
@@ -71,17 +73,34 @@ public class SubjectController {
             @RequestParam(required = false) Double endTime,
             @RequestParam(required = false) SubjectType subjectType,
             @RequestParam(required = false) Integer grade,
-            @RequestParam(required = false) Boolean isNight) {
+            @RequestParam(required = false) Boolean isNight,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         
-        // 문자열 파라미터를 LIKE 패턴으로 변환
-        String subjectNamePattern = subjectName != null ? "%" + subjectName + "%" : null;
-        String professorPattern = professor != null ? "%" + professor + "%" : null;
-        String departmentPattern = department != null ? "%" + department + "%" : null;
+        System.out.println(">>> [API] Received request for /filter with page=" + page + ", size=" + size);
+
+        Pageable pageable = PageRequest.of(page, size);
         
-        return subjectRepository.findWithFilters(
-            subjectNamePattern, professorPattern, departmentPattern, dayOfWeek, 
-            startTime, endTime, subjectType, grade, isNight
+        // 1단계: 필터로 과목 ID 조회 (페이지네이션 적용)
+        Page<Long> subjectIdPage = subjectRepository.findIdsWithFilters(
+            subjectName, professor, department, dayOfWeek, 
+            startTime, endTime, subjectType, grade, isNight, pageable
         );
+
+        // 2단계: 조회된 ID로 과목 상세 정보와 시간표를 함께 조회
+        List<Long> subjectIds = subjectIdPage.getContent();
+        System.out.println(">>> [DB] Found " + subjectIds.size() + " subject IDs for this page.");
+
+        if (subjectIds.isEmpty()) {
+            System.out.println(">>> [API] Returning empty page.");
+            return new org.springframework.data.domain.PageImpl<>(new java.util.ArrayList<>(), pageable, subjectIdPage.getTotalElements());
+        }
+        
+        List<Subject> subjectsWithSchedules = subjectRepository.findWithSchedulesByIds(subjectIds);
+        System.out.println(">>> [API] Returning page with " + subjectsWithSchedules.size() + " subjects.");
+
+        // Page 객체는 유지하되, 내용물만 교체
+        return new org.springframework.data.domain.PageImpl<>(subjectsWithSchedules, pageable, subjectIdPage.getTotalElements());
     }
 
     @PostMapping("/manual")
@@ -89,8 +108,7 @@ public class SubjectController {
         List<Subject> subjects = new ArrayList<>();
         
         for (Map<String, Object> data : subjectsData) {
-            String timeString = (String) data.get("timeString");
-            List<Schedule> schedules = parseTime(timeString);
+            // timeString은 현재 사용하지 않음 - 별도 스케줄 관리 필요시 구현
             
             Subject subject = Subject.builder()
                 .subjectName((String) data.get("subjectName"))
@@ -101,13 +119,9 @@ public class SubjectController {
                 .classMethod(parseClassMethod((String) data.get("classMethod")))
                 .grade((Integer) data.get("grade"))
                 .department((String) data.get("department"))
-                .schedules(new ArrayList<>())
                 .build();
             
-            for (Schedule schedule : schedules) {
-                schedule.setSubject(subject);
-                subject.getSchedules().add(schedule);
-            }
+            // 스케줄은 별도로 저장 - Subject와 분리
             
             subjects.add(subject);
         }
