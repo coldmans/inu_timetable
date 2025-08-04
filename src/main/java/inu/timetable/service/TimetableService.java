@@ -41,6 +41,12 @@ public class TimetableService {
             throw new RuntimeException("이미 시간표에 추가된 과목입니다.");
         }
         
+        // 시간표 겹침 확인
+        List<UserTimetable> currentTimetable = userTimetableRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester);
+        if (hasTimeConflict(currentTimetable, subject)) {
+            throw new RuntimeException("시간표가 겹치는 과목이 있습니다.");
+        }
+        
         UserTimetable userTimetable = UserTimetable.builder()
             .user(user)
             .subject(subject)
@@ -72,5 +78,51 @@ public class TimetableService {
             
         userTimetable.setMemo(memo);
         return userTimetableRepository.save(userTimetable);
+    }
+    
+    public void removeAllSubjectsFromTimetable(Long userId, String semester) {
+        List<UserTimetable> timetables;
+        if (semester != null && !semester.isEmpty()) {
+            timetables = userTimetableRepository.findByUserIdAndSemester(userId, semester);
+        } else {
+            timetables = userTimetableRepository.findByUserId(userId);
+        }
+        
+        if (timetables.isEmpty()) {
+            throw new RuntimeException("삭제할 시간표가 없습니다.");
+        }
+        
+        userTimetableRepository.deleteAll(timetables);
+    }
+    
+    private boolean hasTimeConflict(List<UserTimetable> currentTimetable, Subject newSubject) {
+        for (UserTimetable existing : currentTimetable) {
+            for (var existingSchedule : existing.getSubject().getSchedules()) {
+                for (var newSchedule : newSubject.getSchedules()) {
+                    // 같은 요일인지 확인
+                    if (existingSchedule.getDayOfWeek().equals(newSchedule.getDayOfWeek())) {
+                        // 시간이 겹치는지 확인
+                        double existingStart = existingSchedule.getStartTime();
+                        double existingEnd = existingSchedule.getEndTime();
+                        double newStart = newSchedule.getStartTime();
+                        double newEnd = newSchedule.getEndTime();
+                        
+                        // 야간 과목 시간 조정 (startTime > endTime인 경우)
+                        if (existingStart > existingEnd) {
+                            existingEnd += 8.0;
+                        }
+                        if (newStart > newEnd) {
+                            newEnd += 8.0;
+                        }
+                        
+                        // 시간 겹침 확인: (시작시간 < 상대방 끝시간) && (끝시간 > 상대방 시작시간)
+                        if (newStart < existingEnd && newEnd > existingStart) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

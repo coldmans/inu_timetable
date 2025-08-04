@@ -4,14 +4,18 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
+import inu.timetable.util.TimeConverter;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,12 +24,33 @@ public class SubjectDto {
     private String subjectName;
     private Integer credits;
     private String professor;
-    private List<Schedule> schedules;
-    private Boolean isNight;
+    private String department;
+    private Integer grade;
     private SubjectType subjectType;
     private ClassMethod classMethod;
-    private Integer grade;
-    private String department;
+    private Boolean isNight;
+    private List<ScheduleDto> schedules;
+    
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ScheduleDto {
+        private Long id;
+        private String dayOfWeek;
+        private String startTime;
+        private String endTime;
+        
+        public static ScheduleDto fromEntity(Schedule schedule) {
+            return ScheduleDto.builder()
+                .id(schedule.getId())
+                .dayOfWeek(schedule.getDayOfWeek())
+                .startTime(TimeConverter.convertToClockTime(schedule.getStartTime()))
+                .endTime(TimeConverter.convertToClockTime(schedule.getEndTime()))
+                .build();
+        }
+    }
 
     public static SubjectDto from(Subject subject) {
         return SubjectDto.builder()
@@ -33,12 +58,14 @@ public class SubjectDto {
             .subjectName(subject.getSubjectName())
             .credits(subject.getCredits())
             .professor(subject.getProfessor())
-            .schedules(subject.getSchedules()) // 스케줄은 별도 API로 처리
-            .isNight(subject.getIsNight())
+            .department(subject.getDepartment())
+            .grade(subject.getGrade())
             .subjectType(subject.getSubjectType())
             .classMethod(subject.getClassMethod())
-            .grade(subject.getGrade())
-            .department(subject.getDepartment())
+            .isNight(subject.getIsNight())
+            .schedules(subject.getSchedules().stream()
+                .map(ScheduleDto::fromEntity)
+                .collect(Collectors.toList()))
             .build();
     }
 }

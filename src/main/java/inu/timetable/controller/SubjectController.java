@@ -48,6 +48,16 @@ public class SubjectController {
         return subjectRepository.findByDepartment(department);
     }
 
+    @GetMapping("/departments")
+    public List<String> getAllDepartments() {
+        return subjectRepository.findDistinctDepartments();
+    }
+    
+    @GetMapping("/grades")
+    public List<Integer> getAllGrades() {
+        return subjectRepository.findDistinctGrades();
+    }
+
     @GetMapping("/grade/{grade}")
     public List<Subject> getSubjectsByGrade(@PathVariable Integer grade) {
         return subjectRepository.findByGrade(grade);
@@ -59,12 +69,37 @@ public class SubjectController {
     }
 
     @GetMapping("/search")
-    public List<Subject> searchSubjects(@RequestParam String keyword) {
-        return subjectRepository.findBySubjectNameContaining(keyword);
+    public List<SubjectDto> searchSubjects(
+            @RequestParam String keyword,
+            @RequestParam(required = false) Integer grade) {
+        List<Subject> subjects;
+        if (grade != null) {
+            subjects = subjectRepository.findBySubjectNameContainingAndGrade(keyword, grade);
+        } else {
+            subjects = subjectRepository.findBySubjectNameContaining(keyword);
+        }
+        return subjects.stream()
+            .map(SubjectDto::from)
+            .collect(Collectors.toList());
+    }
+
+    @GetMapping("/search/professor")
+    public List<SubjectDto> searchByProfessor(
+            @RequestParam String keyword,
+            @RequestParam(required = false) Integer grade) {
+        List<Subject> subjects;
+        if (grade != null) {
+            subjects = subjectRepository.findByProfessorContainingAndGrade(keyword, grade);
+        } else {
+            subjects = subjectRepository.findByProfessorContaining(keyword);
+        }
+        return subjects.stream()
+            .map(SubjectDto::from)
+            .collect(Collectors.toList());
     }
 
     @GetMapping("/filter")
-    public Page<Subject> filterSubjects(
+    public Page<SubjectDto> filterSubjects(
             @RequestParam(required = false) String subjectName,
             @RequestParam(required = false) String professor,
             @RequestParam(required = false) String department,
@@ -99,8 +134,13 @@ public class SubjectController {
         List<Subject> subjectsWithSchedules = subjectRepository.findWithSchedulesByIds(subjectIds);
         System.out.println(">>> [API] Returning page with " + subjectsWithSchedules.size() + " subjects.");
 
+        // DTO로 변환
+        List<SubjectDto> subjectDtos = subjectsWithSchedules.stream()
+            .map(SubjectDto::from)
+            .collect(Collectors.toList());
+
         // Page 객체는 유지하되, 내용물만 교체
-        return new org.springframework.data.domain.PageImpl<>(subjectsWithSchedules, pageable, subjectIdPage.getTotalElements());
+        return new org.springframework.data.domain.PageImpl<>(subjectDtos, pageable, subjectIdPage.getTotalElements());
     }
 
     @PostMapping("/manual")
@@ -178,6 +218,10 @@ public class SubjectController {
             }
 
             if (minStartTime != Double.MAX_VALUE) {
+                // 야간 과목에서 startTime > endTime인 경우 endTime에 8을 더함
+                if (minStartTime > maxEndTime) {
+                    maxEndTime += 8.0;
+                }
                 schedules.add(
                     Schedule.builder().dayOfWeek(dayOfWeek).startTime(minStartTime).endTime(maxEndTime).build());
             }

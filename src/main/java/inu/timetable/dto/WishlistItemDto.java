@@ -4,6 +4,7 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.entity.WishlistItem;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
+import inu.timetable.util.TimeConverter;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -44,15 +45,15 @@ public class WishlistItemDto {
     public static class ScheduleDto {
         private Long id;
         private String dayOfWeek;
-        private Double startTime;
-        private Double endTime;
+        private String startTime;  // "09:00" 형태
+        private String endTime;    // "10:30" 형태
         
         public static ScheduleDto fromEntity(Schedule schedule) {
             return ScheduleDto.builder()
                 .id(schedule.getId())
                 .dayOfWeek(schedule.getDayOfWeek())
-                .startTime(schedule.getStartTime())
-                .endTime(schedule.getEndTime())
+                .startTime(TimeConverter.convertToClockTime(schedule.getStartTime()))
+                .endTime(TimeConverter.convertToClockTime(schedule.getEndTime()))
                 .build();
         }
     }

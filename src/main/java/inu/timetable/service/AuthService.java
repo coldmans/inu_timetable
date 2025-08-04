@@ -18,9 +18,9 @@ public class AuthService {
         this.userRepository = userRepository;
     }
     
-    public User register(String username, String password, String nickname, Integer grade, String major) {
+    public User register(String username, String password, Integer grade, String major) {
         if (userRepository.existsByUsername(username)) {
-            throw new RuntimeException("이미 존재하는 사용자명입니다.");
+            throw new RuntimeException("이미 사용 중인 아이디입니다. 다른 아이디를 입력해주세요.");
         }
         
         String hashedPassword = hashPassword(password);
@@ -28,7 +28,6 @@ public class AuthService {
         User user = User.builder()
             .username(username)
             .password(hashedPassword)
-            .nickname(nickname)
             .grade(grade)
             .major(major)
             .build();

@@ -66,4 +66,18 @@ public class TimetableController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
+    
+    @DeleteMapping("/clear")
+    public ResponseEntity<?> clearTimetable(@RequestParam Long userId, @RequestParam(required = false) String semester) {
+        try {
+            timetableService.removeAllSubjectsFromTimetable(userId, semester);
+            String message = semester != null && !semester.isEmpty() 
+                ? semester + " 학기 시간표가 전체 삭제되었습니다." 
+                : "전체 시간표가 삭제되었습니다.";
+            return ResponseEntity.ok(Map.of("message", message));
+            
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

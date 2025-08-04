@@ -24,7 +24,7 @@ public class TimetableCombinationController {
             String semester = (String) request.get("semester");
             int targetCredits = Integer.valueOf(request.get("targetCredits").toString());
             int maxCombinations = request.containsKey("maxCombinations") ? 
-                Integer.valueOf(request.get("maxCombinations").toString()) : 10;
+                Integer.valueOf(request.get("maxCombinations").toString()) : 20;
             
             List<List<Subject>> combinations = combinationService.generateTimetableCombinations(
                 userId, semester, targetCredits, maxCombinations);

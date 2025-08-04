@@ -445,6 +445,10 @@ public class PdfParseService {
       }
 
       if (minStartTime != Double.MAX_VALUE) {
+        // 야간 과목에서 startTime > endTime인 경우 endTime에 8을 더함
+        if (minStartTime > maxEndTime) {
+          maxEndTime += 8.0;
+        }
         schedules.add(
             Schedule.builder().dayOfWeek(dayOfWeek).startTime(minStartTime).endTime(maxEndTime).build());
       }

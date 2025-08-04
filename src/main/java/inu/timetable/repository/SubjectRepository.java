@@ -20,6 +20,12 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
     
     List<Subject> findBySubjectNameContaining(String keyword);
     
+    List<Subject> findBySubjectNameContainingAndGrade(String keyword, Integer grade);
+    
+    List<Subject> findByProfessorContaining(String keyword);
+    
+    List<Subject> findByProfessorContainingAndGrade(String keyword, Integer grade);
+    
     List<Subject> findByCredits(Integer credits);
     
     List<Subject> findByGrade(Integer grade);
@@ -33,9 +39,9 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
     List<Subject> findBySubjectTypeAndDepartment(SubjectType subjectType, String department);
     
     @Query(value = "SELECT DISTINCT s.id FROM Subject s LEFT JOIN s.schedules sch " +
-           "WHERE (:subjectName IS NULL OR s.subjectName LIKE :subjectName) " +
-           "AND (:professor IS NULL OR s.professor LIKE :professor) " +
-           "AND (:department IS NULL OR s.department LIKE :department) " +
+           "WHERE (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
+           "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
+           "AND (:department IS NULL OR s.department LIKE %:department%) " +
            "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
            "AND (:grade IS NULL OR s.grade = :grade) " +
            "AND (:isNight IS NULL OR s.isNight = :isNight) " +
@@ -44,8 +50,8 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
            "AND (:endTime IS NULL OR sch.endTime <= :endTime)",
            countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch " +
            "WHERE (:subjectName IS NULL OR s.subjectName LIKE :subjectName) " +
-           "AND (:professor IS NULL OR s.professor LIKE :professor) " +
-           "AND (:department IS NULL OR s.department LIKE :department) " +
+           "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
+           "AND (:department IS NULL OR s.department LIKE %:department%) " +
            "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
            "AND (:grade IS NULL OR s.grade = :grade) " +
            "AND (:isNight IS NULL OR s.isNight = :isNight) " +
@@ -67,4 +73,10 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
     @Query("SELECT DISTINCT s FROM Subject s LEFT JOIN FETCH s.schedules WHERE s.id IN :subjectIds")
     List<Subject> findWithSchedulesByIds(@Param("subjectIds") List<Long> subjectIds);
+    
+    @Query("SELECT DISTINCT s.department FROM Subject s WHERE s.department IS NOT NULL ORDER BY s.department")
+    List<String> findDistinctDepartments();
+    
+    @Query("SELECT DISTINCT s.grade FROM Subject s WHERE s.grade IS NOT NULL ORDER BY s.grade")
+    List<Integer> findDistinctGrades();
 }

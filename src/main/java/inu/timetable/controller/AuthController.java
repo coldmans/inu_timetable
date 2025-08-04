@@ -20,11 +20,10 @@ public class AuthController {
         try {
             String username = (String) request.get("username");
             String password = (String) request.get("password");
-            String nickname = (String) request.get("nickname");
             Integer grade = (Integer) request.get("grade");
             String major = (String) request.get("major");
             
-            User user = authService.register(username, password, nickname, grade, major);
+            User user = authService.register(username, password, grade, major);
             
             // 비밀번호 제거 후 응답
             user.setPassword(null);
