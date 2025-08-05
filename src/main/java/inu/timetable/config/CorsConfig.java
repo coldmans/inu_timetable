@@ -16,6 +16,7 @@ public class CorsConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins(
                     "https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app",
+                    "https://inuu-timetable.vercel.app",
                     "http://localhost:3000",
                     "http://localhost:5173"
                 )
