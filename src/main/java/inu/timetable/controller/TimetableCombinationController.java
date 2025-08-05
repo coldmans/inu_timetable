@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@CrossOrigin(origins = "https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app")
 @RestController
 @RequestMapping("/api/timetable-combination")
 @RequiredArgsConstructor

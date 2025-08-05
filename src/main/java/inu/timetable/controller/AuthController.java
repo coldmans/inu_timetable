@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@CrossOrigin(origins = "https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app")
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor

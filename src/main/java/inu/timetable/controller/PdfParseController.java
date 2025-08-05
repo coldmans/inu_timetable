@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+@CrossOrigin(origins = "https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app")
 @RestController
 @RequestMapping("/api/pdf")
 @RequiredArgsConstructor

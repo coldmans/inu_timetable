@@ -18,6 +18,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+@CrossOrigin(origins = "https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app")
 @RestController 
 @RequestMapping("/api/subjects")
 @RequiredArgsConstructor
