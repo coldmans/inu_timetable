@@ -22,7 +22,7 @@ export const options = {
   },
 };
 
-const BASE_URL = 'http://localhost:8080';
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 
 export default function () {
   // Test scenario: Mix of subject queries and timetable combination requests

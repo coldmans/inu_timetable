@@ -128,21 +128,34 @@ DELETE /api/wishlist/{id}   # 과목 제거
 ## 로컬 실행
 
 ### 1. 환경 변수 설정
+
+**1단계: .env 파일 생성** (터미널에서 실행)
 ```bash
-# application.yml에 DB 정보 입력
-spring:
-  datasource:
-    url: jdbc:postgresql://your-db-url
-    username: your-username
-    password: your-password
+cp .env.example .env
 ```
 
-### 2. 실행
+**2단계: .env 파일 편집** (자신의 환경에 맞게 수정)
+```text
+DB_URL=jdbc:postgresql://your-db-host:port/database?sslmode=require&prepareThreshold=0
+DB_USERNAME=your_database_username
+DB_PASSWORD=your_database_password
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+### 2. 실행 프로필 선택
 ```bash
+# 개발 모드 (기본값, SQL 로깅 활성화)
 ./gradlew bootRun
+
+# 프로덕션 모드 (SQL 로깅 비활성화)
+SPRING_PROFILE=prod ./gradlew bootRun
 ```
 
 서버는 `http://localhost:8080`에서 실행됩니다.
+
+#### Swagger API 문서
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- API Docs: http://localhost:8080/v3/api-docs
 
 <br>
 
@@ -152,8 +165,11 @@ spring:
 # k6 설치 (Mac)
 brew install k6
 
-# 테스트 실행
+# 로컬 환경 테스트
 k6 run load-test.js
+
+# 다른 환경 테스트 (예: 스테이징)
+k6 run -e BASE_URL=https://staging.example.com load-test.js
 ```
 
 
