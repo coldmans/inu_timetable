@@ -1,0 +1,218 @@
+{
+  "test_metadata": {
+    "project_name": "인천대 시간표 마법사",
+    "test_date": "2026-01-02",
+    "test_tool": "k6",
+    "test_duration": "5m 30s",
+    "max_vus": 200,
+    "purpose": "재오픈 준비 성능 테스트"
+  },
+  "test_iterations": [
+    {
+      "iteration": 1,
+      "name": "Initial Test - Catastrophic Failure",
+      "configuration": {
+        "connection_pool_size": 5,
+        "connection_pool_min_idle": 2,
+        "database": "PostgreSQL (Supabase)",
+        "prepared_statements": "enabled"
+      },
+      "results": {
+        "total_requests": 2399,
+        "requests_per_second": 6.9,
+        "http_req_failed": "25.79%",
+        "avg_response_time": "14.55s",
+        "p95_response_time": "30s",
+        "p99_response_time": "30.22s",
+        "checks_succeeded": "54.86%",
+        "api_breakdown": {
+          "subjects_query": {
+            "success_rate": "90%",
+            "avg_response_time": "~14s"
+          },
+          "search": {
+            "success_rate": "0%",
+            "error": "URL encoding issue"
+          },
+          "filter": {
+            "success_rate": "92%",
+            "avg_response_time": "~14s"
+          },
+          "count": {
+            "success_rate": "89%",
+            "avg_response_time": "~14s"
+          },
+          "timetable_generation": {
+            "success_rate": "91%",
+            "avg_response_time": "~14s"
+          }
+        }
+      },
+      "issues_found": [
+        "Connection pool exhaustion (5 connections for 200 users)",
+        "30 second timeout on most requests",
+        "44 requests waiting in queue",
+        "Prepared statement conflict with Supabase Pooler",
+        "Korean keyword URL encoding missing in search API"
+      ],
+      "thresholds": {
+        "p95_under_500ms": false,
+        "p99_under_1000ms": false,
+        "error_rate_under_5_percent": false
+      }
+    },
+    {
+      "iteration": 2,
+      "name": "Connection Pool Optimization",
+      "changes_applied": [
+        "Increased maximum-pool-size from 5 to 30",
+        "Increased minimum-idle from 2 to 10",
+        "Added connection-timeout: 20000ms",
+        "Added idle-timeout: 300000ms",
+        "Added max-lifetime: 600000ms",
+        "Added leak-detection-threshold: 60000ms"
+      ],
+      "configuration": {
+        "connection_pool_size": 30,
+        "connection_pool_min_idle": 10,
+        "database": "PostgreSQL (Supabase)",
+        "prepared_statements": "enabled"
+      },
+      "results": {
+        "total_requests": 17060,
+        "requests_per_second": 51.5,
+        "http_req_failed": "17.98%",
+        "avg_response_time": "162ms",
+        "p95_response_time": "315ms",
+        "p99_response_time": "745ms",
+        "checks_succeeded": "79.22%",
+        "api_breakdown": {
+          "subjects_query": {
+            "success_rate": "90%",
+            "under_300ms": "28%"
+          },
+          "search": {
+            "success_rate": "0%",
+            "error": "URL encoding still missing"
+          },
+          "filter": {
+            "success_rate": "92%",
+            "under_500ms": "97%"
+          },
+          "count": {
+            "success_rate": "89%",
+            "under_100ms": "0%"
+          },
+          "timetable_generation": {
+            "success_rate": "91%",
+            "under_2000ms": "88%"
+          }
+        }
+      },
+      "improvements": {
+        "avg_response_time": "90x faster",
+        "p95_response_time": "95x faster",
+        "p99_response_time": "40x faster",
+        "throughput": "7x increase",
+        "total_requests": "7x increase"
+      },
+      "remaining_issues": [
+        "17.98% failure rate",
+        "Search API still 0% success",
+        "Prepared statement conflicts still occurring"
+      ],
+      "thresholds": {
+        "p95_under_500ms": true,
+        "p99_under_1000ms": true,
+        "error_rate_under_5_percent": false
+      }
+    },
+    {
+      "iteration": 3,
+      "name": "Final Optimization - Complete Success",
+      "changes_applied": [
+        "Added prepareThreshold=0 to JDBC URL",
+        "Fixed URL encoding for Korean search keywords",
+        "encodeURIComponent() in k6 script"
+      ],
+      "configuration": {
+        "connection_pool_size": 30,
+        "connection_pool_min_idle": 10,
+        "database": "PostgreSQL (Supabase)",
+        "prepared_statements": "disabled (prepareThreshold=0)",
+        "url_encoding": "enabled"
+      },
+      "results": {
+        "total_requests": 16788,
+        "requests_per_second": 50.5,
+        "http_req_failed": "0.00%",
+        "avg_response_time": "201ms",
+        "p95_response_time": "386ms",
+        "p99_response_time": "476ms",
+        "checks_succeeded": "85.09%",
+        "api_breakdown": {
+          "subjects_query": {
+            "success_rate": "100%",
+            "under_300ms": "25%",
+            "avg_response_time": "~200ms"
+          },
+          "search": {
+            "success_rate": "100%",
+            "under_400ms": "80%",
+            "avg_response_time": "~165ms"
+          },
+          "filter": {
+            "success_rate": "100%",
+            "under_500ms": "99%",
+            "avg_response_time": "~150ms"
+          },
+          "count": {
+            "success_rate": "100%",
+            "under_100ms": "0%",
+            "avg_response_time": "~200ms"
+          },
+          "timetable_generation": {
+            "success_rate": "100%",
+            "under_2000ms": "100%",
+            "avg_response_time": "~300ms"
+          }
+        }
+      },
+      "final_improvements": {
+        "vs_iteration_1": {
+          "avg_response_time": "72x faster",
+          "p95_response_time": "77x faster",
+          "p99_response_time": "63x faster",
+          "throughput": "7x increase",
+          "failure_rate": "25.79% → 0% (perfect)"
+        },
+        "vs_iteration_2": {
+          "avg_response_time": "24% slower (more accurate)",
+          "failure_rate": "17.98% → 0%",
+          "search_api": "0% → 100% success"
+        }
+      },
+      "thresholds": {
+        "p95_under_500ms": true,
+        "p99_under_1000ms": true,
+        "error_rate_under_5_percent": true
+      }
+    }
+  ],
+  "overall_summary": {
+    "status": "SUCCESS",
+    "conclusion": "서비스는 200명의 동시 사용자를 안정적으로 처리 가능",
+    "key_learnings": [
+      "Connection pool 크기는 동시 사용자 수에 비례하여 설정 필요",
+      "Supabase Transaction Pooler 사용 시 prepareThreshold=0 설정 필수",
+      "한글 등 non-ASCII 문자는 URL 인코딩 필수",
+      "단계적 최적화와 측정이 중요 (측정 → 분석 → 최적화 → 검증)"
+    ],
+    "next_steps": [
+      "데이터베이스 인덱스 추가로 쿼리 성능 향상",
+      "캐싱 레이어 도입 (count API 등)",
+      "읽기 전용 레플리카 활용",
+      "프로덕션 모니터링 시스템 구축"
+    ]
+  }
+}

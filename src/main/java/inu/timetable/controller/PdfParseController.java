@@ -5,14 +5,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/pdf")
 @RequiredArgsConstructor
 public class PdfParseController {
-    
+
     private final PdfParseService pdfParseService;
-    
+
     @PostMapping("/upload")
     public ResponseEntity<String> uploadAndParsePdf(@RequestParam("file") MultipartFile file) {
         try {
