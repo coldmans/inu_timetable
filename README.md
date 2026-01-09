@@ -128,12 +128,14 @@ DELETE /api/wishlist/{id}   # 과목 제거
 ## 로컬 실행
 
 ### 1. 환경 변수 설정
-프로젝트 루트에 `.env` 파일 생성:
-```bash
-# .env.example 파일을 복사하여 시작
-cp .env.example .env
 
-# .env 파일 편집
+**1단계: .env 파일 생성** (터미널에서 실행)
+```bash
+cp .env.example .env
+```
+
+**2단계: .env 파일 편집** (자신의 환경에 맞게 수정)
+```text
 DB_URL=jdbc:postgresql://your-db-host:port/database?sslmode=require&prepareThreshold=0
 DB_USERNAME=your_database_username
 DB_PASSWORD=your_database_password
