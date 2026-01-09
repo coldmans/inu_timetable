@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: timeTable
+  datasource:
+    url: jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0
+    username: postgres.hrncifbbhuykffrtfind
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      leak-detection-threshold: 60000
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_batch_fetch_size: 50
+        jdbc.batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+gemini:
+  api:
+    key: ${GEMINI_API_KEY}

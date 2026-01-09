@@ -15,7 +15,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "subjects")
+@Table(name = "subjects", indexes = {
+    @Index(name = "idx_subject_name", columnList = "subjectName"),
+    @Index(name = "idx_professor", columnList = "professor"),
+    @Index(name = "idx_department", columnList = "department"),
+    @Index(name = "idx_grade", columnList = "grade"),
+    @Index(name = "idx_subject_type", columnList = "subjectType"),
+    @Index(name = "idx_is_night", columnList = "isNight"),
+    @Index(name = "idx_search_filter", columnList = "subjectName, grade, department")
+})
 @Getter
 @Setter
 @NoArgsConstructor

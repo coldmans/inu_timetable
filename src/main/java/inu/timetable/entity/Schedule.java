@@ -9,7 +9,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "schedules")
+@Table(name = "schedules", indexes = {
+    @Index(name = "idx_subject_id", columnList = "subject_id"),
+    @Index(name = "idx_day_of_week", columnList = "day_of_week"),
+    @Index(name = "idx_time_range", columnList = "start_time, end_time")
+})
 @Getter
 @Setter
 @NoArgsConstructor

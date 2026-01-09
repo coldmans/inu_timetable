@@ -34,6 +34,8 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-pdf-document-reader'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'com.h2database:h2'
