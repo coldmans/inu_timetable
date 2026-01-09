@@ -40,3 +40,7 @@ out/
 .env
 .env.local
 .env.*.local
+
+### Performance Test Results ###
+k6-test-results-summary.json
+k6-*.json
