@@ -21,13 +21,17 @@ public class TimetableCombinationService {
     }
     
     public List<List<Subject>> generateTimetableCombinations(Long userId, String semester, int targetCredits, int maxCombinations) {
+        return generateTimetableCombinations(userId, semester, targetCredits, maxCombinations, new ArrayList<>());
+    }
+
+    public List<List<Subject>> generateTimetableCombinations(Long userId, String semester, int targetCredits, int maxCombinations, List<String> freeDays) {
         // 위시리스트 가져오기
         List<WishlistItem> wishlist = wishlistRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester);
-        
+
         if (wishlist.isEmpty()) {
             return new ArrayList<>();
         }
-        
+
         // 과목명별로 그룹화하여 중복 제거 (같은 과목명 중 첫 번째만 선택)
         Map<String, WishlistItem> uniqueSubjects = new LinkedHashMap<>();
         for (WishlistItem item : wishlist) {
@@ -36,73 +40,73 @@ public class TimetableCombinationService {
                 uniqueSubjects.put(subjectName, item);
             }
         }
-        
+
         List<WishlistItem> deduplicatedWishlist = new ArrayList<>(uniqueSubjects.values());
-        
+
         // 필수 과목과 선택 과목 분리
         List<Subject> requiredSubjects = deduplicatedWishlist.stream()
             .filter(item -> item.getIsRequired() != null && item.getIsRequired())
             .map(WishlistItem::getSubject)
             .collect(Collectors.toList());
-            
+
         List<Subject> optionalSubjects = deduplicatedWishlist.stream()
             .filter(item -> item.getIsRequired() == null || !item.getIsRequired())
             .map(WishlistItem::getSubject)
             .collect(Collectors.toList());
-        
+
         // 필수 과목들이 시간 겹침 없이 배치 가능한지 먼저 확인
-        if (!isValidTimetable(requiredSubjects)) {
-            return new ArrayList<>(); // 필수 과목들끼리 시간이 겹치면 조합 생성 불가
+        if (!isValidTimetable(requiredSubjects, freeDays)) {
+            return new ArrayList<>(); // 필수 과목들끼리 시간이 겹치거나 공강 요일을 위반하면 조합 생성 불가
         }
-        
+
         List<List<Subject>> combinations = new ArrayList<>();
-        
+
         // 필수 과목을 먼저 포함한 상태로 조합 생성
-        generateCombinationsWithRequired(requiredSubjects, optionalSubjects, new ArrayList<>(requiredSubjects), 
-                                       0, targetCredits, combinations, maxCombinations);
-        
+        generateCombinationsWithRequired(requiredSubjects, optionalSubjects, new ArrayList<>(requiredSubjects),
+                                       0, targetCredits, combinations, maxCombinations, freeDays);
+
         // 학점 기준으로 정렬 (목표 학점에 가까운 순)
         combinations.sort((a, b) -> {
             int creditsA = a.stream().mapToInt(Subject::getCredits).sum();
             int creditsB = b.stream().mapToInt(Subject::getCredits).sum();
-            
+
             int diffA = Math.abs(creditsA - targetCredits);
             int diffB = Math.abs(creditsB - targetCredits);
-            
+
             return Integer.compare(diffA, diffB);
         });
-        
+
         return combinations.stream().limit(maxCombinations).collect(Collectors.toList());
     }
     
-    private void generateCombinationsWithRequired(List<Subject> requiredSubjects, List<Subject> optionalSubjects, 
-                                                List<Subject> current, int startIndex, int targetCredits, 
-                                                List<List<Subject>> combinations, int maxCombinations) {
-        
+    private void generateCombinationsWithRequired(List<Subject> requiredSubjects, List<Subject> optionalSubjects,
+                                                List<Subject> current, int startIndex, int targetCredits,
+                                                List<List<Subject>> combinations, int maxCombinations, List<String> freeDays) {
+
         if (combinations.size() >= maxCombinations) {
             return;
         }
-        
+
         int currentCredits = current.stream().mapToInt(Subject::getCredits).sum();
-        
+
         // 목표 학점 달성 또는 근사치 도달 시 조합 추가
         if (currentCredits >= targetCredits - 3 && currentCredits <= targetCredits + 3) {
-            if (isValidTimetable(current)) {
+            if (isValidTimetable(current, freeDays)) {
                 combinations.add(new ArrayList<>(current));
             }
         }
-        
+
         // 학점이 목표보다 너무 크면 중단
         if (currentCredits > targetCredits + 3) {
             return;
         }
-        
+
         // 선택 과목들을 재귀적으로 추가
         for (int i = startIndex; i < optionalSubjects.size(); i++) {
             Subject subject = optionalSubjects.get(i);
             current.add(subject);
-            generateCombinationsWithRequired(requiredSubjects, optionalSubjects, current, i + 1, 
-                                           targetCredits, combinations, maxCombinations);
+            generateCombinationsWithRequired(requiredSubjects, optionalSubjects, current, i + 1,
+                                           targetCredits, combinations, maxCombinations, freeDays);
             current.remove(current.size() - 1);
         }
     }
@@ -138,6 +142,10 @@ public class TimetableCombinationService {
     }
     
     private boolean isValidTimetable(List<Subject> subjects) {
+        return isValidTimetable(subjects, new ArrayList<>());
+    }
+
+    private boolean isValidTimetable(List<Subject> subjects, List<String> freeDays) {
         // 모든 과목 쌍에 대해 시간 겹침 체크
         for (int i = 0; i < subjects.size(); i++) {
             for (int j = i + 1; j < subjects.size(); j++) {
@@ -146,6 +154,18 @@ public class TimetableCombinationService {
                 }
             }
         }
+
+        // 공강 요일 체크
+        if (freeDays != null && !freeDays.isEmpty()) {
+            for (Subject subject : subjects) {
+                for (Schedule schedule : subject.getSchedules()) {
+                    if (freeDays.contains(schedule.getDayOfWeek())) {
+                        return false; // 공강 요일에 수업이 있으면 invalid
+                    }
+                }
+            }
+        }
+
         return true;
     }
     
@@ -178,23 +198,35 @@ public class TimetableCombinationService {
     
     public Map<String, Object> getTimetableStatistics(List<Subject> subjects) {
         Map<String, Object> stats = new HashMap<>();
-        
+
         int totalCredits = subjects.stream().mapToInt(Subject::getCredits).sum();
-        
+
         Map<String, Long> subjectTypeCount = subjects.stream()
             .collect(Collectors.groupingBy(
                 s -> s.getSubjectType().toString(),
                 Collectors.counting()
             ));
-        
-        // TODO: 별도 스케줄 조회로 요일 분포 계산
-        Map<String, Long> dayCount = new HashMap<>();
-        
+
+        // 요일별 수업 개수 계산
+        Map<String, Long> dayCount = subjects.stream()
+            .flatMap(subject -> subject.getSchedules().stream())
+            .collect(Collectors.groupingBy(
+                Schedule::getDayOfWeek,
+                Collectors.counting()
+            ));
+
+        // 공강 요일 계산 (월~금 중 수업이 없는 요일)
+        List<String> allDays = List.of("월", "화", "수", "목", "금");
+        List<String> actualFreeDays = allDays.stream()
+            .filter(day -> !dayCount.containsKey(day))
+            .collect(Collectors.toList());
+
         stats.put("totalCredits", totalCredits);
         stats.put("subjectCount", subjects.size());
         stats.put("subjectTypeDistribution", subjectTypeCount);
         stats.put("dayDistribution", dayCount);
-        
+        stats.put("freeDays", actualFreeDays);
+
         return stats;
     }
 }
