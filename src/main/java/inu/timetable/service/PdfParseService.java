@@ -48,7 +48,33 @@ public class PdfParseService {
   }
 
   public int parseAndSaveSubjects(MultipartFile file) throws IOException {
-    System.out.println("=== PDF 파싱 시작 ===");
+    List<Subject> allSubjects = parseWithoutSaving(file);
+
+    System.out.println("\n=== 데이터베이스 저장 시작 ===");
+    System.out.println("전체 추출된 과목 수: " + allSubjects.size());
+
+    if (!allSubjects.isEmpty()) {
+      try {
+        List<Subject> savedSubjects = subjectRepository.saveAll(allSubjects);
+        System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
+      } catch (Exception e) {
+        System.err.println("데이터베이스 저장 오류: " + e.getMessage());
+        e.printStackTrace();
+        throw e;
+      }
+    } else {
+      System.out.println("저장할 과목이 없습니다.");
+    }
+
+    return allSubjects.size();
+  }
+
+  /**
+   * PDF 파싱만 수행 (DB 저장 안 함)
+   * 검증/테스트 용도로 사용
+   */
+  public List<Subject> parseWithoutSaving(MultipartFile file) throws IOException {
+    System.out.println("=== PDF 파싱 시작 (저장 안 함) ===");
 
     Resource resource = new InputStreamResource(file.getInputStream());
     PagePdfDocumentReader pdfReader = new PagePdfDocumentReader(resource);
@@ -85,23 +111,10 @@ public class PdfParseService {
       allSubjects.addAll(pageSubjects);
     }
 
-    System.out.println("\n=== 데이터베이스 저장 시작 ===");
+    System.out.println("\n=== 파싱 완료 ===");
     System.out.println("전체 추출된 과목 수: " + allSubjects.size());
 
-    if (!allSubjects.isEmpty()) {
-      try {
-        List<Subject> savedSubjects = subjectRepository.saveAll(allSubjects);
-        System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
-      } catch (Exception e) {
-        System.err.println("데이터베이스 저장 오류: " + e.getMessage());
-        e.printStackTrace();
-        throw e;
-      }
-    } else {
-      System.out.println("저장할 과목이 없습니다.");
-    }
-
-    return allSubjects.size();
+    return allSubjects;
   }
 
   private String extractTextFromDocument(Document document) {

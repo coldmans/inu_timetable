@@ -32,17 +32,9 @@ public class ExcelParseService {
     private String geminiApiKey;
 
     public int parseAndSaveSubjects(MultipartFile file) throws IOException {
-        System.out.println("=== Excel 파싱 시작 (AI 기반) ===");
+        List<Subject> allSubjects = parseWithoutSaving(file);
 
-        // 1단계: Excel을 텍스트로 변환
-        String excelText = extractTextFromExcel(file);
-        System.out.println("Excel 텍스트 길이: " + excelText.length() + " 문자");
-
-        // 2단계: Gemini AI로 파싱
-        List<Subject> allSubjects = parseWithGemini(excelText);
-        System.out.println("AI 파싱 완료: " + allSubjects.size() + "개 과목 추출");
-
-        // 3단계: 데이터베이스 저장
+        // 데이터베이스 저장
         System.out.println("\n=== 데이터베이스 저장 시작 ===");
         if (!allSubjects.isEmpty()) {
             try {
@@ -58,6 +50,24 @@ public class ExcelParseService {
         }
 
         return allSubjects.size();
+    }
+
+    /**
+     * Excel 파싱만 수행 (DB 저장 안 함)
+     * 검증/테스트 용도로 사용
+     */
+    public List<Subject> parseWithoutSaving(MultipartFile file) throws IOException {
+        System.out.println("=== Excel 파싱 시작 (AI 기반, 저장 안 함) ===");
+
+        // 1단계: Excel을 텍스트로 변환
+        String excelText = extractTextFromExcel(file);
+        System.out.println("Excel 텍스트 길이: " + excelText.length() + " 문자");
+
+        // 2단계: Gemini AI로 파싱
+        List<Subject> allSubjects = parseWithGemini(excelText);
+        System.out.println("AI 파싱 완료: " + allSubjects.size() + "개 과목 추출");
+
+        return allSubjects;
     }
 
     /**
