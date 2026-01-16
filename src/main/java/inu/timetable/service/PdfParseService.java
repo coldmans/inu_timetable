@@ -34,6 +34,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class PdfParseService {
 
   private final SubjectRepository subjectRepository;
+  private final DepartmentMappingService departmentMappingService;
   private final WebClient webClient = WebClient.builder().build();
   private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -41,12 +42,39 @@ public class PdfParseService {
   private String geminiApiKey;
 
   @Autowired
-  public PdfParseService(SubjectRepository subjectRepository) {
+  public PdfParseService(SubjectRepository subjectRepository, DepartmentMappingService departmentMappingService) {
     this.subjectRepository = subjectRepository;
+    this.departmentMappingService = departmentMappingService;
   }
 
   public int parseAndSaveSubjects(MultipartFile file) throws IOException {
-    System.out.println("=== PDF 파싱 시작 ===");
+    List<Subject> allSubjects = parseWithoutSaving(file);
+
+    System.out.println("\n=== 데이터베이스 저장 시작 ===");
+    System.out.println("전체 추출된 과목 수: " + allSubjects.size());
+
+    if (!allSubjects.isEmpty()) {
+      try {
+        List<Subject> savedSubjects = subjectRepository.saveAll(allSubjects);
+        System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
+      } catch (Exception e) {
+        System.err.println("데이터베이스 저장 오류: " + e.getMessage());
+        e.printStackTrace();
+        throw e;
+      }
+    } else {
+      System.out.println("저장할 과목이 없습니다.");
+    }
+
+    return allSubjects.size();
+  }
+
+  /**
+   * PDF 파싱만 수행 (DB 저장 안 함)
+   * 검증/테스트 용도로 사용
+   */
+  public List<Subject> parseWithoutSaving(MultipartFile file) throws IOException {
+    System.out.println("=== PDF 파싱 시작 (저장 안 함) ===");
 
     Resource resource = new InputStreamResource(file.getInputStream());
     PagePdfDocumentReader pdfReader = new PagePdfDocumentReader(resource);
@@ -83,23 +111,10 @@ public class PdfParseService {
       allSubjects.addAll(pageSubjects);
     }
 
-    System.out.println("\n=== 데이터베이스 저장 시작 ===");
+    System.out.println("\n=== 파싱 완료 ===");
     System.out.println("전체 추출된 과목 수: " + allSubjects.size());
 
-    if (!allSubjects.isEmpty()) {
-      try {
-        List<Subject> savedSubjects = subjectRepository.saveAll(allSubjects);
-        System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
-      } catch (Exception e) {
-        System.err.println("데이터베이스 저장 오류: " + e.getMessage());
-        e.printStackTrace();
-        throw e;
-      }
-    } else {
-      System.out.println("저장할 과목이 없습니다.");
-    }
-
-    return allSubjects.size();
+    return allSubjects;
   }
 
   private String extractTextFromDocument(Document document) {
@@ -134,7 +149,9 @@ public class PdfParseService {
                 다음은 대학교 시간표 PDF 데이터입니다. 여러 페이지의 데이터를 정확하게 JSON 형식으로 파싱해주세요.
 
                 **중요한 파싱 규칙:**
-                1. 학과/학부 정보: "국어국문학과", "영어영문학과", "컴퓨터공학부" 등의 형태로 나타나며, 해당 페이지의 모든 과목이 그 학과에 속함
+                1. 학과/학부 정보:
+                   - 일반 과목: "국어국문학과", "영어영문학과", "컴퓨터공학부" 등의 형태로 나타나며, 해당 페이지의 모든 과목이 그 학과에 속함
+                   - 기초교양 과목: "독문,불문,중국" 같은 줄임말로 나타날 수 있음 → **원본 그대로** department에 저장
                 2. 빈 값 처리: 교수명이나 요일이 비어있으면 null로 설정
                 3. 요일 처리: 요일이 없는 과목도 있을 수 있음 (예: 집중수업, 온라인 과목 등)
                 4. 야간수업: "야" 키워드가 있으면 isNight를 true로 설정
@@ -149,7 +166,7 @@ public class PdfParseService {
                 - subjectType: 이수구분 (전심, 전핵, 심교, 핵교, 일선, 기교, 전기 중 하나)
                 - classMethod: 수업방법 (ONLINE, OFFLINE, BLENDED 중 하나, 기본값 OFFLINE)
                 - grade: 학년 (1-4 중 하나, 없으면 null)
-                - department: 학과명 (해당 페이지의 학과/학부명)
+                - department: 학과명 (정식 학과명 또는 "독문,불문,중국" 같은 줄임말을 **원본 그대로** 저장)
 
                 응답은 다음과 같은 JSON 배열 형태로만 주세요 (JSON 외에 다른 설명 금지):
                 [
@@ -163,6 +180,17 @@ public class PdfParseService {
                     "classMethod": "OFFLINE",
                     "grade": 3,
                     "department": "컴퓨터공학부"
+                  },
+                  {
+                    "subjectName": "Academic English 2",
+                    "credits": 2,
+                    "professor": "김상조",
+                    "timeString": "목 7-8",
+                    "isNight": false,
+                    "subjectType": "기교",
+                    "classMethod": "OFFLINE",
+                    "grade": null,
+                    "department": "독문,불문,중국"
                   }
                 ]
 
@@ -216,7 +244,56 @@ public class PdfParseService {
     try {
       String prompt =
           """
-                다음은 대학교 시간표 PDF 데이터입니다. 이를 정확하게 JSON 형식으로 파싱해주세요.\n\n                **중요한 파싱 규칙:**\n                1. 학과/학부 정보: "국어국문학과", "영어영문학과", "컴퓨터공학부" 등의 형태로 나타나며, 해당 페이지의 모든 과목이 그 학과에 속함\n                2. 빈 값 처리: 교수명이나 요일이 비어있으면 null로 설정\n                3. 요일 처리: 요일이 없는 과목도 있을 수 있음 (예: 집중수업, 온라인 과목 등)\n                4. 야간수업: "야" 키워드가 있으면 isNight를 true로 설정\n                5. 이수구분: 전심(전공심화), 전핵(전공핵심), 기교(기초교양), 전기(전공기초), 일선(일반선택), 심교(심화교양), 핵교(핵심교양)\n\n                각 과목에 대해 다음 정보를 추출해주세요:\n                - subjectName: 교과목명 (필수, 문자열)\n                - credits: 학점 (필수, 숫자)\n                - professor: 교수명 (문자열, 비어있으면 null)\n                - timeString: 요일 및 교시 원본 문자열 (예: "월 4-5A 5B-6", "화 1-2", "금 6A-7")\n                - isNight: 야간 수업 여부 (true/false, "야"가 포함되면 true)\n                - subjectType: 이수구분 (전심, 전핵, 심교, 핵교, 일선, 기교, 전기 중 하나)\n                - classMethod: 수업방법 (ONLINE, OFFLINE, BLENDED 중 하나, 기본값 OFFLINE)\n                - grade: 학년 (1-4 중 하나, 없으면 null)\n                - department: 학과명 (해당 페이지의 학과/학부명)\n\n                응답은 다음과 같은 JSON 배열 형태로만 주세요 (JSON 외에 다른 설명 금지):\n                [\n                  {\n                    "subjectName": "운영체제",\n                    "credits": 3,\n                    "professor": "김교수",\n                    "timeString": "월 6-7A",\n                    "isNight": false,\n                    "subjectType": "전심",\n                    "classMethod": "OFFLINE",\n                    "grade": 3,\n                    "department": "컴퓨터공학부"\n                  }\n                ]\n\n                PDF 페이지 내용:\n                """
+                다음은 대학교 시간표 PDF 데이터입니다. 이를 정확하게 JSON 형식으로 파싱해주세요.
+
+                **중요한 파싱 규칙:**
+                1. 학과/학부 정보:
+                   - 일반 과목: "국어국문학과", "영어영문학과", "컴퓨터공학부" 등의 형태로 나타나며, 해당 페이지의 모든 과목이 그 학과에 속함
+                   - 기초교양 과목: "독문,불문,중국" 같은 줄임말로 나타날 수 있음 → **원본 그대로** department에 저장
+                2. 빈 값 처리: 교수명이나 요일이 비어있으면 null로 설정
+                3. 요일 처리: 요일이 없는 과목도 있을 수 있음 (예: 집중수업, 온라인 과목 등)
+                4. 야간수업: "야" 키워드가 있으면 isNight를 true로 설정
+                5. 이수구분: 전심(전공심화), 전핵(전공핵심), 기교(기초교양), 전기(전공기초), 일선(일반선택), 심교(심화교양), 핵교(핵심교양)
+
+                각 과목에 대해 다음 정보를 추출해주세요:
+                - subjectName: 교과목명 (필수, 문자열)
+                - credits: 학점 (필수, 숫자)
+                - professor: 교수명 (문자열, 비어있으면 null)
+                - timeString: 요일 및 교시 원본 문자열 (예: "월 4-5A 5B-6", "화 1-2", "금 6A-7")
+                - isNight: 야간 수업 여부 (true/false, "야"가 포함되면 true)
+                - subjectType: 이수구분 (전심, 전핵, 심교, 핵교, 일선, 기교, 전기 중 하나)
+                - classMethod: 수업방법 (ONLINE, OFFLINE, BLENDED 중 하나, 기본값 OFFLINE)
+                - grade: 학년 (1-4 중 하나, 없으면 null)
+                - department: 학과명 (정식 학과명 또는 "독문,불문,중국" 같은 줄임말을 **원본 그대로** 저장)
+
+                응답은 다음과 같은 JSON 배열 형태로만 주세요 (JSON 외에 다른 설명 금지):
+                [
+                  {
+                    "subjectName": "운영체제",
+                    "credits": 3,
+                    "professor": "김교수",
+                    "timeString": "월 6-7A",
+                    "isNight": false,
+                    "subjectType": "전심",
+                    "classMethod": "OFFLINE",
+                    "grade": 3,
+                    "department": "컴퓨터공학부"
+                  },
+                  {
+                    "subjectName": "Academic English 2",
+                    "credits": 2,
+                    "professor": "김상조",
+                    "timeString": "목 7-8",
+                    "isNight": false,
+                    "subjectType": "기교",
+                    "classMethod": "OFFLINE",
+                    "grade": null,
+                    "department": "독문,불문,중국"
+                  }
+                ]
+
+                PDF 페이지 내용:
+                """
               + pageContent;
 
       String requestBody =
@@ -283,26 +360,24 @@ public class PdfParseService {
       // JSON 파싱 - 강제로 배열로 처리
       System.out.println("원본 JSON 길이: " + content.length());
       System.out.println("JSON 시작: " + content.substring(0, Math.min(50, content.length())));
-      
+
       // content가 배열인지 확인
       String trimmedContent = content.trim();
       if (trimmedContent.startsWith("[") && trimmedContent.endsWith("]")) {
         System.out.println("JSON이 배열 형태임을 확인");
-        
+
         // TypeReference를 사용해서 직접 List로 파싱
         try {
-          com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>> typeRef 
+          com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>> typeRef
             = new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>>() {};
           java.util.List<java.util.Map<String, Object>> subjectMaps = objectMapper.readValue(content, typeRef);
-          
+
           System.out.println("직접 파싱 성공 - 과목 수: " + subjectMaps.size());
-          
+
           for (java.util.Map<String, Object> subjectMap : subjectMaps) {
             JsonNode subjectNode = objectMapper.valueToTree(subjectMap);
-            Subject subject = parseSubjectFromJson(subjectNode);
-            if (subject != null) {
-              subjects.add(subject);
-            }
+            List<Subject> parsedSubjects = parseSubjectsFromJson(subjectNode);
+            subjects.addAll(parsedSubjects);
           }
         } catch (Exception directParseException) {
           System.err.println("직접 파싱 실패: " + directParseException.getMessage());
@@ -310,12 +385,12 @@ public class PdfParseService {
         }
       } else {
         System.err.println("JSON이 배열 형태가 아님: " + trimmedContent.substring(0, Math.min(100, trimmedContent.length())));
-        
+
         // 객체 안에 배열이 있는 경우 처리 ({"courses": [...]} 또는 {"subjects": [...]})
         try {
           JsonNode rootNode = objectMapper.readTree(content);
           JsonNode arrayNode = null;
-          
+
           // courses, subjects, data 등의 키에서 배열 찾기
           String[] possibleKeys = {"courses", "subjects", "data", "items", "list"};
           for (String key : possibleKeys) {
@@ -325,13 +400,11 @@ public class PdfParseService {
               break;
             }
           }
-          
+
           if (arrayNode != null) {
             for (JsonNode subjectNode : arrayNode) {
-              Subject subject = parseSubjectFromJson(subjectNode);
-              if (subject != null) {
-                subjects.add(subject);
-              }
+              List<Subject> parsedSubjects = parseSubjectsFromJson(subjectNode);
+              subjects.addAll(parsedSubjects);
             }
           } else {
             System.err.println("적절한 배열을 찾을 수 없음");
@@ -351,44 +424,82 @@ public class PdfParseService {
     return subjects;
   }
 
-  private Subject parseSubjectFromJson(JsonNode node) {
+  /**
+   * JSON 노드에서 Subject 리스트 생성 (학과 줄임말 처리 포함)
+   * 학과 필드에 쉼표가 있으면 여러 학과로 분리하여 각각 Subject 생성
+   */
+  private List<Subject> parseSubjectsFromJson(JsonNode node) {
+    List<Subject> subjects = new ArrayList<>();
     try {
       String subjectName = getStringValue(node, "subjectName");
       Integer credits = getIntValue(node, "credits");
-      
+
       System.out.println("디버깅 - subjectName: " + subjectName + ", credits: " + credits);
-      System.out.println("디버깅 - node 내용: " + node.toString());
-      
+
       if (subjectName == null || credits == null) {
         System.err.println("필수 필드(subjectName, credits)가 누락되어 파싱을 건너뜁니다: " + node.toString());
-        return null;
+        return subjects;
       }
 
-      String timeString = getStringValue(node, "timeString");
-      List<Schedule> schedules = parseTime(timeString);
+      String departmentField = getStringValue(node, "department", "미분류");
+      List<String> departments = new ArrayList<>();
 
-      Subject subject =
-          Subject.builder()
-              .subjectName(subjectName)
-              .credits(credits)
-              .professor(getStringValue(node, "professor", "미배정"))
-              .isNight(getBooleanValue(node, "isNight", false))
-              .subjectType(parseSubjectType(getStringValue(node, "subjectType")))
-              .classMethod(parseClassMethod(getStringValue(node, "classMethod")))
-              .grade(getIntValue(node, "grade"))
-              .department(getStringValue(node, "department", "미분류"))
-              .schedules(new ArrayList<>())
+      // 학과 필드에 쉼표가 있으면 줄임말로 간주하고 변환
+      if (departmentField.contains(",") || departmentField.contains("，")) {
+        System.out.println("학과 줄임말 발견: " + departmentField);
+        List<String> parsedDepartments = departmentMappingService.parseAbbreviations(departmentField);
+        departments.addAll(parsedDepartments);
+        System.out.println("변환된 학과 목록: " + parsedDepartments);
+      } else {
+        departments.add(departmentField);
+      }
+
+      // 각 학과별로 Subject 생성
+      for (String department : departments) {
+        String timeString = getStringValue(node, "timeString");
+        List<Schedule> schedules = parseTime(timeString);
+
+        Subject subject =
+            Subject.builder()
+                .subjectName(subjectName)
+                .credits(credits)
+                .professor(getStringValue(node, "professor", "미배정"))
+                .isNight(getBooleanValue(node, "isNight", false))
+                .subjectType(parseSubjectType(getStringValue(node, "subjectType")))
+                .classMethod(parseClassMethod(getStringValue(node, "classMethod")))
+                .grade(getIntValue(node, "grade"))
+                .department(department)
+                .schedules(new ArrayList<>())
+                .build();
+
+        // Schedule 복사 (각 Subject마다 별도의 Schedule 인스턴스 필요)
+        for (Schedule schedule : schedules) {
+          Schedule newSchedule = Schedule.builder()
+              .dayOfWeek(schedule.getDayOfWeek())
+              .startTime(schedule.getStartTime())
+              .endTime(schedule.getEndTime())
+              .subject(subject)
               .build();
+          subject.getSchedules().add(newSchedule);
+        }
 
-      for (Schedule schedule : schedules) {
-        schedule.setSubject(subject);
-        subject.getSchedules().add(schedule);
+        subjects.add(subject);
       }
-      return subject;
+
+      return subjects;
     } catch (Exception e) {
       System.err.println("Subject JSON 파싱 오류: " + e.getMessage() + " | Node: " + node.toString());
-      return null;
+      e.printStackTrace();
+      return subjects;
     }
+  }
+
+  /**
+   * 단일 Subject 생성 (하위 호환성을 위해 유지)
+   */
+  private Subject parseSubjectFromJson(JsonNode node) {
+    List<Subject> subjects = parseSubjectsFromJson(node);
+    return subjects.isEmpty() ? null : subjects.get(0);
   }
 
   private List<Schedule> parseTime(String timeString) {
