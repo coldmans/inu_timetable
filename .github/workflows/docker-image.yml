@@ -1,7 +1,7 @@
 name: Build and push Docker image to Docker Hub
 
 on:
-  push:
+  pull_request:
     branches:
       - main  
 

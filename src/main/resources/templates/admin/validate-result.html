@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>검증 결과 - 관리자 페이지</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            font-size: 24px;
+        }
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+        .nav-links a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 20px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .summary-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .summary-item .label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .summary-item .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .status-perfect {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            margin-bottom: 20px;
+        }
+        .status-differences {
+            background: #fff3cd;
+            color: #856404;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin-bottom: 20px;
+        }
+        .list-section {
+            margin-top: 20px;
+        }
+        .list-section h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .item-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .item {
+            padding: 8px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .item:last-child {
+            border-bottom: none;
+        }
+        .diff-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .diff-table th {
+            background: #f8f9fa;
+            padding: 10px;
+            text-align: left;
+            border-bottom: 2px solid #dee2e6;
+            font-size: 14px;
+        }
+        .diff-table td {
+            padding: 10px;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 14px;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 검증 결과</h1>
+            <div class="nav-links">
+                <a href="/admin/validate">다시 검증하기</a>
+                <a href="/admin/upload">업로드 페이지</a>
+                <a href="/admin/logout">로그아웃</a>
+            </div>
+        </div>
+
+        <div th:if="${report.summary.status == 'PERFECT'}" class="status-perfect">
+            ✅ 완벽! 파싱 결과와 DB 데이터가 100% 일치합니다.
+        </div>
+        <div th:if="${report.summary.status != 'PERFECT'}" class="status-differences">
+            ⚠️ 차이점이 발견되었습니다. 아래 내용을 확인해주세요.
+        </div>
+
+        <div class="card">
+            <h2>📈 요약 정보</h2>
+            <div class="summary">
+                <div class="summary-item">
+                    <div class="label">소스 타입</div>
+                    <div class="value" th:text="${report.sourceType}"></div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">파싱된 과목 수</div>
+                    <div class="value" th:text="${report.parsedCount}"></div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">DB 과목 수</div>
+                    <div class="value" th:text="${report.dbCount}"></div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">정확도</div>
+                    <div class="value" th:text="${report.accuracy}"></div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">총 이슈 수</div>
+                    <div class="value" th:text="${report.summary.totalIssues}"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" th:if="${report.onlyInParsedCount > 0}">
+            <h2>➕ 파싱됐지만 DB에 없는 과목 (<span th:text="${report.onlyInParsedCount}"></span>개)</h2>
+            <p style="color: #666; margin-bottom: 15px;">새로 추가된 과목이거나 파싱 오류일 수 있습니다.</p>
+            <div class="item-list">
+                <div class="item" th:each="subject : ${report.onlyInParsed}" th:text="${subject}"></div>
+            </div>
+        </div>
+
+        <div class="card" th:if="${report.onlyInDbCount > 0}">
+            <h2>➖ DB에는 있지만 파싱 안 된 과목 (<span th:text="${report.onlyInDbCount}"></span>개)</h2>
+            <p style="color: #666; margin-bottom: 15px;">삭제된 과목이거나 파싱 누락일 수 있습니다.</p>
+            <div class="item-list">
+                <div class="item" th:each="subject : ${report.onlyInDb}" th:text="${subject}"></div>
+            </div>
+        </div>
+
+        <div class="card" th:if="${report.differenceCount > 0}">
+            <h2>⚠️ 필드 불일치 과목 (<span th:text="${report.differenceCount}"></span>개)</h2>
+            <p style="color: #666; margin-bottom: 15px;">과목명은 같지만 세부 정보가 다른 경우입니다.</p>
+            <table class="diff-table">
+                <thead>
+                    <tr>
+                        <th>과목명</th>
+                        <th>차이점</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="diff : ${report.differences}">
+                        <td th:text="${diff.subjectName}"></td>
+                        <td>
+                            <div th:if="${diff.credits}">
+                                <strong>학점:</strong>
+                                <span class="highlight" th:text="'파싱: ' + ${diff.credits.parsed} + ' / DB: ' + ${diff.credits.db}"></span>
+                            </div>
+                            <div th:if="${diff.professor}">
+                                <strong>교수:</strong>
+                                <span class="highlight" th:text="'파싱: ' + ${diff.professor.parsed} + ' / DB: ' + ${diff.professor.db}"></span>
+                            </div>
+                            <div th:if="${diff.department}">
+                                <strong>학과:</strong>
+                                <span class="highlight" th:text="'파싱: ' + ${diff.department.parsed} + ' / DB: ' + ${diff.department.db}"></span>
+                            </div>
+                            <div th:if="${diff.schedule}">
+                                <strong>시간표:</strong>
+                                <span class="highlight" th:text="'파싱: ' + ${diff.schedule.parsed} + ' / DB: ' + ${diff.schedule.db}"></span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
