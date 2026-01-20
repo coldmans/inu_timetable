@@ -11,7 +11,9 @@
 ## 주요 기능
 
 ### 📚 과목 관리
-- PDF 파싱으로 수강편람 자동 입력 (Gemini API 활용)
+- **다양한 파일 형식 지원**
+  - PDF 파싱 (Gemini AI 활용)
+  - Excel 파싱 (.xlsx 형식)
 - 과목명/교수명 검색
 - 학년/학과/이수구분/야간수업 필터링
 - 요일/시간대 필터
@@ -35,6 +37,7 @@
 - Spring Data JPA
 - PostgreSQL (Supabase)
 - HikariCP
+- Apache POI (Excel 파싱)
 
 ### AI
 - Google Gemini API (PDF 파싱용)
@@ -101,13 +104,18 @@ hikari:
 
 ## API 엔드포인트
 
+### 파일 업로드 (수강편람 데이터 입력)
+```
+POST /api/pdf/upload            # PDF 업로드 & AI 파싱 (Gemini)
+POST /api/excel/upload          # Excel 업로드 & 파싱 (.xlsx)
+```
+
 ### 과목 관리
 ```
 GET  /api/subjects              # 과목 목록 (페이지네이션)
 GET  /api/subjects/search       # 과목명 검색
 GET  /api/subjects/filter       # 조건별 필터링
 GET  /api/subjects/count        # 전체 과목 수
-POST /api/pdf/upload           # PDF 업로드 & 파싱
 ```
 
 ### 시간표
