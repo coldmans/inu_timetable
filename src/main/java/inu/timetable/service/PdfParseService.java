@@ -203,8 +203,7 @@ public class PdfParseService {
                 {
                   "contents": [{"parts": [{"text": "%s"}]}],
                   "generationConfig": {
-                    "temperature": 0.1, "topK": 16, "topP": 0.95, "maxOutputTokens": 65536,
-                    "responseMimeType": "application/json"
+                    "temperature": 0.1, "topK": 16, "topP": 0.95, "maxOutputTokens": 65536
                   },
                   "safetySettings": [
                     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
@@ -220,11 +219,18 @@ public class PdfParseService {
           webClient
               .post()
               .uri(
-                  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent")
+                  "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=" + geminiApiKey)
               .header("Content-Type", "application/json")
-              .header("X-goog-api-key", geminiApiKey)
               .bodyValue(requestBody)
               .retrieve()
+              .onStatus(
+                  status -> status.isError(),
+                  clientResponse -> clientResponse.bodyToMono(String.class)
+                      .map(errorBody -> {
+                          System.err.println("=== Gemini API 에러 응답 (배치 " + pageNumbers + ") ===");
+                          System.err.println(errorBody);
+                          return new RuntimeException("API Error: " + errorBody);
+                      }))
               .bodyToMono(String.class)
               .block();
 
@@ -301,8 +307,7 @@ public class PdfParseService {
                 {
                   "contents": [{"parts": [{"text": "%s"}]}],
                   "generationConfig": {
-                    "temperature": 0.1, "topK": 16, "topP": 0.95, "maxOutputTokens": 65536,
-                    "responseMimeType": "application/json"
+                    "temperature": 0.1, "topK": 16, "topP": 0.95, "maxOutputTokens": 65536
                   },
                   "safetySettings": [
                     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
@@ -318,11 +323,18 @@ public class PdfParseService {
           webClient
               .post()
               .uri(
-                  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent")
+                  "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=" + geminiApiKey)
               .header("Content-Type", "application/json")
-              .header("X-goog-api-key", geminiApiKey)
               .bodyValue(requestBody)
               .retrieve()
+              .onStatus(
+                  status -> status.isError(),
+                  clientResponse -> clientResponse.bodyToMono(String.class)
+                      .map(errorBody -> {
+                          System.err.println("=== Gemini API 에러 응답 (페이지 " + pageNumber + ") ===");
+                          System.err.println(errorBody);
+                          return new RuntimeException("API Error: " + errorBody);
+                      }))
               .bodyToMono(String.class)
               .block();
 
@@ -358,20 +370,60 @@ public class PdfParseService {
       String content = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
 
       // JSON 파싱 - 강제로 배열로 처리
-      System.out.println("원본 JSON 길이: " + content.length());
-      System.out.println("JSON 시작: " + content.substring(0, Math.min(50, content.length())));
+      System.out.println("JSON 길이: " + content.length() + " 문자");
+      if (content.length() < 500) {
+          System.out.println("=== Gemini 응답 (전체) ===");
+          System.out.println(content);
+      } else {
+          System.out.println("=== Gemini 응답 (처음 200자) ===");
+          System.out.println(content.substring(0, 200) + "...");
+      }
+
+      // 마크다운 코드 블록 제거 (```json ... ``` 또는 ``` ... ```)
+      String trimmedContent = content.trim();
+      if (trimmedContent.startsWith("```")) {
+          int startIndex = trimmedContent.indexOf('\n');
+          int endIndex = trimmedContent.lastIndexOf("```");
+
+          // 시작 부분 제거
+          if (startIndex > 0) {
+              if (endIndex > startIndex) {
+                  // 정상: 시작과 끝 모두 제거
+                  trimmedContent = trimmedContent.substring(startIndex + 1, endIndex).trim();
+              } else {
+                  // 응답이 잘린 경우: 시작 부분만 제거
+                  trimmedContent = trimmedContent.substring(startIndex + 1).trim();
+                  System.out.println("경고: 응답이 잘렸습니다 (마지막 ``` 없음)");
+              }
+              System.out.println("마크다운 제거 후 길이: " + trimmedContent.length());
+          }
+      }
 
       // content가 배열인지 확인
-      String trimmedContent = content.trim();
-      if (trimmedContent.startsWith("[") && trimmedContent.endsWith("]")) {
+      if (trimmedContent.startsWith("[")) {
         System.out.println("JSON이 배열 형태임을 확인");
+
+        // 잘린 경우 수정해서 파싱
+        if (!trimmedContent.endsWith("]")) {
+            System.out.println("경고: JSON이 ]로 끝나지 않음, 마지막 불완전한 항목을 제거하고 ] 추가");
+            // 마지막 { 이후를 제거하고 ] 추가
+            int lastOpenBrace = trimmedContent.lastIndexOf("{");
+            if (lastOpenBrace > 0) {
+                trimmedContent = trimmedContent.substring(0, lastOpenBrace).trim();
+                // 마지막 쉼표 제거
+                if (trimmedContent.endsWith(",")) {
+                    trimmedContent = trimmedContent.substring(0, trimmedContent.length() - 1);
+                }
+                trimmedContent += "\n]";
+                System.out.println("수정된 JSON 길이: " + trimmedContent.length());
+            }
+        }
 
         // TypeReference를 사용해서 직접 List로 파싱
         try {
           com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>> typeRef
             = new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>>() {};
-          java.util.List<java.util.Map<String, Object>> subjectMaps = objectMapper.readValue(content, typeRef);
-
+          java.util.List<java.util.Map<String, Object>> subjectMaps = objectMapper.readValue(trimmedContent, typeRef);
           System.out.println("직접 파싱 성공 - 과목 수: " + subjectMaps.size());
 
           for (java.util.Map<String, Object> subjectMap : subjectMaps) {

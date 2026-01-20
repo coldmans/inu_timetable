@@ -59,58 +59,86 @@ public class ExcelParseService {
     public List<Subject> parseWithoutSaving(MultipartFile file) throws IOException {
         System.out.println("=== Excel 파싱 시작 (AI 기반, 저장 안 함) ===");
 
-        // 1단계: Excel을 텍스트로 변환
-        String excelText = extractTextFromExcel(file);
-        System.out.println("Excel 텍스트 길이: " + excelText.length() + " 문자");
-
-        // 2단계: Gemini AI로 파싱
-        List<Subject> allSubjects = parseWithGemini(excelText);
-        System.out.println("AI 파싱 완료: " + allSubjects.size() + "개 과목 추출");
-
-        return allSubjects;
-    }
-
-    /**
-     * Excel 파일을 텍스트로 변환
-     */
-    private String extractTextFromExcel(MultipartFile file) throws IOException {
-        StringBuilder text = new StringBuilder();
+        List<Subject> allSubjects = new ArrayList<>();
 
         try (InputStream inputStream = file.getInputStream();
              Workbook workbook = new XSSFWorkbook(inputStream)) {
 
             Sheet sheet = workbook.getSheetAt(0);
+            int totalRows = sheet.getLastRowNum();
             System.out.println("Sheet 이름: " + sheet.getSheetName());
-            System.out.println("전체 행 수: " + sheet.getPhysicalNumberOfRows());
+            System.out.println("전체 행 수: " + totalRows);
 
-            // 헤더 행 추가
-            Row headerRow = sheet.getRow(0);
-            if (headerRow != null) {
-                text.append("=== 헤더 ===\n");
-                for (Cell cell : headerRow) {
-                    String value = getCellValueAsString(cell);
-                    if (value != null) {
-                        text.append(value).append("\t");
+            // 청크 크기 (한 번에 처리할 행 수) - 작게 해서 응답 잘림 방지
+            int chunkSize = 50;
+            int totalChunks = (int) Math.ceil((double) totalRows / chunkSize);
+
+            // 청크별로 처리
+            for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                int startRow = chunkIndex * chunkSize + 1; // 헤더 제외
+                int endRow = Math.min(startRow + chunkSize - 1, totalRows);
+
+                System.out.println("\n=== 청크 " + (chunkIndex + 1) + "/" + totalChunks +
+                                 " 처리 중 (행 " + startRow + "-" + endRow + ") ===");
+
+                // 청크 텍스트 추출
+                String chunkText = extractTextFromExcelChunk(sheet, startRow, endRow);
+                System.out.println("청크 텍스트 길이: " + chunkText.length() + " 문자");
+
+                // Gemini AI로 파싱
+                List<Subject> chunkSubjects = parseWithGemini(chunkText);
+                System.out.println("청크 파싱 완료: " + chunkSubjects.size() + "개 과목 추출");
+
+                allSubjects.addAll(chunkSubjects);
+
+                // 무료 티어 제한 고려 (분당 15 RPM), 마지막 청크가 아니면 대기
+                if (chunkIndex < totalChunks - 1) {
+                    try {
+                        System.out.println("다음 청크 처리를 위해 4초 대기...");
+                        Thread.sleep(4000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                     }
                 }
-                text.append("\n\n");
             }
+        }
 
-            // 데이터 행 추가 (헤더 제외, 최대 100개 행만 처리 - Gemini 토큰 제한)
-            text.append("=== 데이터 ===\n");
-            int maxRows = Math.min(sheet.getLastRowNum(), 100);
-            for (int rowIndex = 1; rowIndex <= maxRows; rowIndex++) {
-                Row row = sheet.getRow(rowIndex);
-                if (row == null) continue;
+        System.out.println("\n=== 전체 파싱 완료: " + allSubjects.size() + "개 과목 추출 ===");
+        return allSubjects;
+    }
 
-                // 각 셀의 값을 탭으로 구분하여 추가
-                for (int colIndex = 0; colIndex < 17; colIndex++) { // 17개 컬럼
-                    Cell cell = row.getCell(colIndex);
-                    String value = getCellValueAsString(cell);
-                    text.append(value != null ? value : "").append("\t");
+    /**
+     * Excel 파일의 특정 행 범위를 텍스트로 변환 (청크)
+     */
+    private String extractTextFromExcelChunk(Sheet sheet, int startRow, int endRow) {
+        StringBuilder text = new StringBuilder();
+
+        // 헤더 행 추가
+        Row headerRow = sheet.getRow(0);
+        if (headerRow != null) {
+            text.append("=== 헤더 ===\n");
+            for (Cell cell : headerRow) {
+                String value = getCellValueAsString(cell);
+                if (value != null) {
+                    text.append(value).append("\t");
                 }
-                text.append("\n");
             }
+            text.append("\n\n");
+        }
+
+        // 데이터 행 추가 (지정된 범위만)
+        text.append("=== 데이터 ===\n");
+        for (int rowIndex = startRow; rowIndex <= endRow; rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) continue;
+
+            // 각 셀의 값을 탭으로 구분하여 추가
+            for (int colIndex = 0; colIndex < 17; colIndex++) { // 17개 컬럼
+                Cell cell = row.getCell(colIndex);
+                String value = getCellValueAsString(cell);
+                text.append(value != null ? value : "").append("\t");
+            }
+            text.append("\n");
         }
 
         return text.toString();
@@ -187,8 +215,7 @@ public class ExcelParseService {
                 {
                   "contents": [{"parts": [{"text": "%s"}]}],
                   "generationConfig": {
-                    "temperature": 0.1, "topK": 16, "topP": 0.95, "maxOutputTokens": 65536,
-                    "responseMimeType": "application/json"
+                    "temperature": 0.1, "topK": 16, "topP": 0.95, "maxOutputTokens": 8192
                   },
                   "safetySettings": [
                     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
@@ -204,11 +231,18 @@ public class ExcelParseService {
                 webClient
                     .post()
                     .uri(
-                        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent")
+                        "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=" + geminiApiKey)
                     .header("Content-Type", "application/json")
-                    .header("X-goog-api-key", geminiApiKey)
                     .bodyValue(requestBody)
                     .retrieve()
+                    .onStatus(
+                        status -> status.isError(),
+                        clientResponse -> clientResponse.bodyToMono(String.class)
+                            .map(errorBody -> {
+                                System.err.println("=== Gemini API 에러 응답 ===");
+                                System.err.println(errorBody);
+                                return new RuntimeException("API Error: " + errorBody);
+                            }))
                     .bodyToMono(String.class)
                     .block();
 
@@ -235,13 +269,56 @@ public class ExcelParseService {
             }
             String content = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
 
-            System.out.println("JSON 길이: " + content.length());
+            System.out.println("JSON 길이: " + content.length() + " 문자");
+            if (content.length() < 500) {
+                System.out.println("=== Gemini 응답 (전체) ===");
+                System.out.println(content);
+            } else {
+                System.out.println("=== Gemini 응답 (처음 200자) ===");
+                System.out.println(content.substring(0, 200) + "...");
+            }
 
+            // 마크다운 코드 블록 제거 (```json ... ``` 또는 ``` ... ```)
             String trimmedContent = content.trim();
-            if (trimmedContent.startsWith("[") && trimmedContent.endsWith("]")) {
+            if (trimmedContent.startsWith("```")) {
+                int startIndex = trimmedContent.indexOf('\n');
+                int endIndex = trimmedContent.lastIndexOf("```");
+
+                // 시작 부분 제거
+                if (startIndex > 0) {
+                    if (endIndex > startIndex) {
+                        // 정상: 시작과 끝 모두 제거
+                        trimmedContent = trimmedContent.substring(startIndex + 1, endIndex).trim();
+                    } else {
+                        // 응답이 잘린 경우: 시작 부분만 제거
+                        trimmedContent = trimmedContent.substring(startIndex + 1).trim();
+                        System.out.println("경고: 응답이 잘렸습니다 (마지막 ``` 없음)");
+                    }
+                    System.out.println("마크다운 제거 후 길이: " + trimmedContent.length());
+                }
+            }
+
+            if (trimmedContent.startsWith("[")) {
+                // JSON이 배열로 시작하면 파싱 시도
+                // 잘린 경우 수정해서 파싱
+                if (!trimmedContent.endsWith("]")) {
+                    System.out.println("경고: JSON이 ]로 끝나지 않음, 마지막 불완전한 항목을 제거하고 ] 추가");
+                    // 마지막 { 이후를 제거하고 ] 추가
+                    int lastOpenBrace = trimmedContent.lastIndexOf("{");
+                    if (lastOpenBrace > 0) {
+                        trimmedContent = trimmedContent.substring(0, lastOpenBrace).trim();
+                        // 마지막 쉼표 제거
+                        if (trimmedContent.endsWith(",")) {
+                            trimmedContent = trimmedContent.substring(0, trimmedContent.length() - 1);
+                        }
+                        trimmedContent += "\n]";
+                        System.out.println("수정된 JSON 길이: " + trimmedContent.length());
+                    }
+                }
+
                 com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>> typeRef
                   = new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>>() {};
-                java.util.List<java.util.Map<String, Object>> subjectMaps = objectMapper.readValue(content, typeRef);
+                java.util.List<java.util.Map<String, Object>> subjectMaps = objectMapper.readValue(trimmedContent, typeRef);
 
                 System.out.println("파싱 성공 - 과목 수: " + subjectMaps.size());
 

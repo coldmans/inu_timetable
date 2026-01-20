@@ -28,9 +28,11 @@ ext {
 }
 
 dependencies {
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.ai:spring-ai-pdf-document-reader'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
@@ -55,5 +57,5 @@ dependencyManagement {
 
 tasks.named('test') {
     useJUnitPlatform()
-    enabled = false
+    enabled = true
 }
