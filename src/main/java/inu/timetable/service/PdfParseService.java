@@ -293,11 +293,6 @@ public class PdfParseService {
       String content = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
 
       // JSON 파싱 - 강제로 배열로 처리
-<<<<<<< Updated upstream
-      System.out.println("원본 JSON 길이: " + content.length());
-      System.out.println("JSON 시작: " + content.substring(0, Math.min(50, content.length())));
-      
-=======
       System.out.println("JSON 길이: " + content.length() + " 문자");
       if (content.length() < 500) {
           System.out.println("=== Gemini 응답 (전체) ===");
@@ -327,13 +322,9 @@ public class PdfParseService {
           }
       }
 
->>>>>>> Stashed changes
       // content가 배열인지 확인
       if (trimmedContent.startsWith("[")) {
         System.out.println("JSON이 배열 형태임을 확인");
-<<<<<<< Updated upstream
-        
-=======
 
         // 잘린 경우 수정해서 파싱
         if (!trimmedContent.endsWith("]")) {
@@ -351,18 +342,11 @@ public class PdfParseService {
             }
         }
 
->>>>>>> Stashed changes
         // TypeReference를 사용해서 직접 List로 파싱
         try {
-          com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>> typeRef 
+          com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>> typeRef
             = new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>>() {};
-<<<<<<< Updated upstream
-          java.util.List<java.util.Map<String, Object>> subjectMaps = objectMapper.readValue(content, typeRef);
-          
-=======
           java.util.List<java.util.Map<String, Object>> subjectMaps = objectMapper.readValue(trimmedContent, typeRef);
-
->>>>>>> Stashed changes
           System.out.println("직접 파싱 성공 - 과목 수: " + subjectMaps.size());
           
           for (java.util.Map<String, Object> subjectMap : subjectMaps) {
