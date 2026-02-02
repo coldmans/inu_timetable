@@ -12,7 +12,22 @@ spring:
     livereload:
       enabled: false
 
+# 운영환경 Actuator 설정 (제한적 노출)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+
 logging:
   level:
-    root: INFO
+    root: WARN
     inu.timetable: INFO
+    org.springframework.web: WARN
+    org.hibernate: WARN
+    org.hibernate.SQL: OFF
+    org.hibernate.type.descriptor.sql.BasicBinder: OFF

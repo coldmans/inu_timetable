@@ -27,3 +27,35 @@ spring:
 gemini:
   api:
     key: ${GEMINI_API_KEY}
+
+# Actuator 모니터링 설정
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+      show-components: when_authorized
+    prometheus:
+      enabled: true
+  health:
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+  info:
+    env:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    version: 0.0.1-SNAPSHOT
+    description: 인천대학교 시간표 관리 시스템

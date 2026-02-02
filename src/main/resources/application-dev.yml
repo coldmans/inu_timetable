@@ -12,7 +12,20 @@ spring:
     livereload:
       enabled: true
 
+# 개발환경 Actuator 설정 (모든 엔드포인트 노출)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+
 logging:
   level:
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.web: DEBUG
+    inu.timetable: DEBUG

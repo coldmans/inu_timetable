@@ -56,3 +56,19 @@ gemini_response_*.txt
 
 ### Misc ###
 backend/
+
+### Local Configuration ###
+application-local.yml
+**/application-local.yml
+
+### Test Data & Scripts ###
+src/main/resources/excel/
+src/main/resources/pdf/
+wipe_db.py
+wipe_db_now.sh
+*.sql
+
+### Ad-hoc Test Files ###
+**/AdHoc*.java
+**/WipeDb*.java
+**/DeleteSpecific*.java
