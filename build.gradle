@@ -58,4 +58,8 @@ dependencyManagement {
 tasks.named('test') {
     useJUnitPlatform()
     enabled = true
+    testLogging {
+        events "passed", "skipped", "failed", "standardOut", "standardError"
+        showStandardStreams = true
+    }
 }

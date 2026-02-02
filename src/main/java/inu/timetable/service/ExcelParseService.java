@@ -7,6 +7,9 @@ import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.SubjectRepository;
+import inu.timetable.repository.UserRepository;
+import inu.timetable.repository.UserTimetableRepository;
+import inu.timetable.repository.WishlistRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -25,28 +28,110 @@ import java.util.List;
 public class ExcelParseService {
 
     private final SubjectRepository subjectRepository;
+    private final WishlistRepository wishlistRepository;
+    private final UserTimetableRepository userTimetableRepository;
+    private final UserRepository userRepository;
     private final WebClient webClient = WebClient.builder().build();
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
-    public int parseAndSaveSubjects(MultipartFile file) throws IOException {
-        List<Subject> allSubjects = parseWithoutSaving(file);
+    /**
+     * Excel 파싱 후 DB 전체 교체 (기존 데이터 삭제)
+     * 트랜잭션 타임아웃 방지를 위해 파싱과 DB 저장을 분리
+     */
+    public int parseAndSaveSubjectsReplace(MultipartFile file) throws IOException {
+        // 1. 파싱 먼저 수행 (시간이 오래 걸리는 작업, DB 트랜잭션 없이 진행)
+        System.out.println("=== Excel 파싱 시작 (메모리 로드) ===");
+        List<Subject> allSubjects = parseWithoutSaving(file, 0);
+        System.out.println("=== Excel 파싱 완료 (" + allSubjects.size() + "과목) ===");
 
-        // 데이터베이스 저장
-        System.out.println("\n=== 데이터베이스 저장 시작 ===");
-        if (!allSubjects.isEmpty()) {
+        if (allSubjects.isEmpty()) {
+            System.out.println("저장할 과목이 없습니다.");
+            return 0;
+        }
+
+        // 2. DB 교체 (여기서부터 트랜잭션 시작)
+        System.out.println("\n=== 데이터베이스 교체 트랜잭션 시작 ===");
+        transactionTemplate.execute(status -> {
             try {
+                // 기존 데이터 삭제
+                System.out.println("기존 시간표 데이터 삭제 중...");
+                userTimetableRepository.deleteAll();
+                System.out.println("기존 장바구니 데이터 삭제 중...");
+                wishlistRepository.deleteAll();
+                System.out.println("기존 사용자 데이터 삭제 중...");
+                userRepository.deleteAll();
+                System.out.println("기존 과목 데이터 삭제 중...");
+                subjectRepository.deleteAll();
+                System.out.println("=== 기존 데이터 삭제 완료 ===");
+
+                // 신규 데이터 저장
                 List<Subject> savedSubjects = subjectRepository.saveAll(allSubjects);
                 System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
+                return savedSubjects.size();
+            } catch (Exception e) {
+                System.err.println("데이터베이스 교체 중 오류 발생: " + e.getMessage());
+                e.printStackTrace();
+                status.setRollbackOnly(); // 롤백
+                throw new RuntimeException("DB 교체 실패", e);
+            }
+        });
+        System.out.println("=== 데이터베이스 교체 트랜잭션 종료 ===\n");
+
+        return 0; // Return value is not strictly used by controller but kept for signature
+                  // compatibility
+    }
+
+    /**
+     * Excel 파싱 후 중복 체크하여 새로운 과목만 추가 (기존 데이터 유지)
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int parseAndSaveSubjectsIncremental(MultipartFile file) throws IOException {
+        List<Subject> allSubjects = parseWithoutSaving(file, 0);
+
+        System.out.println("\n=== 데이터베이스 저장 시작 (증분 모드) ===");
+        System.out.println("전체 추출된 과목 수: " + allSubjects.size());
+
+        if (!allSubjects.isEmpty()) {
+            try {
+                // 중복 방지 로직: DB에 있는 모든 과목을 가져와서 비교 (스케줄 포함)
+                List<Subject> existingSubjects = subjectRepository.findAllWithSchedules();
+                System.out.println("기존 DB 과목 수: " + existingSubjects.size());
+
+                List<Subject> newSubjects = new ArrayList<>();
+                int duplicateCount = 0;
+
+                for (Subject parsedSubject : allSubjects) {
+                    boolean isDuplicate = existingSubjects.stream()
+                            .anyMatch(existing -> isSameSubject(existing, parsedSubject));
+
+                    if (!isDuplicate) {
+                        newSubjects.add(parsedSubject);
+                    } else {
+                        duplicateCount++;
+                    }
+                }
+
+                System.out.println("중복 제외된 과목 수: " + duplicateCount);
+                System.out.println("새로 저장할 과목 수: " + newSubjects.size());
+
+                if (!newSubjects.isEmpty()) {
+                    List<Subject> savedSubjects = subjectRepository.saveAll(newSubjects);
+                    System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
+                } else {
+                    System.out.println("저장할 새로운 과목이 없습니다.");
+                }
             } catch (Exception e) {
                 System.err.println("데이터베이스 저장 오류: " + e.getMessage());
                 e.printStackTrace();
                 throw e;
             }
         } else {
-            System.out.println("저장할 과목이 없습니다.");
+            System.out.println("파싱된 과목이 없습니다.");
         }
 
         return allSubjects.size();
@@ -56,13 +141,16 @@ public class ExcelParseService {
      * Excel 파싱만 수행 (DB 저장 안 함)
      * 검증/테스트 용도로 사용
      */
-    public List<Subject> parseWithoutSaving(MultipartFile file) throws IOException {
+    public List<Subject> parseWithoutSaving(MultipartFile file, int maxChunks) throws IOException {
         System.out.println("=== Excel 파싱 시작 (AI 기반, 저장 안 함) ===");
+        if (maxChunks > 0) {
+            System.out.println("테스트 모드: 최대 " + maxChunks + "개 청크만 처리합니다.");
+        }
 
         List<Subject> allSubjects = new ArrayList<>();
 
         try (InputStream inputStream = file.getInputStream();
-             Workbook workbook = new XSSFWorkbook(inputStream)) {
+                Workbook workbook = new XSSFWorkbook(inputStream)) {
 
             Sheet sheet = workbook.getSheetAt(0);
             int totalRows = sheet.getLastRowNum();
@@ -74,12 +162,13 @@ public class ExcelParseService {
             int totalChunks = (int) Math.ceil((double) totalRows / chunkSize);
 
             // 청크별로 처리
-            for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            int limit = (maxChunks > 0) ? Math.min(totalChunks, maxChunks) : totalChunks;
+            for (int chunkIndex = 0; chunkIndex < limit; chunkIndex++) {
                 int startRow = chunkIndex * chunkSize + 1; // 헤더 제외
                 int endRow = Math.min(startRow + chunkSize - 1, totalRows);
 
                 System.out.println("\n=== 청크 " + (chunkIndex + 1) + "/" + totalChunks +
-                                 " 처리 중 (행 " + startRow + "-" + endRow + ") ===");
+                        " 처리 중 (행 " + startRow + "-" + endRow + ") ===");
 
                 // 청크 텍스트 추출
                 String chunkText = extractTextFromExcelChunk(sheet, startRow, endRow);
@@ -130,7 +219,8 @@ public class ExcelParseService {
         text.append("=== 데이터 ===\n");
         for (int rowIndex = startRow; rowIndex <= endRow; rowIndex++) {
             Row row = sheet.getRow(rowIndex);
-            if (row == null) continue;
+            if (row == null)
+                continue;
 
             // 각 셀의 값을 탭으로 구분하여 추가
             for (int colIndex = 0; colIndex < 17; colIndex++) { // 17개 컬럼
@@ -149,100 +239,100 @@ public class ExcelParseService {
      */
     private List<Subject> parseWithGemini(String excelText) {
         try {
-            String prompt =
-                """
-                다음은 대학교 종합강의시간표 Excel 데이터입니다. 이를 정확하게 JSON 형식으로 파싱해주세요.
+            String prompt = """
+                    다음은 대학교 종합강의시간표 Excel 데이터입니다. 이를 정확하게 JSON 형식으로 파싱해주세요.
 
-                **Excel 컬럼 구조:**
-                순번, 대학(원), 학과(부), 학년, 이수구분, 이수영역, 학수번호, 교과목명, 교과목명(영문), 담당교수, 강의실, 시간표(교시), 학점, 수업구분, 수업유형, 성적평가, 원어강의
+                    **Excel 컬럼 구조:**
+                    순번, 대학(원), 학과(부), 학년, 이수구분, 이수영역, 학수번호, 교과목명, 교과목명(영문), 담당교수, 강의실, 시간표(교시), 학점, 수업구분, 수업유형, 성적평가, 원어강의
 
-                **중요한 파싱 규칙:**
-                1. 시간표(교시) 형식이 매우 복잡합니다:
-                   - [15-116:화(7)] [15-317:월(3)] → 여러 강의실, 각각 다른 요일/시간
-                   - [15-118B:월(3),화(7)] → 하나의 강의실, 여러 요일 (쉼표로 구분)
-                   - [15-116:화(5B-6),금(5B-6)] → 여러 요일, 각각 시간 범위
-                   - [15-403:월(7)(8)(9)] → 연속 교시 (괄호만 사용)
+                    **중요한 파싱 규칙:**
+                    1. 시간표(교시) 형식이 매우 복잡합니다:
+                       - [15-116:화(7)] [15-317:월(3)] → 여러 강의실, 각각 다른 요일/시간
+                       - [15-118B:월(3),화(7)] → 하나의 강의실, 여러 요일 (쉼표로 구분)
+                       - [15-116:화(5B-6),금(5B-6)] → 여러 요일, 각각 시간 범위
+                       - [15-403:월(7)(8)(9)] → 연속 교시 (괄호만 사용)
 
-                2. 강의실 정보는 무시하고, 요일과 교시만 추출하여 timeString에 저장
-                   예: [15-116:화(7)] [15-317:월(3)] → "화 7 월 3"
-                   예: [15-403:월(7)(8)(9)] → "월 7-9"
+                    2. 강의실 정보는 무시하고, 요일과 교시만 추출하여 timeString에 저장
+                       예: [15-116:화(7)] [15-317:월(3)] → "화 7 월 3"
+                       예: [15-403:월(7)(8)(9)] → "월 7-9"
+                       예: [15-201:월(5B-6)] → "월 5B-6" (중요: A, B 접미사 유지)
+                       예: [15-201:월(야1-야2)] → "월 야1-야2" (중요: 야간 표시 유지)
 
-                3. 학년이 "전학년"이면 null로 설정
+                    3. 학년이 "전학년"이면 null로 설정
 
-                4. 빈 값 처리: 담당교수가 비어있으면 null로 설정
+                    4. 빈 값 처리: 담당교수가 비어있으면 null로 설정
 
-                5. 야간수업: "야" 키워드가 있으면 isNight를 true로 설정
+                    5. 야간수업: "야" 키워드가 있으면 isNight를 true로 설정
 
-                6. 이수구분: 전심(전공심화), 전핵(전공핵심), 기교(기초교양), 전기(전공기초), 일선(일반선택), 심교(심화교양), 핵교(핵심교양)
+                    6. 이수구분: 전심(전공심화), 전핵(전공핵심), 기교(기초교양), 전기(전공기초), 일선(일반선택), 심교(심화교양), 핵교(핵심교양)
 
-                7. 수업유형(classMethod):
-                   - "e-Learning", "온라인", "비대면" → ONLINE
-                   - "블렌디드", "혼합" → BLENDED
-                   - 나머지 → OFFLINE
+                    7. 수업유형(classMethod):
+                       - "e-Learning", "온라인", "비대면" → ONLINE
+                       - "블렌디드", "혼합" → BLENDED
+                       - 나머지 → OFFLINE
 
-                각 과목에 대해 다음 정보를 추출해주세요:
-                - subjectName: 교과목명 (필수, 문자열)
-                - credits: 학점 (필수, 숫자)
-                - professor: 담당교수 (문자열, 비어있으면 null)
-                - timeString: 요일 및 교시 원본 문자열 (예: "월 4-5A 목 4-5A", "화 7-9")
-                - isNight: 야간 수업 여부 (true/false)
-                - subjectType: 이수구분 (전심, 전핵, 심교, 핵교, 일선, 기교, 전기 중 하나)
-                - classMethod: 수업방법 (ONLINE, OFFLINE, BLENDED 중 하나)
-                - grade: 학년 (1-4 중 하나, "전학년"이면 null)
-                - department: 학과명
+                    각 과목에 대해 다음 정보를 추출해주세요:
+                    - subjectName: 교과목명 (필수, 문자열)
+                    - credits: 학점 (필수, 숫자)
+                    - professor: 담당교수 (문자열, 비어있으면 null)
+                    - timeString: 요일 및 교시 원본 문자열 (예: "월 4-5A 목 4-5A", "화 7-9")
+                    - isNight: 야간 수업 여부 (true/false)
+                    - subjectType: 이수구분 (전심, 전핵, 심교, 핵교, 일선, 기교, 전기 중 하나)
+                    - classMethod: 수업방법 (ONLINE, OFFLINE, BLENDED 중 하나)
+                    - grade: 학년 (1-4 중 하나, "전학년"이면 null)
+                    - department: 학과명
 
-                응답은 다음과 같은 JSON 배열 형태로만 주세요 (JSON 외에 다른 설명 금지):
-                [
-                  {
-                    "subjectName": "영작문(1)",
-                    "credits": 1,
-                    "professor": "알라나 커밍스",
-                    "timeString": "화 7 월 3",
-                    "isNight": false,
-                    "subjectType": "전핵",
-                    "classMethod": "OFFLINE",
-                    "grade": 1,
-                    "department": "영어영문학과"
-                  }
-                ]
+                    응답은 다음과 같은 JSON 배열 형태로만 주세요 (JSON 외에 다른 설명 금지):
+                    [
+                      {
+                        "subjectName": "영작문(1)",
+                        "credits": 1,
+                        "professor": "알라나 커밍스",
+                        "timeString": "화 7 월 3",
+                        "isNight": false,
+                        "subjectType": "전핵",
+                        "classMethod": "OFFLINE",
+                        "grade": 1,
+                        "department": "영어영문학과"
+                      }
+                    ]
 
-                Excel 데이터:
-                """
+                    Excel 데이터:
+                    """
                     + excelText;
 
-            String requestBody =
-                """
-                {
-                  "contents": [{"parts": [{"text": "%s"}]}],
-                  "generationConfig": {
-                    "temperature": 0.1, "topK": 16, "topP": 0.95, "maxOutputTokens": 8192
-                  },
-                  "safetySettings": [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-                  ]
-                }
-                """
+            String requestBody = """
+                    {
+                      "contents": [{"parts": [{"text": "%s"}]}],
+                      "generationConfig": {
+                        "temperature": 0.1, "topK": 16, "topP": 0.95, "maxOutputTokens": 8192
+                      },
+                      "safetySettings": [
+                        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                      ]
+                    }
+                    """
                     .formatted(prompt.replace("\"", "\\\"").replace("\n", "\\n"));
 
-            String response =
-                webClient
+            String response = webClient
                     .post()
                     .uri(
-                        "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=" + geminiApiKey)
+                            "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key="
+                                    + geminiApiKey)
                     .header("Content-Type", "application/json")
                     .bodyValue(requestBody)
                     .retrieve()
                     .onStatus(
-                        status -> status.isError(),
-                        clientResponse -> clientResponse.bodyToMono(String.class)
-                            .map(errorBody -> {
-                                System.err.println("=== Gemini API 에러 응답 ===");
-                                System.err.println(errorBody);
-                                return new RuntimeException("API Error: " + errorBody);
-                            }))
+                            status -> status.isError(),
+                            clientResponse -> clientResponse.bodyToMono(String.class)
+                                    .map(errorBody -> {
+                                        System.err.println("=== Gemini API 에러 응답 ===");
+                                        System.err.println(errorBody);
+                                        return new RuntimeException("API Error: " + errorBody);
+                                    }))
                     .bodyToMono(String.class)
                     .block();
 
@@ -316,9 +406,10 @@ public class ExcelParseService {
                     }
                 }
 
-                com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>> typeRef
-                  = new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>>() {};
-                java.util.List<java.util.Map<String, Object>> subjectMaps = objectMapper.readValue(trimmedContent, typeRef);
+                com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>> typeRef = new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>>() {
+                };
+                java.util.List<java.util.Map<String, Object>> subjectMaps = objectMapper.readValue(trimmedContent,
+                        typeRef);
 
                 System.out.println("파싱 성공 - 과목 수: " + subjectMaps.size());
 
@@ -355,8 +446,7 @@ public class ExcelParseService {
             // PdfParseService의 parseTime 메서드를 재사용
             List<Schedule> schedules = parseTimeString(timeString);
 
-            Subject subject =
-                Subject.builder()
+            Subject subject = Subject.builder()
                     .subjectName(subjectName)
                     .credits(credits)
                     .professor(getStringValue(node, "professor", "미배정"))
@@ -384,49 +474,112 @@ public class ExcelParseService {
      * Gemini가 반환한 간단한 형식을 파싱: "월 4-5A 목 4-5A"
      */
     private List<Schedule> parseTimeString(String timeString) {
-        // PdfParseService 활용할 수 없으면 간단한 파싱만 수행
-        // 실제로는 PdfParseService의 parseTime을 재사용하는 것이 좋음
         List<Schedule> schedules = new ArrayList<>();
         if (timeString == null || timeString.isBlank()) {
             return schedules;
         }
 
-        // 간단한 파싱: "월 7 화 3" 또는 "월 7-9"
+        // 간단한 파싱: "월 7 화 3" 또는 "월 7-9" 또는 "월 1 2"
         String[] parts = timeString.split("\\s+");
-        for (int i = 0; i < parts.length - 1; i += 2) {
-            String day = parts[i];
-            if (day.length() == 1 && "월화수목금토일".contains(day)) {
+        String currentDay = null;
+
+        // 1. Parse into initial list
+        for (String part : parts) {
+            // 요일 확인
+            if (part.length() == 1 && "월화수목금토일".contains(part)) {
+                currentDay = part;
+                continue;
+            }
+
+            // 요일이 설정된 상태에서 시간 파싱
+            if (currentDay != null) {
                 try {
-                    String timePart = parts[i + 1];
                     double start, end;
 
-                    if (timePart.contains("-")) {
-                        String[] range = timePart.split("-");
+                    // 야간 보정 여부 확인
+                    boolean isNightTime = part.contains("야");
+                    String timeVal = part.replaceAll("야", ""); // 숫자 파싱을 위해 "야" 제거에는 영향 없으나 로직 일관성 유지
+
+                    if (timeVal.contains("-")) {
+                        String[] range = timeVal.split("-");
                         start = parseTimeValue(range[0]);
-                        end = parseTimeValue(range[1]) + 1.0;
+
+                        // 종료 시간 계산: A/B는 0.5 더하기, 아니면 1.0 더하기
+                        double endVal = parseTimeValue(range[1]);
+                        if (range[1].contains("A") || range[1].contains("B")) {
+                            end = endVal + 0.5;
+                        } else {
+                            end = endVal + 1.0;
+                        }
                     } else {
-                        start = parseTimeValue(timePart);
-                        end = start + 1.0;
+                        // 단일 시간
+                        start = parseTimeValue(timeVal);
+                        if (timeVal.contains("A") || timeVal.contains("B")) {
+                            end = start + 0.5;
+                        } else {
+                            end = start + 1.0;
+                        }
+                    }
+
+                    if (isNightTime) {
+                        start += 9.0;
+                        end += 9.0;
                     }
 
                     schedules.add(
-                        Schedule.builder()
-                            .dayOfWeek(day)
-                            .startTime(start)
-                            .endTime(end)
-                            .build()
-                    );
+                            Schedule.builder()
+                                    .dayOfWeek(currentDay)
+                                    .startTime(start)
+                                    .endTime(end)
+                                    .build());
                 } catch (Exception e) {
-                    System.err.println("시간 파싱 오류: " + parts[i + 1]);
+                    System.err.println("시간 파싱 오류: " + part);
                 }
             }
         }
-        return schedules;
+
+        // 2. Sort by Day and StartTime
+        schedules.sort((s1, s2) -> {
+            int dayCompare = Integer.compare("월화수목금토일".indexOf(s1.getDayOfWeek()),
+                    "월화수목금토일".indexOf(s2.getDayOfWeek()));
+            if (dayCompare != 0)
+                return dayCompare;
+            return Double.compare(s1.getStartTime(), s2.getStartTime());
+        });
+
+        // 3. Merge contiguous slots
+        if (schedules.size() < 2)
+            return schedules;
+
+        List<Schedule> mergedSchedules = new ArrayList<>();
+        Schedule current = schedules.get(0);
+
+        for (int i = 1; i < schedules.size(); i++) {
+            Schedule next = schedules.get(i);
+
+            // Same day and contiguous time?
+            if (current.getDayOfWeek().equals(next.getDayOfWeek()) &&
+                    Math.abs(current.getEndTime() - next.getStartTime()) < 0.001) {
+                // Merge: extend current's end time
+                current.setEndTime(next.getEndTime());
+            } else {
+                // Not contiguous, add current to list and move to next
+                mergedSchedules.add(current);
+                current = next;
+            }
+        }
+        // Add the last one
+        mergedSchedules.add(current);
+
+        return mergedSchedules;
     }
 
     private double parseTimeValue(String time) {
+        // "야" 제거는 호출 전에 체크하거나 여기서 무시
+        time = time.replaceAll("야", "");
         time = time.replaceAll("[^0-9AB]", "");
-        if (time.isEmpty()) return 0.0;
+        if (time.isEmpty())
+            return 0.0;
 
         if (time.contains("A")) {
             return Double.parseDouble(time.replace("A", ""));
@@ -439,7 +592,8 @@ public class ExcelParseService {
 
     // Helper methods
     private String getCellValueAsString(Cell cell) {
-        if (cell == null) return null;
+        if (cell == null)
+            return null;
 
         return switch (cell.getCellType()) {
             case STRING -> cell.getStringCellValue().trim();
@@ -476,7 +630,8 @@ public class ExcelParseService {
     }
 
     private SubjectType parseSubjectType(String type) {
-        if (type == null || type.isBlank()) return SubjectType.일선;
+        if (type == null || type.isBlank())
+            return SubjectType.일선;
         return switch (type.trim()) {
             case "전심", "전공심화" -> SubjectType.전심;
             case "전핵", "전공핵심" -> SubjectType.전핵;
@@ -491,7 +646,8 @@ public class ExcelParseService {
     }
 
     private ClassMethod parseClassMethod(String method) {
-        if (method == null || method.isBlank()) return ClassMethod.OFFLINE;
+        if (method == null || method.isBlank())
+            return ClassMethod.OFFLINE;
         String normalized = method.trim().toUpperCase();
         if (normalized.contains("ONLINE") || normalized.contains("온라인") || normalized.contains("비대면")) {
             return ClassMethod.ONLINE;
@@ -500,5 +656,58 @@ public class ExcelParseService {
             return ClassMethod.BLENDED;
         }
         return ClassMethod.OFFLINE;
+    }
+
+    /**
+     * 두 Subject가 동일한지 비교 (중복 체크용)
+     * 과목명, 교수, 학과, 학년, 이수구분, 야간여부, 시간표를 비교
+     */
+    private boolean isSameSubject(Subject a, Subject b) {
+        if (!areEqual(a.getSubjectName(), b.getSubjectName()))
+            return false;
+        if (!areEqual(a.getProfessor(), b.getProfessor()))
+            return false;
+        if (!areEqual(a.getDepartment(), b.getDepartment()))
+            return false;
+        if (!areEqual(a.getGrade(), b.getGrade()))
+            return false;
+        if (a.getSubjectType() != b.getSubjectType())
+            return false;
+        if (!areEqual(a.getIsNight(), b.getIsNight()))
+            return false;
+
+        // 시간표 비교
+        List<Schedule> s1 = a.getSchedules();
+        List<Schedule> s2 = b.getSchedules();
+
+        if (s1 == null && s2 == null)
+            return true;
+        if (s1 == null || s2 == null)
+            return false;
+        if (s1.size() != s2.size())
+            return false;
+
+        // s2의 모든 요소가 s1에 포함되어 있는지 확인 (순서 무관)
+        for (Schedule schedule2 : s2) {
+            boolean matchFound = s1.stream()
+                    .anyMatch(schedule1 -> areEqual(schedule1.getDayOfWeek(), schedule2.getDayOfWeek()) &&
+                            Math.abs(schedule1.getStartTime() - schedule2.getStartTime()) < 0.001 &&
+                            Math.abs(schedule1.getEndTime() - schedule2.getEndTime()) < 0.001);
+            if (!matchFound)
+                return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * null-safe 비교
+     */
+    private boolean areEqual(Object o1, Object o2) {
+        if (o1 == null && o2 == null)
+            return true;
+        if (o1 == null || o2 == null)
+            return false;
+        return o1.equals(o2);
     }
 }

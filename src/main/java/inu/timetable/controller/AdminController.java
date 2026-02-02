@@ -77,22 +77,35 @@ public class AdminController {
 
     /**
      * PDF 업로드 처리
+     * 
+     * @param mode "incremental" (기본값) 또는 "replace"
      */
     @PostMapping("/upload/pdf")
     public String uploadPdf(@RequestParam("file") MultipartFile file,
-                           HttpSession session,
-                           RedirectAttributes redirectAttributes) {
+            @RequestParam(value = "mode", defaultValue = "incremental") String mode,
+            HttpSession session,
+            RedirectAttributes redirectAttributes) {
         if (!isAuthenticated(session)) {
             return "redirect:/admin/login";
         }
 
         try {
-            int count = pdfParseService.parseAndSaveSubjects(file);
+            int count;
+            String modeDescription;
+
+            if ("replace".equalsIgnoreCase(mode)) {
+                count = pdfParseService.parseAndSaveSubjectsReplace(file);
+                modeDescription = "전체 교체";
+            } else {
+                count = pdfParseService.parseAndSaveSubjectsIncremental(file);
+                modeDescription = "증분 추가";
+            }
+
             redirectAttributes.addFlashAttribute("success",
-                "PDF 파싱 완료! " + count + "개의 과목이 저장되었습니다.");
+                    "PDF 파싱 완료 (" + modeDescription + ")! " + count + "개의 과목이 처리되었습니다.");
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error",
-                "PDF 파싱 실패: " + e.getMessage());
+                    "PDF 파싱 실패: " + e.getMessage());
         }
 
         return "redirect:/admin/upload";
@@ -100,22 +113,35 @@ public class AdminController {
 
     /**
      * Excel 업로드 처리
+     * 
+     * @param mode "replace" (기본값) 또는 "incremental"
      */
     @PostMapping("/upload/excel")
     public String uploadExcel(@RequestParam("file") MultipartFile file,
-                             HttpSession session,
-                             RedirectAttributes redirectAttributes) {
+            @RequestParam(value = "mode", defaultValue = "replace") String mode,
+            HttpSession session,
+            RedirectAttributes redirectAttributes) {
         if (!isAuthenticated(session)) {
             return "redirect:/admin/login";
         }
 
         try {
-            int count = excelParseService.parseAndSaveSubjects(file);
+            int count;
+            String modeDescription;
+
+            if ("incremental".equalsIgnoreCase(mode)) {
+                count = excelParseService.parseAndSaveSubjectsIncremental(file);
+                modeDescription = "증분 추가";
+            } else {
+                count = excelParseService.parseAndSaveSubjectsReplace(file);
+                modeDescription = "전체 교체";
+            }
+
             redirectAttributes.addFlashAttribute("success",
-                "Excel 파싱 완료! " + count + "개의 과목이 저장되었습니다.");
+                    "Excel 파싱 완료 (" + modeDescription + ")! " + count + "개의 과목이 처리되었습니다.");
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error",
-                "Excel 파싱 실패: " + e.getMessage());
+                    "Excel 파싱 실패: " + e.getMessage());
         }
 
         return "redirect:/admin/upload";
@@ -137,10 +163,10 @@ public class AdminController {
      */
     @PostMapping("/validate/pdf")
     public String validatePdf(@RequestParam("file") MultipartFile file,
-                             @RequestParam(value = "semester", required = false) String semester,
-                             HttpSession session,
-                             Model model,
-                             RedirectAttributes redirectAttributes) {
+            @RequestParam(value = "semester", required = false) String semester,
+            HttpSession session,
+            Model model,
+            RedirectAttributes redirectAttributes) {
         if (!isAuthenticated(session)) {
             return "redirect:/admin/login";
         }
@@ -162,7 +188,7 @@ public class AdminController {
             System.err.println("PDF 검증 실패: " + e.getMessage());
             e.printStackTrace();
             redirectAttributes.addFlashAttribute("error",
-                "PDF 검증 실패: " + e.getMessage());
+                    "PDF 검증 실패: " + e.getMessage());
             return "redirect:/admin/validate";
         }
     }
@@ -172,22 +198,22 @@ public class AdminController {
      */
     @PostMapping("/validate/excel")
     public String validateExcel(@RequestParam("file") MultipartFile file,
-                               @RequestParam(value = "semester", required = false) String semester,
-                               HttpSession session,
-                               Model model,
-                               RedirectAttributes redirectAttributes) {
+            @RequestParam(value = "semester", required = false) String semester,
+            HttpSession session,
+            Model model,
+            RedirectAttributes redirectAttributes) {
         if (!isAuthenticated(session)) {
             return "redirect:/admin/login";
         }
 
         try {
-            Map<String, Object> report = validationService.validateExcelParsing(file, semester);
+            Map<String, Object> report = validationService.validateExcelParsing(file, semester, 0);
             model.addAttribute("report", report);
             model.addAttribute("fileType", "Excel");
             return "admin/validate-result";
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error",
-                "Excel 검증 실패: " + e.getMessage());
+                    "Excel 검증 실패: " + e.getMessage());
             return "redirect:/admin/validate";
         }
     }
@@ -198,5 +224,35 @@ public class AdminController {
     private boolean isAuthenticated(HttpSession session) {
         Boolean authenticated = (Boolean) session.getAttribute(SESSION_AUTHENTICATED);
         return authenticated != null && authenticated;
+    }
+
+    /**
+     * 누락 과목 분석 API (엑셀 vs DB 비교)
+     * GET /admin/api/analyze-missing
+     */
+    @GetMapping("/api/analyze-missing")
+    @ResponseBody
+    public Map<String, Object> analyzeMissingSubjects() {
+        return validationService.analyzeMissingSubjects();
+    }
+
+    /**
+     * 엑셀 헤더 확인 API (컬럼 구조 디버깅용)
+     * GET /admin/api/excel-headers
+     */
+    @GetMapping("/api/excel-headers")
+    @ResponseBody
+    public Map<String, Object> getExcelHeaders() {
+        return validationService.getExcelHeaders();
+    }
+
+    /**
+     * 누락 과목 DB 삽입 API
+     * POST /admin/api/insert-missing
+     */
+    @PostMapping("/api/insert-missing")
+    @ResponseBody
+    public Map<String, Object> insertMissingSubjects() {
+        return validationService.insertMissingSubjects();
     }
 }

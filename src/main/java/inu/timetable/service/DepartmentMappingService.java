@@ -90,19 +90,23 @@ public class DepartmentMappingService {
         addMapping("화학", "화학과");
         addMapping("패션", "패션산업학과");
         addMapping("해양", "해양학과");
+        addMapping("해양학", "해양학과");
 
         // 공과대학
         addMapping("기계", "기계공학과");
         addMapping("전기", "전기공학과");
         addMapping("전자", "전자공학과");
         addMapping("산공", "산업경영공학과");
+        addMapping("산경", "산업경영공학과");
         addMapping("신소재", "신소재공학과");
         addMapping("안전", "안전공학과");
         addMapping("에너지화학", "에너지화학공학과");
 
         // 정보기술대학
         addMapping("컴공", "컴퓨터공학부");
+        addMapping("컴퓨터", "컴퓨터공학부");
         addMapping("임베", "임베디드시스템공학과");
+        addMapping("임베디드", "임베디드시스템공학과");
         addMapping("정보통신", "정보통신공학과");
 
         // 경영대학
