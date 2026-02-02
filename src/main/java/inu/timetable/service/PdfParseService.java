@@ -108,41 +108,21 @@ public class PdfParseService {
    */
   @org.springframework.transaction.annotation.Transactional
   public int parseAndSaveSubjectsReplace(MultipartFile file) throws IOException {
+    // [DISABLED] 전체 삭제 기능 비활성화 - 데이터 보호를 위해 주석 처리됨
     // 1. 기존 데이터 먼저 삭제! (파싱 전에)
-    System.out.println("\n=== 기존 데이터 삭제 시작 ===");
-    try {
-      System.out.println("기존 장바구니 데이터 삭제 중...");
-      wishlistRepository.deleteAll();
-      System.out.println("기존 과목 데이터 삭제 중...");
-      subjectRepository.deleteAll();
-      System.out.println("=== 기존 데이터 삭제 완료 ===\n");
-    } catch (Exception e) {
-      System.err.println("데이터 삭제 오류: " + e.getMessage());
-      e.printStackTrace();
-      throw e;
-    }
-
-    // 2. 파싱 시작
-    List<Subject> allSubjects = parseWithoutSaving(file);
-
-    // 3. 저장
-    System.out.println("\n=== 데이터베이스 저장 시작 ===");
-    System.out.println("전체 추출된 과목 수: " + allSubjects.size());
-
-    if (!allSubjects.isEmpty()) {
-      try {
-        List<Subject> savedSubjects = subjectRepository.saveAll(allSubjects);
-        System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
-      } catch (Exception e) {
-        System.err.println("데이터베이스 저장 오류: " + e.getMessage());
-        e.printStackTrace();
-        throw e;
-      }
-    } else {
-      System.out.println("저장할 과목이 없습니다.");
-    }
-
-    return allSubjects.size();
+    // System.out.println("\n=== 기존 데이터 삭제 시작 ===");
+    // try {
+    //   System.out.println("기존 장바구니 데이터 삭제 중...");
+    //   wishlistRepository.deleteAll();
+    //   System.out.println("기존 과목 데이터 삭제 중...");
+    //   subjectRepository.deleteAll();
+    //   System.out.println("=== 기존 데이터 삭제 완료 ===\n");
+    // } catch (Exception e) {
+    //   System.err.println("데이터 삭제 오류: " + e.getMessage());
+    //   e.printStackTrace();
+    //   throw e;
+    // }
+    throw new UnsupportedOperationException("전체 삭제 기능이 비활성화되었습니다. parseAndSaveSubjectsIncremental을 사용하세요.");
   }
 
   /**

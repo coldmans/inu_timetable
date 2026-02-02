@@ -40,50 +40,52 @@ public class ExcelParseService {
     private String geminiApiKey;
 
     /**
-     * Excel 파싱 후 DB 전체 교체 (기존 데이터 삭제)
-     * 트랜잭션 타임아웃 방지를 위해 파싱과 DB 저장을 분리
+     * [DISABLED] Excel 파싱 후 DB 전체 교체 (기존 데이터 삭제)
+     * 데이터 보호를 위해 비활성화됨. parseAndSaveSubjectsIncremental을 사용하세요.
      */
     public int parseAndSaveSubjectsReplace(MultipartFile file) throws IOException {
-        // 1. 파싱 먼저 수행 (시간이 오래 걸리는 작업, DB 트랜잭션 없이 진행)
-        System.out.println("=== Excel 파싱 시작 (메모리 로드) ===");
-        List<Subject> allSubjects = parseWithoutSaving(file, 0);
-        System.out.println("=== Excel 파싱 완료 (" + allSubjects.size() + "과목) ===");
+        // [DISABLED] 전체 삭제 기능 비활성화 - 사용자 데이터 보호를 위해 주석 처리됨
+        throw new UnsupportedOperationException("전체 삭제 기능이 비활성화되었습니다. parseAndSaveSubjectsIncremental을 사용하세요.");
 
-        if (allSubjects.isEmpty()) {
-            System.out.println("저장할 과목이 없습니다.");
-            return 0;
-        }
+        // // 1. 파싱 먼저 수행 (시간이 오래 걸리는 작업, DB 트랜잭션 없이 진행)
+        // System.out.println("=== Excel 파싱 시작 (메모리 로드) ===");
+        // List<Subject> allSubjects = parseWithoutSaving(file, 0);
+        // System.out.println("=== Excel 파싱 완료 (" + allSubjects.size() + "과목) ===");
 
-        // 2. DB 교체 (여기서부터 트랜잭션 시작)
-        System.out.println("\n=== 데이터베이스 교체 트랜잭션 시작 ===");
-        transactionTemplate.execute(status -> {
-            try {
-                // 기존 데이터 삭제
-                System.out.println("기존 시간표 데이터 삭제 중...");
-                userTimetableRepository.deleteAll();
-                System.out.println("기존 장바구니 데이터 삭제 중...");
-                wishlistRepository.deleteAll();
-                System.out.println("기존 사용자 데이터 삭제 중...");
-                userRepository.deleteAll();
-                System.out.println("기존 과목 데이터 삭제 중...");
-                subjectRepository.deleteAll();
-                System.out.println("=== 기존 데이터 삭제 완료 ===");
+        // if (allSubjects.isEmpty()) {
+        //     System.out.println("저장할 과목이 없습니다.");
+        //     return 0;
+        // }
 
-                // 신규 데이터 저장
-                List<Subject> savedSubjects = subjectRepository.saveAll(allSubjects);
-                System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
-                return savedSubjects.size();
-            } catch (Exception e) {
-                System.err.println("데이터베이스 교체 중 오류 발생: " + e.getMessage());
-                e.printStackTrace();
-                status.setRollbackOnly(); // 롤백
-                throw new RuntimeException("DB 교체 실패", e);
-            }
-        });
-        System.out.println("=== 데이터베이스 교체 트랜잭션 종료 ===\n");
+        // // 2. DB 교체 (여기서부터 트랜잭션 시작)
+        // System.out.println("\n=== 데이터베이스 교체 트랜잭션 시작 ===");
+        // transactionTemplate.execute(status -> {
+        //     try {
+        //         // 기존 데이터 삭제
+        //         System.out.println("기존 시간표 데이터 삭제 중...");
+        //         userTimetableRepository.deleteAll();
+        //         System.out.println("기존 장바구니 데이터 삭제 중...");
+        //         wishlistRepository.deleteAll();
+        //         System.out.println("기존 사용자 데이터 삭제 중...");
+        //         userRepository.deleteAll();
+        //         System.out.println("기존 과목 데이터 삭제 중...");
+        //         subjectRepository.deleteAll();
+        //         System.out.println("=== 기존 데이터 삭제 완료 ===");
 
-        return 0; // Return value is not strictly used by controller but kept for signature
-                  // compatibility
+        //         // 신규 데이터 저장
+        //         List<Subject> savedSubjects = subjectRepository.saveAll(allSubjects);
+        //         System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
+        //         return savedSubjects.size();
+        //     } catch (Exception e) {
+        //         System.err.println("데이터베이스 교체 중 오류 발생: " + e.getMessage());
+        //         e.printStackTrace();
+        //         status.setRollbackOnly(); // 롤백
+        //         throw new RuntimeException("DB 교체 실패", e);
+        //     }
+        // });
+        // System.out.println("=== 데이터베이스 교체 트랜잭션 종료 ===\n");
+
+        // return 0;
     }
 
     /**
