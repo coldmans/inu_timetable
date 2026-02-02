@@ -64,4 +64,5 @@ jobs:
               -e SPRING_DATASOURCE_PASSWORD='${{ secrets.DB_PASSWORD }}' \
               -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
               -e GEMINI_API_KEY="${{ secrets.GEMINI_KEY }}" \
+              -e SPRING_PROFILES_ACTIVE=prod \
               ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest
