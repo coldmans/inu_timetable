@@ -45,3 +45,14 @@ out/
 k6-test-results-summary.json
 k6-*.json
 load-test-results.json
+load-test-*.js
+
+### Gemini Response Logs ###
+gemini_response_*.txt
+
+### OS Files ###
+.DS_Store
+*/.DS_Store
+
+### Misc ###
+backend/

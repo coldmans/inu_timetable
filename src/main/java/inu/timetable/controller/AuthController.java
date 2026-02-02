@@ -1,5 +1,6 @@
 package inu.timetable.controller;
 
+import inu.timetable.dto.UserResponse;
 import inu.timetable.entity.User;
 import inu.timetable.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -24,10 +25,7 @@ public class AuthController {
             String major = (String) request.get("major");
             
             User user = authService.register(username, password, grade, major);
-            
-            // 비밀번호 제거 후 응답
-            user.setPassword(null);
-            return ResponseEntity.ok(user);
+            return ResponseEntity.ok(UserResponse.from(user));
             
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -41,10 +39,7 @@ public class AuthController {
             String password = request.get("password");
             
             User user = authService.login(username, password);
-            
-            // 비밀번호 제거 후 응답
-            user.setPassword(null);
-            return ResponseEntity.ok(user);
+            return ResponseEntity.ok(UserResponse.from(user));
             
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
