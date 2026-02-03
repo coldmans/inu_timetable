@@ -18,7 +18,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-@RestController 
+@RestController
 @RequestMapping("/api/subjects")
 @RequiredArgsConstructor
 public class SubjectController {
@@ -52,7 +52,7 @@ public class SubjectController {
     public List<String> getAllDepartments() {
         return subjectRepository.findDistinctDepartments();
     }
-    
+
     @GetMapping("/grades")
     public List<Integer> getAllGrades() {
         return subjectRepository.findDistinctGrades();
@@ -79,8 +79,8 @@ public class SubjectController {
             subjects = subjectRepository.findBySubjectNameContaining(keyword);
         }
         return subjects.stream()
-            .map(SubjectDto::from)
-            .collect(Collectors.toList());
+                .map(SubjectDto::from)
+                .collect(Collectors.toList());
     }
 
     @GetMapping("/search/professor")
@@ -94,8 +94,8 @@ public class SubjectController {
             subjects = subjectRepository.findByProfessorContaining(keyword);
         }
         return subjects.stream()
-            .map(SubjectDto::from)
-            .collect(Collectors.toList());
+                .map(SubjectDto::from)
+                .collect(Collectors.toList());
     }
 
     @GetMapping("/filter")
@@ -109,18 +109,18 @@ public class SubjectController {
             @RequestParam(required = false) SubjectType subjectType,
             @RequestParam(required = false) Integer grade,
             @RequestParam(required = false) Boolean isNight,
+            @RequestParam(required = false) Integer credits,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        
+
         System.out.println(">>> [API] Received request for /filter with page=" + page + ", size=" + size);
 
         Pageable pageable = PageRequest.of(page, size);
-        
+
         // 1단계: 필터로 과목 ID 조회 (페이지네이션 적용)
         Page<Long> subjectIdPage = subjectRepository.findIdsWithFilters(
-            subjectName, professor, department, dayOfWeek, 
-            startTime, endTime, subjectType, grade, isNight, pageable
-        );
+                subjectName, professor, department, dayOfWeek,
+                startTime, endTime, subjectType, grade, isNight, credits, pageable);
 
         // 2단계: 조회된 ID로 과목 상세 정보와 시간표를 함께 조회
         List<Long> subjectIds = subjectIdPage.getContent();
@@ -128,16 +128,17 @@ public class SubjectController {
 
         if (subjectIds.isEmpty()) {
             System.out.println(">>> [API] Returning empty page.");
-            return new org.springframework.data.domain.PageImpl<>(new java.util.ArrayList<>(), pageable, subjectIdPage.getTotalElements());
+            return new org.springframework.data.domain.PageImpl<>(new java.util.ArrayList<>(), pageable,
+                    subjectIdPage.getTotalElements());
         }
-        
+
         List<Subject> subjectsWithSchedules = subjectRepository.findWithSchedulesByIds(subjectIds);
         System.out.println(">>> [API] Returning page with " + subjectsWithSchedules.size() + " subjects.");
 
         // DTO로 변환
         List<SubjectDto> subjectDtos = subjectsWithSchedules.stream()
-            .map(SubjectDto::from)
-            .collect(Collectors.toList());
+                .map(SubjectDto::from)
+                .collect(Collectors.toList());
 
         // Page 객체는 유지하되, 내용물만 교체
         return new org.springframework.data.domain.PageImpl<>(subjectDtos, pageable, subjectIdPage.getTotalElements());
@@ -146,26 +147,26 @@ public class SubjectController {
     @PostMapping("/manual")
     public List<Subject> addSubjectsManually(@RequestBody List<Map<String, Object>> subjectsData) {
         List<Subject> subjects = new ArrayList<>();
-        
+
         for (Map<String, Object> data : subjectsData) {
             // timeString은 현재 사용하지 않음 - 별도 스케줄 관리 필요시 구현
-            
+
             Subject subject = Subject.builder()
-                .subjectName((String) data.get("subjectName"))
-                .credits((Integer) data.get("credits"))
-                .professor((String) data.get("professor"))
-                .isNight((Boolean) data.get("isNight"))
-                .subjectType(parseSubjectType((String) data.get("subjectType")))
-                .classMethod(parseClassMethod((String) data.get("classMethod")))
-                .grade((Integer) data.get("grade"))
-                .department((String) data.get("department"))
-                .build();
-            
+                    .subjectName((String) data.get("subjectName"))
+                    .credits((Integer) data.get("credits"))
+                    .professor((String) data.get("professor"))
+                    .isNight((Boolean) data.get("isNight"))
+                    .subjectType(parseSubjectType((String) data.get("subjectType")))
+                    .classMethod(parseClassMethod((String) data.get("classMethod")))
+                    .grade((Integer) data.get("grade"))
+                    .department((String) data.get("department"))
+                    .build();
+
             // 스케줄은 별도로 저장 - Subject와 분리
-            
+
             subjects.add(subject);
         }
-        
+
         return subjectRepository.saveAll(subjects);
     }
 
@@ -176,7 +177,7 @@ public class SubjectController {
         }
 
         String cleanTimeString = timeString.replaceAll("\\([^)]*\\)", "").trim();
-        
+
         Pattern dayPattern = Pattern.compile("([월화수목금토일])\\s+([^월화수목금토일]+)");
         Matcher dayMatcher = dayPattern.matcher(cleanTimeString);
 
@@ -189,12 +190,12 @@ public class SubjectController {
 
             Pattern rangePattern = Pattern.compile("((?:야)?[1-9][0-9]?[AB]?)-((?:야)?[1-9][0-9]?[AB]?)");
             Matcher rangeMatcher = rangePattern.matcher(timeSlots);
-            
+
             boolean hasRange = false;
             while (rangeMatcher.find()) {
                 String startPeriod = rangeMatcher.group(1);
                 String endPeriod = rangeMatcher.group(2);
-                
+
                 double start = convertToTime(startPeriod);
                 double end = convertToTimeEnd(endPeriod, startPeriod);
                 minStartTime = Math.min(minStartTime, start);
@@ -206,11 +207,11 @@ public class SubjectController {
                 List<Double> times = new ArrayList<>();
                 Pattern timePattern = Pattern.compile("(야[1-3]|[1-9][0-9]?[AB]?)");
                 Matcher timeMatcher = timePattern.matcher(timeSlots);
-                
+
                 while (timeMatcher.find()) {
                     times.add(convertToTime(timeMatcher.group(1)));
                 }
-                
+
                 if (!times.isEmpty()) {
                     minStartTime = times.get(0);
                     maxEndTime = times.get(times.size() - 1) + 1.0;
@@ -223,7 +224,7 @@ public class SubjectController {
                     maxEndTime += 8.0;
                 }
                 schedules.add(
-                    Schedule.builder().dayOfWeek(dayOfWeek).startTime(minStartTime).endTime(maxEndTime).build());
+                        Schedule.builder().dayOfWeek(dayOfWeek).startTime(minStartTime).endTime(maxEndTime).build());
             }
         }
         return schedules;
@@ -232,16 +233,20 @@ public class SubjectController {
     private double convertToTime(String period) {
         if (period.startsWith("야")) {
             String numericPart = period.substring(1);
-            if (numericPart.equals("1")) return 10.0;
-            if (numericPart.equals("2")) return 11.0;
-            if (numericPart.equals("3")) return 12.0;
+            if (numericPart.equals("1"))
+                return 10.0;
+            if (numericPart.equals("2"))
+                return 11.0;
+            if (numericPart.equals("3"))
+                return 12.0;
             return 10.0;
         }
-        
+
         String numericPart = period.replaceAll("[^0-9]", "");
-        if (numericPart.isEmpty()) return 0.0;
+        if (numericPart.isEmpty())
+            return 0.0;
         double time = Double.parseDouble(numericPart);
-        
+
         if (period.contains("A")) {
             return time;
         } else if (period.contains("B")) {
@@ -254,17 +259,21 @@ public class SubjectController {
     private double convertToTimeEnd(String period, String startPeriod) {
         if (period.startsWith("야")) {
             String numericPart = period.substring(1);
-            if (numericPart.equals("1")) return 11.0;
-            if (numericPart.equals("2")) return 12.0;
-            if (numericPart.equals("3")) return 13.0;
+            if (numericPart.equals("1"))
+                return 11.0;
+            if (numericPart.equals("2"))
+                return 12.0;
+            if (numericPart.equals("3"))
+                return 13.0;
             return 11.0;
         }
-        
+
         if (startPeriod.startsWith("야")) {
             String numericPart = period.replaceAll("[^0-9]", "");
-            if (numericPart.isEmpty()) return 11.0;
+            if (numericPart.isEmpty())
+                return 11.0;
             int nightTime = Integer.parseInt(numericPart);
-            
+
             if (period.contains("A")) {
                 return (9 + nightTime) + 0.5;
             } else if (period.contains("B")) {
@@ -273,11 +282,12 @@ public class SubjectController {
                 return (9 + nightTime) + 1.0;
             }
         }
-        
+
         String numericPart = period.replaceAll("[^0-9]", "");
-        if (numericPart.isEmpty()) return 0.0;
+        if (numericPart.isEmpty())
+            return 0.0;
         double time = Double.parseDouble(numericPart);
-        
+
         if (period.contains("A")) {
             return time + 0.5;
         } else if (period.contains("B")) {
@@ -288,7 +298,8 @@ public class SubjectController {
     }
 
     private ClassMethod parseClassMethod(String method) {
-        if (method == null) return ClassMethod.OFFLINE;
+        if (method == null)
+            return ClassMethod.OFFLINE;
         return switch (method.toUpperCase()) {
             case "ONLINE" -> ClassMethod.ONLINE;
             case "BLENDED" -> ClassMethod.BLENDED;
@@ -297,7 +308,8 @@ public class SubjectController {
     }
 
     private SubjectType parseSubjectType(String type) {
-        if (type == null) return SubjectType.일선;
+        if (type == null)
+            return SubjectType.일선;
         return switch (type) {
             case "전심" -> SubjectType.전심;
             case "전핵" -> SubjectType.전핵;
