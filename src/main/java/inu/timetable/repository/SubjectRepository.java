@@ -50,7 +50,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "AND (:startTime IS NULL OR sch.startTime >= :startTime) " +
                         "AND (:endTime IS NULL OR sch.endTime <= :endTime)", countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch "
                                         +
-                                        "WHERE (:subjectName IS NULL OR s.subjectName LIKE :subjectName) " +
+                                        "WHERE (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
                                         "AND (:department IS NULL OR s.department LIKE %:department%) " +
                                         "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
