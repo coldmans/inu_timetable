@@ -12,7 +12,12 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "wishlist_items")
+@Table(
+    name = "wishlist_items",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_wishlist_user_subject_semester", columnNames = {"user_id", "subject_id", "semester"})
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor

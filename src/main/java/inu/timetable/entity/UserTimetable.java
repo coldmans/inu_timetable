@@ -11,7 +11,12 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user_timetables")
+@Table(
+    name = "user_timetables",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_user_timetable_user_subject_semester", columnNames = {"user_id", "subject_id", "semester"})
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor

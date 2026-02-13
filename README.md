@@ -27,6 +27,11 @@
 ### 위시리스트
 듣고 싶은 과목 담아두면 나중에 조합 뽑을 때 우선으로 넣어줌
 
+### 데이터 정합성 (중복 삽입 방지)
+- `user_timetables`, `wishlist_items`에 `(user_id, subject_id, semester)` 유니크 제약 적용
+- 동시 요청으로 동일 과목이 중복 저장되는 레이스 컨디션 방지
+- 운영 DB 수동 반영 SQL: `scripts/2026-02-13_add_unique_constraints.sql`
+
 <br>
 
 ## 기술 스택
