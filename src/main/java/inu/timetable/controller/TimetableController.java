@@ -33,9 +33,9 @@ public class TimetableController {
     }
     
     @DeleteMapping("/remove")
-    public ResponseEntity<?> removeSubjectFromTimetable(@RequestParam Long userId, @RequestParam Long subjectId) {
+    public ResponseEntity<?> removeSubjectFromTimetable(@RequestParam Long userId, @RequestParam Long subjectId, @RequestParam(required = false) String semester) {
         try {
-            timetableService.removeSubjectFromTimetable(userId, subjectId);
+            timetableService.removeSubjectFromTimetable(userId, subjectId, semester);
             return ResponseEntity.ok(Map.of("message", "과목이 시간표에서 제거되었습니다."));
             
         } catch (RuntimeException e) {
@@ -57,9 +57,10 @@ public class TimetableController {
         try {
             Long userId = Long.valueOf(request.get("userId").toString());
             Long subjectId = Long.valueOf(request.get("subjectId").toString());
+            String semester = (String) request.get("semester");
             String memo = (String) request.get("memo");
-            
-            UserTimetable userTimetable = timetableService.updateMemo(userId, subjectId, memo);
+
+            UserTimetable userTimetable = timetableService.updateMemo(userId, subjectId, semester, memo);
             return ResponseEntity.ok(userTimetable);
             
         } catch (RuntimeException e) {
