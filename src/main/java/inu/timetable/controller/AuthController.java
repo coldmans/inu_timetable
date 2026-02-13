@@ -32,6 +32,20 @@ public class AuthController {
         }
     }
     
+    @DeleteMapping("/withdraw")
+    public ResponseEntity<?> withdraw(@RequestBody Map<String, String> request) {
+        try {
+            Long userId = Long.valueOf(request.get("userId"));
+            String password = request.get("password");
+
+            authService.withdraw(userId, password);
+            return ResponseEntity.ok(Map.of("message", "회원탈퇴가 완료되었습니다."));
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
         try {
