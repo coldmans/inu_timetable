@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class TimetableService {
@@ -38,13 +37,7 @@ public class TimetableService {
         Subject subject = subjectRepository.findById(subjectId)
             .orElseThrow(() -> new RuntimeException("과목을 찾을 수 없습니다."));
         
-        // 이미 추가된 과목인지 확인
-        Optional<UserTimetable> existing = userTimetableRepository.findByUserIdAndSubjectIdAndSemester(userId, subjectId, semester);
-        if (existing.isPresent()) {
-            throw new RuntimeException("이미 시간표에 추가된 과목입니다.");
-        }
-        
-        // 시간표 겹침 확인
+                // 시간표 겹침 확인
         List<UserTimetable> currentTimetable = userTimetableRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester);
         if (hasTimeConflict(currentTimetable, subject)) {
             throw new RuntimeException("시간표가 겹치는 과목이 있습니다.");

@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class WishlistService {
@@ -42,13 +41,7 @@ public class WishlistService {
         Subject subject = subjectRepository.findById(subjectId)
             .orElseThrow(() -> new RuntimeException("과목을 찾을 수 없습니다."));
         
-        // 이미 위시리스트에 있는지 확인
-        Optional<WishlistItem> existing = wishlistRepository.findByUserIdAndSubjectIdAndSemester(userId, subjectId, semester);
-        if (existing.isPresent()) {
-            throw new RuntimeException("이미 위시리스트에 추가된 과목입니다.");
-        }
-        
-        WishlistItem wishlistItem = WishlistItem.builder()
+                WishlistItem wishlistItem = WishlistItem.builder()
             .user(user)
             .subject(subject)
             .semester(semester)

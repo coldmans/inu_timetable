@@ -22,7 +22,7 @@ public interface WishlistRepository extends JpaRepository<WishlistItem, Long> {
            "ORDER BY w.priority")
     List<WishlistItem> findByUserIdAndSemesterWithSubjectAndSchedules(@Param("userId") Long userId, @Param("semester") String semester);
     
-    @Query("SELECT w FROM WishlistItem w JOIN FETCH w.subject s WHERE w.user.id = :userId AND s.id = :subjectId")
+    @Query("SELECT w FROM WishlistItem w JOIN FETCH w.subject s WHERE w.user.id = :userId AND s.id = :subjectId AND w.semester = :semester")
     Optional<WishlistItem> findByUserIdAndSubjectIdAndSemester(@Param("userId") Long userId, @Param("subjectId") Long subjectId, @Param("semester") String semester);
 
     List<WishlistItem> findByUserIdAndSubjectId(Long userId, Long subjectId);
