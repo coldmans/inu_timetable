@@ -22,19 +22,31 @@ public class AuthController {
     
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
-        User user = authService.register(request.username(), request.password(), request.grade(), request.major());
-        return ResponseEntity.ok(UserResponse.from(user));
+        try {
+            User user = authService.register(request.username(), request.password(), request.grade(), request.major());
+            return ResponseEntity.ok(UserResponse.from(user));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
     
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
-        User user = authService.login(request.username(), request.password());
-        return ResponseEntity.ok(UserResponse.from(user));
+        try {
+            User user = authService.login(request.username(), request.password());
+            return ResponseEntity.ok(UserResponse.from(user));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
-    @DeleteMapping("/withdraw")
+    @PostMapping("/withdraw")
     public ResponseEntity<?> withdraw(@Valid @RequestBody WithdrawRequest request) {
-        authService.withdraw(request.userId(), request.password());
-        return ResponseEntity.ok(Map.of("message", "회원탈퇴가 완료되었습니다."));
+        try {
+            authService.withdraw(request.username(), request.password());
+            return ResponseEntity.ok(Map.of("message", "회원탈퇴가 완료되었습니다."));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 }

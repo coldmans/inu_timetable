@@ -19,7 +19,7 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
     
     Optional<UserTimetable> findByUserIdAndSubjectId(Long userId, Long subjectId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("DELETE FROM UserTimetable ut WHERE ut.user.id = :userId")
     void deleteByUserId(@Param("userId") Long userId);
 
