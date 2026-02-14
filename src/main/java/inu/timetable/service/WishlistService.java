@@ -41,7 +41,7 @@ public class WishlistService {
             .orElseThrow(() -> new RuntimeException("과목을 찾을 수 없습니다."));
         
         // 이미 위시리스트에 있는지 확인
-        Optional<WishlistItem> existing = wishlistRepository.findByUserIdAndSubjectId(userId, subjectId);
+        Optional<WishlistItem> existing = wishlistRepository.findByUserIdAndSubjectIdAndSemester(userId, subjectId, semester);
         if (existing.isPresent()) {
             throw new RuntimeException("이미 위시리스트에 추가된 과목입니다.");
         }
@@ -58,24 +58,27 @@ public class WishlistService {
     }
     
     @Transactional
-    public void removeFromWishlist(Long userId, Long subjectId) {
-        wishlistRepository.deleteByUserIdAndSubjectId(userId, subjectId);
+    public void removeFromWishlist(Long userId, Long subjectId, String semester) {
+        int deleted = wishlistRepository.deleteByUserIdAndSubjectIdAndSemester(userId, subjectId, semester);
+        if (deleted == 0) {
+            throw new RuntimeException("위시리스트에서 해당 과목을 찾을 수 없습니다.");
+        }
     }
     
     public List<WishlistItem> getUserWishlist(Long userId, String semester) {
         return wishlistRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester);
     }
     
-    public WishlistItem updatePriority(Long userId, Long subjectId, Integer priority) {
-        WishlistItem wishlistItem = wishlistRepository.findByUserIdAndSubjectId(userId, subjectId)
+    public WishlistItem updatePriority(Long userId, Long subjectId, String semester, Integer priority) {
+        WishlistItem wishlistItem = wishlistRepository.findByUserIdAndSubjectIdAndSemester(userId, subjectId, semester)
             .orElseThrow(() -> new RuntimeException("위시리스트에서 해당 과목을 찾을 수 없습니다."));
             
         wishlistItem.setPriority(priority);
         return wishlistRepository.save(wishlistItem);
     }
     
-    public WishlistItem updateRequired(Long userId, Long subjectId, Boolean isRequired) {
-        WishlistItem wishlistItem = wishlistRepository.findByUserIdAndSubjectId(userId, subjectId)
+    public WishlistItem updateRequired(Long userId, Long subjectId, String semester, Boolean isRequired) {
+        WishlistItem wishlistItem = wishlistRepository.findByUserIdAndSubjectIdAndSemester(userId, subjectId, semester)
             .orElseThrow(() -> new RuntimeException("위시리스트에서 해당 과목을 찾을 수 없습니다."));
             
         wishlistItem.setIsRequired(isRequired);

@@ -38,9 +38,9 @@ public class WishlistController {
     }
     
     @DeleteMapping("/remove")
-    public ResponseEntity<?> removeFromWishlist(@RequestParam Long userId, @RequestParam Long subjectId) {
+    public ResponseEntity<?> removeFromWishlist(@RequestParam Long userId, @RequestParam Long subjectId, @RequestParam(required = false) String semester) {
         try {
-            wishlistService.removeFromWishlist(userId, subjectId);
+            wishlistService.removeFromWishlist(userId, subjectId, semester);
             return ResponseEntity.ok(Map.of("message", "위시리스트에서 제거되었습니다."));
             
         } catch (RuntimeException e) {
@@ -75,9 +75,10 @@ public class WishlistController {
         try {
             Long userId = Long.valueOf(request.get("userId").toString());
             Long subjectId = Long.valueOf(request.get("subjectId").toString());
+            String semester = (String) request.get("semester");
             Integer priority = Integer.valueOf(request.get("priority").toString());
             
-            wishlistService.updatePriority(userId, subjectId, priority);
+            wishlistService.updatePriority(userId, subjectId, semester, priority);
             return ResponseEntity.ok(Map.of("message", "우선순위가 업데이트되었습니다."));
             
         } catch (RuntimeException e) {
@@ -90,9 +91,10 @@ public class WishlistController {
         try {
             Long userId = Long.valueOf(request.get("userId").toString());
             Long subjectId = Long.valueOf(request.get("subjectId").toString());
+            String semester = (String) request.get("semester");
             Boolean isRequired = Boolean.valueOf(request.get("isRequired").toString());
             
-            wishlistService.updateRequired(userId, subjectId, isRequired);
+            wishlistService.updateRequired(userId, subjectId, semester, isRequired);
             return ResponseEntity.ok(Map.of("message", "필수 과목 설정이 업데이트되었습니다."));
             
         } catch (RuntimeException e) {
