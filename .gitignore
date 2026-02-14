@@ -67,6 +67,7 @@ src/main/resources/pdf/
 wipe_db.py
 wipe_db_now.sh
 *.sql
+!src/main/resources/db/migration/*.sql
 
 ### Ad-hoc Test Files ###
 **/AdHoc*.java
