@@ -33,7 +33,7 @@ public class TimetableController {
     }
     
     @DeleteMapping("/remove")
-    public ResponseEntity<?> removeSubjectFromTimetable(@RequestParam Long userId, @RequestParam Long subjectId, @RequestParam(required = false) String semester) {
+    public ResponseEntity<?> removeSubjectFromTimetable(@RequestParam Long userId, @RequestParam Long subjectId, @RequestParam String semester) {
         try {
             timetableService.removeSubjectFromTimetable(userId, subjectId, semester);
             return ResponseEntity.ok(Map.of("message", "과목이 시간표에서 제거되었습니다."));
@@ -46,7 +46,7 @@ public class TimetableController {
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<UserTimetable>> getUserTimetable(
             @PathVariable Long userId,
-            @RequestParam(required = false) String semester) {
+            @RequestParam String semester) {
         
         List<UserTimetable> timetable = timetableService.getUserTimetable(userId, semester);
         return ResponseEntity.ok(timetable);
@@ -69,7 +69,7 @@ public class TimetableController {
     }
     
     @DeleteMapping("/clear")
-    public ResponseEntity<?> clearTimetable(@RequestParam Long userId, @RequestParam(required = false) String semester) {
+    public ResponseEntity<?> clearTimetable(@RequestParam Long userId, @RequestParam String semester) {
         try {
             timetableService.removeAllSubjectsFromTimetable(userId, semester);
             String message = semester != null && !semester.isEmpty() 

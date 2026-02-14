@@ -18,11 +18,9 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
     List<UserTimetable> findByUserId(Long userId);
     
     Optional<UserTimetable> findByUserIdAndSubjectIdAndSemester(Long userId, Long subjectId, String semester);
-
-    java.util.List<UserTimetable> findByUserIdAndSubjectId(Long userId, Long subjectId);
     
-    @Modifying
-    @Query("DELETE FROM UserTimetable ut WHERE ut.user.id = :userId AND ut.subject.id = :subjectId AND (:semester IS NULL OR ut.semester = :semester)")
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM UserTimetable ut WHERE ut.user.id = :userId AND ut.subject.id = :subjectId AND ut.semester = :semester")
     int deleteByUserIdAndSubjectIdAndSemester(@Param("userId") Long userId, @Param("subjectId") Long subjectId, @Param("semester") String semester);
 
     @Query("SELECT DISTINCT ut FROM UserTimetable ut JOIN FETCH ut.subject s WHERE ut.user.id = :userId AND ut.semester = :semester")

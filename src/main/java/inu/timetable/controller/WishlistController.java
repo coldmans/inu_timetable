@@ -38,7 +38,7 @@ public class WishlistController {
     }
     
     @DeleteMapping("/remove")
-    public ResponseEntity<?> removeFromWishlist(@RequestParam Long userId, @RequestParam Long subjectId, @RequestParam(required = false) String semester) {
+    public ResponseEntity<?> removeFromWishlist(@RequestParam Long userId, @RequestParam Long subjectId, @RequestParam String semester) {
         try {
             wishlistService.removeFromWishlist(userId, subjectId, semester);
             return ResponseEntity.ok(Map.of("message", "위시리스트에서 제거되었습니다."));
