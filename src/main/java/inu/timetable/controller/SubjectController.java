@@ -5,11 +5,18 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.repository.SubjectRepository;
+import inu.timetable.dto.SubjectManagementRequest;
+import inu.timetable.dto.SubjectManagementResponse;
 import inu.timetable.dto.SubjectDto;
+import inu.timetable.service.AdminAccessGuard;
+import inu.timetable.service.SubjectAdminService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +31,8 @@ import java.util.stream.Collectors;
 public class SubjectController {
 
     private final SubjectRepository subjectRepository;
+    private final AdminAccessGuard adminAccessGuard;
+    private final SubjectAdminService subjectAdminService;
 
     @GetMapping
     public Page<Subject> getAllSubjects(
@@ -36,6 +45,37 @@ public class SubjectController {
     @GetMapping("/count")
     public long getCount() {
         return subjectRepository.count();
+    }
+
+    @PostMapping
+    public ResponseEntity<SubjectManagementResponse> createSubject(
+            @RequestHeader(value = AdminAccessGuard.ADMIN_PASSWORD_HEADER, required = false) String adminPassword,
+            @Valid @RequestBody SubjectManagementRequest request) {
+        adminAccessGuard.requireAdminPassword(adminPassword);
+        return ResponseEntity.status(HttpStatus.CREATED).body(subjectAdminService.createSubject(request));
+    }
+
+    @GetMapping("/{id}")
+    public SubjectManagementResponse getSubject(@PathVariable Long id) {
+        return subjectAdminService.getSubject(id);
+    }
+
+    @PutMapping("/{id}")
+    public SubjectManagementResponse updateSubject(
+            @RequestHeader(value = AdminAccessGuard.ADMIN_PASSWORD_HEADER, required = false) String adminPassword,
+            @PathVariable Long id,
+            @Valid @RequestBody SubjectManagementRequest request) {
+        adminAccessGuard.requireAdminPassword(adminPassword);
+        return subjectAdminService.updateSubject(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> deleteSubject(
+            @RequestHeader(value = AdminAccessGuard.ADMIN_PASSWORD_HEADER, required = false) String adminPassword,
+            @PathVariable Long id) {
+        adminAccessGuard.requireAdminPassword(adminPassword);
+        subjectAdminService.deleteSubject(id);
+        return ResponseEntity.ok(Map.of("deleted", true, "id", id));
     }
 
     @GetMapping("/type/{type}")
@@ -145,12 +185,13 @@ public class SubjectController {
     }
 
     @PostMapping("/manual")
-    public List<Subject> addSubjectsManually(@RequestBody List<Map<String, Object>> subjectsData) {
+    public List<Subject> addSubjectsManually(
+            @RequestHeader(value = AdminAccessGuard.ADMIN_PASSWORD_HEADER, required = false) String adminPassword,
+            @RequestBody List<Map<String, Object>> subjectsData) {
+        adminAccessGuard.requireAdminPassword(adminPassword);
         List<Subject> subjects = new ArrayList<>();
 
         for (Map<String, Object> data : subjectsData) {
-            // timeString은 현재 사용하지 않음 - 별도 스케줄 관리 필요시 구현
-
             Subject subject = Subject.builder()
                     .subjectName((String) data.get("subjectName"))
                     .credits((Integer) data.get("credits"))
@@ -160,9 +201,17 @@ public class SubjectController {
                     .classMethod(parseClassMethod((String) data.get("classMethod")))
                     .grade((Integer) data.get("grade"))
                     .department((String) data.get("department"))
+                    .schedules(new ArrayList<>())
                     .build();
 
-            // 스케줄은 별도로 저장 - Subject와 분리
+            String timeString = (String) data.get("timeString");
+            if (timeString != null && !timeString.isBlank()) {
+                List<Schedule> schedules = parseTime(timeString);
+                for (Schedule schedule : schedules) {
+                    schedule.setSubject(subject);
+                    subject.getSchedules().add(schedule);
+                }
+            }
 
             subjects.add(subject);
         }

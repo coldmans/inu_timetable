@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface SubjectRepository extends JpaRepository<Subject, Long> {
@@ -75,6 +76,9 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
         @Query("SELECT DISTINCT s FROM Subject s LEFT JOIN FETCH s.schedules WHERE s.id IN :subjectIds")
         List<Subject> findWithSchedulesByIds(@Param("subjectIds") List<Long> subjectIds);
+
+        @Query("SELECT DISTINCT s FROM Subject s LEFT JOIN FETCH s.schedules WHERE s.id = :subjectId")
+        Optional<Subject> findWithSchedulesById(@Param("subjectId") Long subjectId);
 
         @Query("SELECT DISTINCT s.department FROM Subject s WHERE s.department IS NOT NULL ORDER BY s.department")
         List<String> findDistinctDepartments();

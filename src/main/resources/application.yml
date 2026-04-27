@@ -32,6 +32,9 @@ gemini:
   api:
     key: ${GEMINI_API_KEY}
 
+admin:
+  password: ${ADMIN_PASSWORD:}
+
 # Actuator 모니터링 설정
 management:
   endpoints:
