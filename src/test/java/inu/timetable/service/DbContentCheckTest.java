@@ -1,9 +1,6 @@
 package inu.timetable.service;
 
-import inu.timetable.repository.SubjectRepository;
-import inu.timetable.repository.UserRepository;
-import inu.timetable.repository.UserTimetableRepository;
-import inu.timetable.repository.WishlistRepository;
+import inu.timetable.entity.Subject;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,19 +12,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Disabled("Manual external DB inspection. Requires TEST_DB_URL/TEST_DB_USERNAME/TEST_DB_PASSWORD.")
-public class CheckDbStatusTest {
+class DbContentCheckTest {
 
     @Autowired
-    private SubjectRepository subjectRepository;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private UserTimetableRepository userTimetableRepository;
-
-    @Autowired
-    private WishlistRepository wishlistRepository;
+    private inu.timetable.repository.SubjectRepository subjectRepository;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -40,12 +28,23 @@ public class CheckDbStatusTest {
     }
 
     @Test
-    void checkCurrentDbStatus() {
-        System.out.println("\n=== 현재 DB 상태 ===");
-        System.out.println("Users: " + userRepository.count() + "개");
-        System.out.println("UserTimetables: " + userTimetableRepository.count() + "개");
-        System.out.println("Wishlists: " + wishlistRepository.count() + "개");
-        System.out.println("Subjects: " + subjectRepository.count() + "개");
-        System.out.println("==================\n");
+    void checkSpecificSubject() {
+        System.out.println("=== DB Content Check ===");
+
+        String[] targets = { "인문학고전읽기", "미학의이해", "환경윤리입문" };
+
+        java.util.List<Subject> all = subjectRepository.findAll();
+
+        for (String target : targets) {
+            System.out.println("\nChecking: " + target);
+            all.stream()
+                    .filter(s -> s.getSubjectName().contains(target))
+                    .forEach(s -> {
+                        System.out.printf("Found: [%s] %s (%s) Type=%s Gr=%d\n",
+                                s.getDepartment(), s.getSubjectName(), s.getProfessor(), s.getSubjectType(),
+                                s.getGrade());
+                    });
+        }
+        System.out.println("=== End Check ===");
     }
 }

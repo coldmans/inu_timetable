@@ -1,6 +1,5 @@
 name: Deploy to GCP (via Docker Hub)
 
-# 1. 트리거 수정: PR(pull_request) 말고, Main에 '합쳐졌을 때(push)' 배포해야 함!
 on:
   push:
     branches: [ "main" ]
@@ -9,7 +8,6 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      # --- [1부] 기존 코드 (이미지 굽고 Hub에 올리기) ---
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -36,10 +34,8 @@ jobs:
         with:
           context: .
           push: true
-          # ★ 사용자님 Docker Hub 주소 (sde_teacher16 대신 사용자님 ID가 들어가겠죠?)
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest
 
-      # --- [2부] GCP 접속해서 실행하기 (새로 추가된 부분) ---
       - name: Deploy to GCP
         uses: appleboy/ssh-action@master
         with:
@@ -64,5 +60,6 @@ jobs:
               -e SPRING_DATASOURCE_PASSWORD='${{ secrets.DB_PASSWORD }}' \
               -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
               -e GEMINI_API_KEY="${{ secrets.GEMINI_KEY }}" \
+              -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
               -e SPRING_PROFILES_ACTIVE=prod \
               ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest

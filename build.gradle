@@ -63,6 +63,13 @@ dependencyManagement {
 tasks.named('test') {
     useJUnitPlatform()
     enabled = true
+    exclude '**/*AdHoc*Test.class'
+    exclude '**/*Wipe*Test.class'
+    exclude '**/*Delete*Test.class'
+    exclude '**/*UploadAll*Test.class'
+    exclude '**/*DbStatus*Test.class'
+    exclude '**/*DbContent*Test.class'
+    exclude '**/*Verify*DataTest.class'
     testLogging {
         events "passed", "skipped", "failed", "standardOut", "standardError"
         showStandardStreams = true

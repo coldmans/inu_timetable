@@ -5,11 +5,15 @@ import inu.timetable.service.ParsingValidationService;
 import inu.timetable.service.PdfParseService;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
@@ -22,12 +26,14 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private static final String ADMIN_PASSWORD = "155788";
     private static final String SESSION_AUTHENTICATED = "admin_authenticated";
 
     private final PdfParseService pdfParseService;
     private final ExcelParseService excelParseService;
     private final ParsingValidationService validationService;
+
+    @Value("${admin.password:}")
+    private String adminPassword;
 
     /**
      * 로그인 페이지
@@ -46,7 +52,7 @@ public class AdminController {
      */
     @PostMapping("/login")
     public String login(@RequestParam String password, HttpSession session, RedirectAttributes redirectAttributes) {
-        if (ADMIN_PASSWORD.equals(password)) {
+        if (StringUtils.hasText(adminPassword) && adminPassword.equals(password)) {
             session.setAttribute(SESSION_AUTHENTICATED, true);
             return "redirect:/admin/upload";
         } else {
@@ -232,7 +238,8 @@ public class AdminController {
      */
     @GetMapping("/api/analyze-missing")
     @ResponseBody
-    public Map<String, Object> analyzeMissingSubjects() {
+    public Map<String, Object> analyzeMissingSubjects(HttpSession session) {
+        requireAuthenticated(session);
         return validationService.analyzeMissingSubjects();
     }
 
@@ -242,7 +249,8 @@ public class AdminController {
      */
     @GetMapping("/api/excel-headers")
     @ResponseBody
-    public Map<String, Object> getExcelHeaders() {
+    public Map<String, Object> getExcelHeaders(HttpSession session) {
+        requireAuthenticated(session);
         return validationService.getExcelHeaders();
     }
 
@@ -252,7 +260,14 @@ public class AdminController {
      */
     @PostMapping("/api/insert-missing")
     @ResponseBody
-    public Map<String, Object> insertMissingSubjects() {
+    public Map<String, Object> insertMissingSubjects(HttpSession session) {
+        requireAuthenticated(session);
         return validationService.insertMissingSubjects();
+    }
+
+    private void requireAuthenticated(HttpSession session) {
+        if (!isAuthenticated(session)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin login required");
+        }
     }
 }

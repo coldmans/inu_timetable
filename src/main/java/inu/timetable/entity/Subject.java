@@ -44,7 +44,7 @@ public class Subject {
     @Column(nullable = false)
     private String professor;
     
-    @OneToMany(mappedBy = "subject", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "subject", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Schedule> schedules = new ArrayList<>();
     

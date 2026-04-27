@@ -54,6 +54,10 @@ gemini_response_*.txt
 .DS_Store
 */.DS_Store
 
+### Python Cache ###
+__pycache__/
+*.py[cod]
+
 ### Misc ###
 backend/
 

@@ -1,5 +1,6 @@
 package inu.timetable.controller;
 
+import inu.timetable.service.AdminAccessGuard;
 import inu.timetable.service.ParsingValidationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,13 +24,16 @@ import java.util.Map;
 public class ParsingValidationController {
 
     private final ParsingValidationService validationService;
+    private final AdminAccessGuard adminAccessGuard;
 
     @PostMapping(value = "/pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "PDF 파싱 결과 검증", description = "PDF 파일을 파싱하여 DB에 저장된 데이터와 비교합니다. " +
             "누락된 과목, 중복된 과목, 필드 불일치 등을 리포트로 반환합니다.")
     public ResponseEntity<?> validatePdfParsing(
+            @RequestHeader(value = AdminAccessGuard.ADMIN_PASSWORD_HEADER, required = false) String adminPassword,
             @Parameter(description = "검증할 PDF 파일", required = true) @RequestParam("file") MultipartFile file,
             @Parameter(description = "학기 (예: 2025-1) - 선택사항") @RequestParam(value = "semester", required = false) String semester) {
+        adminAccessGuard.requireAdminPassword(adminPassword);
         try {
             Map<String, Object> report = validationService.validatePdfParsing(file, semester);
             return ResponseEntity.ok(report);
@@ -44,8 +48,10 @@ public class ParsingValidationController {
     @Operation(summary = "Excel 파싱 결과 검증", description = "Excel 파일을 파싱하여 DB에 저장된 데이터와 비교합니다. " +
             "누락된 과목, 중복된 과목, 필드 불일치 등을 리포트로 반환합니다.")
     public ResponseEntity<?> validateExcelParsing(
+            @RequestHeader(value = AdminAccessGuard.ADMIN_PASSWORD_HEADER, required = false) String adminPassword,
             @Parameter(description = "검증할 Excel 파일 (.xlsx)", required = true) @RequestParam("file") MultipartFile file,
             @Parameter(description = "학기 (예: 2025-1) - 선택사항") @RequestParam(value = "semester", required = false) String semester) {
+        adminAccessGuard.requireAdminPassword(adminPassword);
         try {
             Map<String, Object> report = validationService.validateExcelParsing(file, semester, 0);
             return ResponseEntity.ok(report);
