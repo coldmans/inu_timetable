@@ -63,3 +63,25 @@ jobs:
               -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
               -e SPRING_PROFILES_ACTIVE=prod \
               ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest
+
+            # 5. 컨테이너가 실제로 정상 부팅했는지 확인
+            i=1
+            while [ "$i" -le 30 ]; do
+              if curl -fsS http://localhost:8080/actuator/health; then
+                echo "Backend health check passed."
+                exit 0
+              fi
+
+              if ! sudo docker ps --filter "name=inu-backend" --filter "status=running" --format "{{.Names}}" | grep -q "^inu-backend$"; then
+                echo "Backend container stopped during startup."
+                sudo docker logs --tail=200 inu-backend
+                exit 1
+              fi
+
+              sleep 2
+              i=$((i + 1))
+            done
+
+            echo "Backend health check timed out."
+            sudo docker logs --tail=200 inu-backend
+            exit 1
