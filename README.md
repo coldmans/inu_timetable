@@ -1,148 +1,149 @@
-# 인천대 시간표 마법사
+# INU Timetable
 
-<br>
+인천대학교 학생을 위한 시간표 검색, 위시리스트, 자동 시간표 조합 서비스의 Spring Boot 백엔드입니다.
 
-## 프로젝트 소개
+## Portfolio Highlights
 
-저번 학기에 만들어서 **400명 넘는 학우분들이 써주신** 시간표 조합 서비스입니다.
+- 1인 개발로 시작한 실사용 서비스이며, 공개 README 기준 400명 이상의 학우가 사용한 시간표 조합 서비스입니다.
+- Gemini API로 수강편람 PDF를 구조화 데이터로 변환하고, Java/Spring 로직으로 과목/교수/이수구분/시간표 데이터를 정리했습니다.
+- k6 부하 테스트로 병목을 확인한 뒤 HikariCP connection pool, PostgreSQL prepared statement 설정, 검색 인덱스를 개선했습니다.
+- 200명 동시 사용자 시나리오에서 평균 응답시간을 14.5초에서 약 200ms로 낮추고 실패율을 25.79%에서 0%로 줄였습니다.
 
-<br>
+## My Role
 
-## 주요 기능
+- Spring Boot 백엔드 API 설계 및 구현
+- JPA 엔티티/리포지토리/서비스 계층 구현
+- PDF/Excel 기반 과목 데이터 입력 파이프라인 구현
+- 과목 검색, 필터링, 위시리스트, 시간표 조합 API 구현
+- k6 성능 테스트, 병목 분석, DB/connection 설정 개선
+- Swagger/OpenAPI 문서화와 로컬 실행 문서 관리
 
-### 📚 과목 관리
-- **다양한 파일 형식 지원**
-  - PDF 파싱 (Gemini AI 활용)
-  - Excel 파싱 (.xlsx 형식)
-- 과목명/교수명 검색
-- 학년/학과/이수구분/야간수업 필터링
-- 요일/시간대 필터
+## Tech Stack
 
-### 🗓️ 시간표 자동 조합
-시간표 짜는데 몇 시간씩 쓰지 말고 그냥 조건만 입력하면 됩니다.
-- 목표 학점 설정하면 가능한 조합 전부 생성
-- 시간 겹치는 거 자동으로 거름
-- 위시리스트 기반 조합 생성
+| Area | Stack |
+|---|---|
+| Backend | Java 17, Spring Boot 3.5.4, Spring Data JPA |
+| Database | PostgreSQL, Supabase, HikariCP |
+| AI/Data Import | Google Gemini API, Apache POI |
+| Test/Performance | JUnit 5, k6 |
+| Docs/Infra | Swagger/OpenAPI, Dockerfile |
 
-### 위시리스트
-듣고 싶은 과목 담아두면 나중에 조합 뽑을 때 우선으로 넣어줌
+## Features
 
-<br>
+### Subject Data Management
 
-## 기술 스택
+- 수강편람 PDF 업로드 및 Gemini 기반 파싱
+- Excel `.xlsx` 파일 파싱
+- 과목명, 교수명, 학년, 학과, 이수구분, 야간수업 필터링
+- 요일/시간대 기반 검색
 
-### Backend
-- Java 17
-- Spring Boot 3.5.4
-- Spring Data JPA
-- PostgreSQL (Supabase)
-- HikariCP
-- Apache POI (Excel 파싱)
+### Timetable Combination
 
-### AI
-- Google Gemini API (PDF 파싱용)
+- 목표 학점 기반 가능한 시간표 조합 생성
+- 같은 시간대 수업 충돌 자동 제외
+- 위시리스트 기반 우선 조합 생성
+- 공강 요일과 필수 과목 조건 반영
 
-### 성능 테스트
-- k6 (Grafana Labs)
+### User Timetable
 
-<br>
+- 과목 위시리스트 저장/삭제
+- 개인 시간표 저장/삭제
+- 과목 메모와 시간표 조회 API
 
-## 성능 최적화 과정
-좀 버벅이는 느낌이 불편해서 각종 api들을 최적화 했습니다
+### Admin/Data Operations
 
-### 테스트 환경
-- 동시 접속자 200명 시뮬레이션
-- 5분 30초 동안 지속적인 부하 발생
-- 과목 조회/검색 + 시간표 조합 생성
+- 관리자용 과목 등록/수정/삭제 API
+- 공식 강의시간표 가져오기 preview/apply 흐름
+- 중복 요청 방지와 관리자 접근 가드
 
-### 문제 발견
+## Performance Tuning
+
+### Test Scenario
+
+- 200 concurrent virtual users
+- 5m 30s continuous load
+- subject list/search/filter + timetable combination generation
+
+### Initial Bottleneck
+
+```text
+Average response time: 14.5s
+Failure rate: 25.79%
 ```
-평균 응답시간: 14.5초
-실패율: 25.79%
-```
 
-DB 연결을 5개만 열어놔서 200명이 몰리면 대부분 30초 기다리다가 타임아웃 걸렸음
+The main bottleneck was database connection starvation. With a small connection pool, many requests waited until timeout under concurrent load.
 
-### 해결 과정
+### Fixes
 
-**1차 시도 - Connection Pool 늘림**
-```yaml
-hikari:
-  maximum-pool-size: 30  # 5 → 30
-  minimum-idle: 10       # 2 → 10
-```
-결과: 평균 응답시간 **14.5초 → 162ms** (90배 개선)
-근데 여전히 실패율 17.98%...
+1. Increased HikariCP connection pool size.
+2. Disabled PostgreSQL prepared statement behavior that conflicted with the Supabase connection path using `prepareThreshold=0`.
+3. Fixed Korean search query encoding.
+4. Added indexes for common subject search and filter paths.
 
-**2차 시도 - Supabase 연결 문제 해결**
-- Prepared Statement 충돌 발견 (`prepareThreshold=0` 설정)
-- 한글 검색어 URL 인코딩 안 돼있던 거 수정
-
-결과: 실패율 **0%** 달성 ✅
-
-**3차 시도 - DB 인덱스 추가**
 ```java
 @Index(name = "idx_subject_name", columnList = "subjectName")
 @Index(name = "idx_professor", columnList = "professor")
 @Index(name = "idx_department", columnList = "department")
 @Index(name = "idx_search_filter", columnList = "subjectName, grade, department")
-// ... 총 7개 인덱스
-```
-결과: 과목 조회 성능 **17% 추가 개선**
-
-### 최종 결과
-| 지표 | 개선 전 | 개선 후 |
-|------|---------|---------|
-| 평균 응답시간 | 14.5초 | 200ms |
-| p95 | 30초 | 380ms |
-| 실패율 | 25.79% | 0% |
-| 처리량 | 6.9 req/s | 50.5 req/s |
-
-자세한 내용은 [성능 테스트 보고서](PERFORMANCE_TEST_REPORT.md) 참고
-
-<br>
-
-## API 엔드포인트
-
-### 파일 업로드 (수강편람 데이터 입력)
-```
-POST /api/pdf/upload            # PDF 업로드 & AI 파싱 (Gemini)
-POST /api/excel/upload          # Excel 업로드 & 파싱 (.xlsx)
 ```
 
-### 과목 관리
-```
-GET  /api/subjects              # 과목 목록 (페이지네이션)
-GET  /api/subjects/search       # 과목명 검색
-GET  /api/subjects/filter       # 조건별 필터링
-GET  /api/subjects/count        # 전체 과목 수
+### Result
+
+| Metric | Before | After |
+|---|---:|---:|
+| Average response time | 14.5s | 200ms |
+| p95 | 30s | 380ms |
+| Failure rate | 25.79% | 0% |
+| Throughput | 6.9 req/s | 50.5 req/s |
+
+See [PERFORMANCE_TEST_REPORT.md](PERFORMANCE_TEST_REPORT.md) for details.
+
+## API Overview
+
+### Subject Import
+
+```http
+POST /api/pdf/upload
+POST /api/excel/upload
+POST /api/subjects/import/preview
+POST /api/subjects/import/apply
 ```
 
-### 시간표
-```
-POST /api/timetable-combination/generate  # 시간표 조합 생성
-GET  /api/timetable                       # 내 시간표 조회
-```
+### Subject Search
 
-### 위시리스트
-```
-GET    /api/wishlist        # 위시리스트 조회
-POST   /api/wishlist        # 과목 추가
-DELETE /api/wishlist/{id}   # 과목 제거
+```http
+GET /api/subjects
+GET /api/subjects/search
+GET /api/subjects/filter
+GET /api/subjects/count
 ```
 
-<br>
+### Timetable
 
-## 로컬 실행
+```http
+POST /api/timetable-combination/generate
+GET  /api/timetable
+POST /api/timetable/add
+DELETE /api/timetable/remove
+```
 
-### 1. 환경 변수 설정
+### Wishlist
 
-**1단계: .env 파일 생성** (터미널에서 실행)
+```http
+GET    /api/wishlist/user/{userId}
+POST   /api/wishlist/add
+DELETE /api/wishlist/remove
+POST   /api/wishlist/priority
+```
+
+## Local Setup
+
+### Environment
+
 ```bash
 cp .env.example .env
 ```
 
-**2단계: .env 파일 편집** (자신의 환경에 맞게 수정)
 ```text
 DB_URL=jdbc:postgresql://your-db-host:port/database?sslmode=require&prepareThreshold=0
 DB_USERNAME=your_database_username
@@ -150,36 +151,28 @@ DB_PASSWORD=your_database_password
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
-### 2. 실행 프로필 선택
-```bash
-# 개발 모드 (기본값, SQL 로깅 활성화)
-./gradlew bootRun
+### Run
 
-# 프로덕션 모드 (SQL 로깅 비활성화)
+```bash
+./gradlew bootRun
+```
+
+Production profile:
+
+```bash
 SPRING_PROFILE=prod ./gradlew bootRun
 ```
 
-서버는 `http://localhost:8080`에서 실행됩니다.
+The server runs on `http://localhost:8080`.
 
-#### Swagger API 문서
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- API Docs: http://localhost:8080/v3/api-docs
+### API Docs
 
-<br>
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- API Docs: `http://localhost:8080/v3/api-docs`
 
-## 성능 테스트 실행
+## Performance Test
 
 ```bash
-# k6 설치 (Mac)
 brew install k6
-
-# 로컬 환경 테스트
 k6 run load-test.js
-
-# 다른 환경 테스트 (예: 스테이징)
-k6 run -e BASE_URL=https://staging.example.com load-test.js
 ```
-
-
-
-
