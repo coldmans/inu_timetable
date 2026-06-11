@@ -8,12 +8,20 @@ import inu.timetable.repository.UserRepository;
 import inu.timetable.repository.UserTimetableRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class TimetableService {
+
+    private String requireSemester(String semester) {
+        if (semester == null || semester.isBlank()) {
+            throw new RuntimeException("학기(semester)는 필수입니다.");
+        }
+        return semester;
+    }
     
     private final UserTimetableRepository userTimetableRepository;
     private final UserRepository userRepository;
@@ -36,13 +44,14 @@ public class TimetableService {
             .orElseThrow(() -> new RuntimeException("과목을 찾을 수 없습니다."));
         
         // 이미 추가된 과목인지 확인
-        Optional<UserTimetable> existing = userTimetableRepository.findByUserIdAndSubjectId(userId, subjectId);
+        String sem = requireSemester(semester);
+        Optional<UserTimetable> existing = userTimetableRepository.findByUserIdAndSubjectIdAndSemester(userId, subjectId, sem);
         if (existing.isPresent()) {
             throw new RuntimeException("이미 시간표에 추가된 과목입니다.");
         }
         
         // 시간표 겹침 확인
-        List<UserTimetable> currentTimetable = userTimetableRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester);
+        List<UserTimetable> currentTimetable = userTimetableRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, sem);
         if (hasTimeConflict(currentTimetable, subject)) {
             throw new RuntimeException("시간표가 겹치는 과목이 있습니다.");
         }
@@ -50,18 +59,20 @@ public class TimetableService {
         UserTimetable userTimetable = UserTimetable.builder()
             .user(user)
             .subject(subject)
-            .semester(semester)
+            .semester(sem)
             .memo(memo)
             .build();
             
         return userTimetableRepository.save(userTimetable);
     }
     
-    public void removeSubjectFromTimetable(Long userId, Long subjectId) {
-        UserTimetable userTimetable = userTimetableRepository.findByUserIdAndSubjectId(userId, subjectId)
-            .orElseThrow(() -> new RuntimeException("시간표에서 해당 과목을 찾을 수 없습니다."));
-            
-        userTimetableRepository.delete(userTimetable);
+    @Transactional
+    public void removeSubjectFromTimetable(Long userId, Long subjectId, String semester) {
+        String sem = requireSemester(semester);
+        int deleted = userTimetableRepository.deleteByUserIdAndSubjectIdAndSemester(userId, subjectId, sem);
+        if (deleted == 0) {
+            throw new RuntimeException("시간표에서 해당 과목을 찾을 수 없습니다.");
+        }
     }
     
     public List<UserTimetable> getUserTimetable(Long userId, String semester) {
@@ -72,8 +83,9 @@ public class TimetableService {
         }
     }
     
-    public UserTimetable updateMemo(Long userId, Long subjectId, String memo) {
-        UserTimetable userTimetable = userTimetableRepository.findByUserIdAndSubjectId(userId, subjectId)
+    public UserTimetable updateMemo(Long userId, Long subjectId, String semester, String memo) {
+        String sem = requireSemester(semester);
+        UserTimetable userTimetable = userTimetableRepository.findByUserIdAndSubjectIdAndSemester(userId, subjectId, sem)
             .orElseThrow(() -> new RuntimeException("시간표에서 해당 과목을 찾을 수 없습니다."));
             
         userTimetable.setMemo(memo);
