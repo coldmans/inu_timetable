@@ -1,9 +1,13 @@
 package inu.timetable.controller;
 
 import inu.timetable.dto.UserResponse;
+import inu.timetable.dto.auth.LoginRequest;
+import inu.timetable.dto.auth.RegisterRequest;
+import inu.timetable.dto.auth.WithdrawRequest;
 import inu.timetable.entity.User;
 import inu.timetable.service.AuthService;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,30 +21,30 @@ public class AuthController {
     private final AuthService authService;
     
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
         try {
-            String username = (String) request.get("username");
-            String password = (String) request.get("password");
-            Integer grade = (Integer) request.get("grade");
-            String major = (String) request.get("major");
-            
-            User user = authService.register(username, password, grade, major);
+            User user = authService.register(request.username(), request.password(), request.grade(), request.major());
             return ResponseEntity.ok(UserResponse.from(user));
-            
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
     
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
         try {
-            String username = request.get("username");
-            String password = request.get("password");
-            
-            User user = authService.login(username, password);
+            User user = authService.login(request.username(), request.password());
             return ResponseEntity.ok(UserResponse.from(user));
-            
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/withdraw")
+    public ResponseEntity<?> withdraw(@Valid @RequestBody WithdrawRequest request) {
+        try {
+            authService.withdraw(request.username(), request.password());
+            return ResponseEntity.ok(Map.of("message", "회원탈퇴가 완료되었습니다."));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
