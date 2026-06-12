@@ -6,6 +6,7 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
+import inu.timetable.event.SubjectDataChangedEvent;
 import inu.timetable.repository.SubjectRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,11 +37,14 @@ class SubjectAdminServiceTest {
     @Mock
     private SubjectRepository subjectRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private SubjectAdminService subjectAdminService;
 
     @BeforeEach
     void setUp() {
-        subjectAdminService = new SubjectAdminService(subjectRepository);
+        subjectAdminService = new SubjectAdminService(subjectRepository, eventPublisher);
     }
 
     @Test
@@ -60,6 +66,7 @@ class SubjectAdminServiceTest {
         assertThat(savedSubject.getSubjectType()).isEqualTo(SubjectType.전심);
         assertThat(savedSubject.getSchedules()).hasSize(1);
         assertThat(savedSubject.getSchedules().get(0).getSubject()).isSameAs(savedSubject);
+        verify(eventPublisher).publishEvent(any(SubjectDataChangedEvent.class));
     }
 
     @Test
@@ -80,6 +87,7 @@ class SubjectAdminServiceTest {
         assertThat(subject.getSchedules()).extracting(Schedule::getDayOfWeek)
                 .containsExactly("화", "목");
         assertThat(subject.getSchedules()).allSatisfy(schedule -> assertThat(schedule.getSubject()).isSameAs(subject));
+        verify(eventPublisher).publishEvent(any(SubjectDataChangedEvent.class));
     }
 
     @Test
@@ -108,6 +116,7 @@ class SubjectAdminServiceTest {
                         .isEqualTo(HttpStatus.CONFLICT));
 
         verify(subjectRepository).delete(subject);
+        verify(eventPublisher, never()).publishEvent(any(SubjectDataChangedEvent.class));
     }
 
     private SubjectManagementRequest sampleRequest() {

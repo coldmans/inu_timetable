@@ -16,3 +16,8 @@ spring:
 gemini:
   api:
     key: test-key
+
+subject:
+  cache:
+    warm-up:
+      enabled: false

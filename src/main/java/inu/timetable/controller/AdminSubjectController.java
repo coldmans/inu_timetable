@@ -7,6 +7,7 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
+import inu.timetable.event.SubjectDataChangedEvent;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.service.AdminAccessGuard;
 import inu.timetable.service.AdminOperationLockService;
@@ -15,6 +16,7 @@ import inu.timetable.service.SubjectAdminService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -46,6 +48,7 @@ public class AdminSubjectController {
     private final AdminOperationLockService adminOperationLockService;
     private final SubjectAdminService subjectAdminService;
     private final OfficialSubjectImportService officialSubjectImportService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @PostMapping
     public ResponseEntity<SubjectManagementResponse> createSubject(
@@ -133,7 +136,11 @@ public class AdminSubjectController {
             subjects.add(subject);
         }
 
-        return subjectRepository.saveAll(subjects);
+        List<Subject> savedSubjects = subjectRepository.saveAll(subjects);
+        if (!savedSubjects.isEmpty()) {
+            eventPublisher.publishEvent(new SubjectDataChangedEvent("manual-subject-import"));
+        }
+        return savedSubjects;
     }
 
     private List<Schedule> parseTime(String timeString) {
