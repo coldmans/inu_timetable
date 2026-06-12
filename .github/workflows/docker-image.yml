@@ -59,6 +59,7 @@ jobs:
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.DB_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD='${{ secrets.DB_PASSWORD }}' \
               -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
+              -e SPRING_FLYWAY_ENABLED=false \
               -e GEMINI_API_KEY="${{ secrets.GEMINI_KEY }}" \
               -e ADMIN_USERNAME="${{ secrets.ADMIN_USERNAME || 'admin' }}" \
               -e ADMIN_PASSWORD_HASH='${{ secrets.ADMIN_PASSWORD_HASH }}' \
