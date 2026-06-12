@@ -1,13 +1,17 @@
 package inu.timetable.controller;
 
 import inu.timetable.entity.Subject;
+import inu.timetable.security.AuthenticatedUser;
+import inu.timetable.security.UserAccessGuard;
 import inu.timetable.service.TimetableCombinationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,9 +23,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Tag(name = "시간표 조합", description = "시간표 자동 조합 생성 API")
 public class TimetableCombinationController {
-    
+
     private final TimetableCombinationService combinationService;
-    
+    private final UserAccessGuard userAccessGuard;
+
     @PostMapping("/generate")
     @Operation(
         summary = "시간표 조합 생성",
@@ -30,9 +35,11 @@ public class TimetableCombinationController {
     )
     public ResponseEntity<?> generateTimetableCombinations(
             @Parameter(description = "요청 파라미터: userId, semester, targetCredits, maxCombinations(선택), freeDays(선택)")
-            @RequestBody Map<String, Object> request) {
+            @RequestBody Map<String, Object> request,
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
         try {
             Long userId = Long.valueOf(request.get("userId").toString());
+            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
             String semester = (String) request.get("semester");
             int targetCredits = Integer.valueOf(request.get("targetCredits").toString());
             int maxCombinations = request.containsKey("maxCombinations") ?
@@ -59,34 +66,40 @@ public class TimetableCombinationController {
 
             return ResponseEntity.ok(response);
 
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
-    
+
     @GetMapping("/stats/{userId}")
     public ResponseEntity<?> getTimetableStats(
             @PathVariable Long userId,
             @RequestParam String semester,
-            @RequestParam int targetCredits) {
-        
+            @RequestParam int targetCredits,
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+
         try {
+            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
             List<List<Subject>> combinations = combinationService.generateTimetableCombinations(
                 userId, semester, targetCredits, 1);
-            
+
             if (combinations.isEmpty()) {
                 return ResponseEntity.ok(Map.of(
                     "message", "생성 가능한 시간표 조합이 없습니다.",
                     "possibleCombinations", 0
                 ));
             }
-            
+
             Map<String, Object> stats = new HashMap<>();
             stats.put("possibleCombinations", combinations.size());
             stats.put("targetCredits", targetCredits);
-            
+
             return ResponseEntity.ok(stats);
-            
+
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
