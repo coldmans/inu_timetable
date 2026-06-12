@@ -74,7 +74,7 @@ public class AdminController {
     /**
      * 로그아웃
      */
-    @GetMapping("/logout")
+    @PostMapping("/logout")
     public String logout(HttpServletRequest request) {
         adminAuthService.logout(request);
         return "redirect:/admin/login";

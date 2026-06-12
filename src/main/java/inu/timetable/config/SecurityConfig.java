@@ -71,8 +71,6 @@ public class SecurityConfig {
                         .ignoringRequestMatchers(
                                 "/",
                                 "/error",
-                                "/admin/**",
-                                "/admin/api/**",
                                 "/actuator/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",

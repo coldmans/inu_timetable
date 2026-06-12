@@ -42,16 +42,25 @@
         .nav-links {
             display: flex;
             gap: 15px;
+            align-items: center;
         }
 
-        .nav-links a {
+        .nav-links a,
+        .nav-links button {
+            background: none;
+            border: 0;
+            padding: 0;
             color: #667eea;
+            cursor: pointer;
+            font: inherit;
             text-decoration: none;
             font-weight: 600;
         }
 
-        .nav-links a:hover {
+        .nav-links a:hover,
+        .nav-links button:hover {
             text-decoration: underline;
+            transform: none;
         }
 
         .card {
@@ -176,7 +185,10 @@
             <div class="nav-links">
                 <a href="/admin/validate">다시 검증하기</a>
                 <a href="/admin/upload">업로드 페이지</a>
-                <a href="/admin/logout">로그아웃</a>
+                <form th:action="@{/admin/logout}" method="post">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <button type="submit">로그아웃</button>
+                </form>
             </div>
         </div>
 

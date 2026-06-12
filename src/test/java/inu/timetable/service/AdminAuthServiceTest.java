@@ -29,7 +29,7 @@ class AdminAuthServiceTest {
     }
 
     @Test
-    void loginCreatesAdminSessionAndCsrfToken() {
+    void loginCreatesAdminSession() {
         MockHttpServletRequest request = new MockHttpServletRequest();
 
         AdminAuthResponse response = adminAuthService.login("admin", "secret", request);
@@ -37,10 +37,9 @@ class AdminAuthServiceTest {
         HttpSession session = request.getSession(false);
         assertThat(response.authenticated()).isTrue();
         assertThat(response.username()).isEqualTo("admin");
-        assertThat(response.csrfToken()).isNotBlank();
         assertThat(session).isNotNull();
         assertThat(session.getAttribute(AdminAuthService.SESSION_AUTHENTICATED)).isEqualTo(true);
-        assertThat(session.getAttribute(AdminAuthService.SESSION_CSRF_TOKEN)).isEqualTo(response.csrfToken());
+        assertThat(session.getAttribute(AdminAuthService.SESSION_USERNAME)).isEqualTo("admin");
     }
 
     @Test

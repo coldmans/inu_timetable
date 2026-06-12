@@ -22,16 +22,16 @@ class AdminAccessGuardTest {
     }
 
     @Test
-    void getRequestAllowsAuthenticatedSessionWithoutCsrfHeader() {
-        MockHttpServletRequest request = authenticatedRequest("GET", "token");
+    void authenticatedRequestIsAllowed() {
+        MockHttpServletRequest request = authenticatedRequest("POST");
 
         assertThatCode(() -> adminAccessGuard.requireAuthenticated(request))
                 .doesNotThrowAnyException();
     }
 
     @Test
-    void postRequestRequiresCsrfHeader() {
-        MockHttpServletRequest request = authenticatedRequest("POST", "token");
+    void unauthenticatedRequestIsRejected() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/subjects");
 
         assertThatThrownBy(() -> adminAccessGuard.requireAuthenticated(request))
                 .isInstanceOf(ResponseStatusException.class)
@@ -39,19 +39,9 @@ class AdminAccessGuardTest {
                         .isEqualTo(HttpStatus.FORBIDDEN));
     }
 
-    @Test
-    void postRequestAllowsMatchingCsrfHeader() {
-        MockHttpServletRequest request = authenticatedRequest("POST", "token");
-        request.addHeader(AdminAccessGuard.ADMIN_CSRF_HEADER, "token");
-
-        assertThatCode(() -> adminAccessGuard.requireAuthenticated(request))
-                .doesNotThrowAnyException();
-    }
-
-    private MockHttpServletRequest authenticatedRequest(String method, String csrfToken) {
+    private MockHttpServletRequest authenticatedRequest(String method) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, "/admin/api/subjects");
         request.getSession(true).setAttribute(AdminAuthService.SESSION_AUTHENTICATED, true);
-        request.getSession(false).setAttribute(AdminAuthService.SESSION_CSRF_TOKEN, csrfToken);
         return request;
     }
 }

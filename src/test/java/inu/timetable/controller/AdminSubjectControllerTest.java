@@ -1,14 +1,15 @@
 package inu.timetable.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import inu.timetable.dto.SubjectManagementRequest;
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.SubjectRepository;
-import inu.timetable.service.AdminAccessGuard;
 import inu.timetable.service.AdminAuthService;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,7 @@ import java.util.Map;
 import static java.util.Map.entry;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -38,8 +40,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("dev")
 @Transactional
 class AdminSubjectControllerTest {
-
-    private static final String CSRF_TOKEN = "test-csrf-token";
 
     @Autowired
     private MockMvc mockMvc;
@@ -53,6 +53,8 @@ class AdminSubjectControllerTest {
     @Test
     @DisplayName("관리자 과목 추가 API는 과목과 시간표를 함께 저장한다")
     void createSubjectSavesSubjectAndSchedules() throws Exception {
+        MockHttpSession session = adminSession();
+        CsrfProof csrfProof = fetchCsrfProof(session);
         SubjectManagementRequest request = new SubjectManagementRequest(
                 "CSE9999001",
                 "2026-2",
@@ -68,8 +70,9 @@ class AdminSubjectControllerTest {
                 List.of(new SubjectManagementRequest.ScheduleRequest("월", 1.0, 2.5)));
 
         mockMvc.perform(post("/admin/api/subjects")
-                .session(adminSession())
-                .header(AdminAccessGuard.ADMIN_CSRF_HEADER, CSRF_TOKEN)
+                .session(session)
+                .cookie(csrfProof.cookie())
+                .header("X-XSRF-TOKEN", csrfProof.token())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -97,6 +100,8 @@ class AdminSubjectControllerTest {
     @Test
     @DisplayName("수동 과목 추가 API는 시간 문자열을 파싱해 시간표를 저장한다")
     void manualAddParsesTimeStringAndSavesSchedules() throws Exception {
+        MockHttpSession session = adminSession();
+        CsrfProof csrfProof = fetchCsrfProof(session);
         List<Map<String, Object>> request = List.of(Map.ofEntries(
                 entry("subjectName", "수동추가테스트"),
                 entry("credits", 2),
@@ -109,8 +114,9 @@ class AdminSubjectControllerTest {
                 entry("timeString", "월 1A-2B 수 3-4")));
 
         mockMvc.perform(post("/admin/api/subjects/manual")
-                .session(adminSession())
-                .header(AdminAccessGuard.ADMIN_CSRF_HEADER, CSRF_TOKEN)
+                .session(session)
+                .cookie(csrfProof.cookie())
+                .header("X-XSRF-TOKEN", csrfProof.token())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -129,8 +135,8 @@ class AdminSubjectControllerTest {
     }
 
     @Test
-    @DisplayName("관리자 과목 추가 API는 CSRF 헤더가 없으면 저장하지 않는다")
-    void createSubjectRejectsMissingCsrfHeader() throws Exception {
+    @DisplayName("관리자 과목 추가 API는 Spring CSRF 토큰이 없으면 저장하지 않는다")
+    void createSubjectRejectsMissingSpringCsrfToken() throws Exception {
         SubjectManagementRequest request = new SubjectManagementRequest(
                 "CSE9999002",
                 "2026-2",
@@ -157,11 +163,15 @@ class AdminSubjectControllerTest {
     @Test
     @DisplayName("실제 공식 Excel 파일 preview는 전체 과목 행을 읽는다")
     void previewActualOfficialExcelFile() throws Exception {
+        MockHttpSession session = adminSession();
+        CsrfProof csrfProof = fetchCsrfProof(session);
+
         mockMvc.perform(multipart("/admin/api/subjects/import/preview")
                 .file(actualOfficialExcelFile())
                 .param("semester", "2025-2")
-                .session(adminSession())
-                .header(AdminAccessGuard.ADMIN_CSRF_HEADER, CSRF_TOKEN))
+                .session(session)
+                .cookie(csrfProof.cookie())
+                .header("X-XSRF-TOKEN", csrfProof.token()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.applied").value(false))
                 .andExpect(jsonPath("$.semester").value("2025-2"))
@@ -176,12 +186,16 @@ class AdminSubjectControllerTest {
     @Test
     @DisplayName("실제 공식 Excel 파일 apply는 과목과 시간표를 DB에 저장한다")
     void applyActualOfficialExcelFile() throws Exception {
+        MockHttpSession session = adminSession();
+        CsrfProof csrfProof = fetchCsrfProof(session);
+
         mockMvc.perform(multipart("/admin/api/subjects/import/apply")
                 .file(actualOfficialExcelFile())
                 .param("semester", "2025-2")
                 .param("deactivateMissing", "true")
-                .session(adminSession())
-                .header(AdminAccessGuard.ADMIN_CSRF_HEADER, CSRF_TOKEN))
+                .session(session)
+                .cookie(csrfProof.cookie())
+                .header("X-XSRF-TOKEN", csrfProof.token()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.applied").value(true))
                 .andExpect(jsonPath("$.semester").value("2025-2"))
@@ -224,8 +238,18 @@ class AdminSubjectControllerTest {
         MockHttpSession session = new MockHttpSession();
         session.setAttribute(AdminAuthService.SESSION_AUTHENTICATED, true);
         session.setAttribute(AdminAuthService.SESSION_USERNAME, "admin");
-        session.setAttribute(AdminAuthService.SESSION_CSRF_TOKEN, CSRF_TOKEN);
         return session;
+    }
+
+    private CsrfProof fetchCsrfProof(MockHttpSession session) throws Exception {
+        var result = mockMvc.perform(get("/api/auth/csrf").session(session))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode responseBody = objectMapper.readTree(result.getResponse().getContentAsString());
+        Cookie cookie = result.getResponse().getCookie("XSRF-TOKEN");
+        assertThat(cookie).isNotNull();
+        return new CsrfProof(responseBody.get("token").asText(), cookie);
     }
 
     private MockMultipartFile actualOfficialExcelFile() throws Exception {
@@ -262,5 +286,8 @@ class AdminSubjectControllerTest {
         return subjectRepository.findAllWithSchedules().stream()
                 .filter(subject -> subjectName.equals(subject.getSubjectName()))
                 .toList();
+    }
+
+    private record CsrfProof(String token, Cookie cookie) {
     }
 }

@@ -13,10 +13,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,9 +24,6 @@ public class AdminAuthService {
 
     public static final String SESSION_AUTHENTICATED = "admin_authenticated";
     public static final String SESSION_USERNAME = "admin_username";
-    public static final String SESSION_CSRF_TOKEN = "admin_csrf_token";
-
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final BCryptPasswordEncoder passwordEncoder;
     private final Map<String, LoginAttempt> loginAttempts = new ConcurrentHashMap<>();
@@ -66,12 +61,10 @@ public class AdminAuthService {
         HttpSession session = request.getSession(true);
         request.changeSessionId();
 
-        String csrfToken = newCsrfToken();
         session.setAttribute(SESSION_AUTHENTICATED, true);
         session.setAttribute(SESSION_USERNAME, adminUsername);
-        session.setAttribute(SESSION_CSRF_TOKEN, csrfToken);
 
-        return new AdminAuthResponse(true, adminUsername, csrfToken);
+        return new AdminAuthResponse(true, adminUsername);
     }
 
     public AdminAuthResponse currentAuthentication(HttpServletRequest request) {
@@ -81,8 +74,7 @@ public class AdminAuthService {
         }
         return new AdminAuthResponse(
                 true,
-                (String) session.getAttribute(SESSION_USERNAME),
-                (String) session.getAttribute(SESSION_CSRF_TOKEN));
+                (String) session.getAttribute(SESSION_USERNAME));
     }
 
     public void logout(HttpServletRequest request) {
@@ -145,12 +137,6 @@ public class AdminAuthService {
 
     private String clientIp(HttpServletRequest request) {
         return request.getRemoteAddr();
-    }
-
-    private String newCsrfToken() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     private static class LoginAttempt {
