@@ -100,13 +100,13 @@ See [PERFORMANCE_TEST_REPORT.md](PERFORMANCE_TEST_REPORT.md) for details.
 
 ## API Overview
 
-### Subject Import
+### Admin Subject Import
 
 ```http
-POST /api/pdf/upload
-POST /api/excel/upload
-POST /api/subjects/import/preview
-POST /api/subjects/import/apply
+POST /admin/api/pdf/upload
+POST /admin/api/excel/upload
+POST /admin/api/subjects/import/preview
+POST /admin/api/subjects/import/apply
 ```
 
 ### Subject Search

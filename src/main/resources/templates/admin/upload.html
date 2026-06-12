@@ -130,8 +130,22 @@
 
         <div class="card">
             <h2>📊 Excel 업로드 (종합강의시간표)</h2>
-            <p class="description">종합강의시간표 Excel 파일(.xlsx)을 업로드하면 Gemini AI로 파싱하여 DB에 저장합니다.</p>
+            <p class="description">종합강의시간표 Excel 파일(.xlsx)을 학수번호 기준으로 비교하여 DB에 반영합니다. 삭제 대상은 물리 삭제하지 않고 비활성화합니다.</p>
             <form th:action="@{/admin/upload/excel}" method="post" enctype="multipart/form-data">
+                <div style="margin-bottom: 15px;">
+                    <label for="semester" style="display:block; margin-bottom:8px; font-weight:600;">학기</label>
+                    <input id="semester" type="text" name="semester" placeholder="예: 2026-2" required
+                           style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display:flex; align-items:center; gap:8px; font-weight:600;">
+                        <input id="deactivateMissing" type="checkbox" name="deactivateMissing" value="true" checked>
+                        업로드에 없는 기존 과목과 기존 AI/수동 과목을 비활성화 (active=false)
+                    </label>
+                    <p style="margin:6px 0 0; color:#666; font-size:0.85em;">
+                        체크 해제 시 신규/변경분만 반영하고 기존 과목은 유지합니다.
+                    </p>
+                </div>
                 <div class="file-input-wrapper">
                     <input type="file" name="file" accept=".xlsx" required>
                 </div>

@@ -17,6 +17,8 @@ import java.util.List;
 @Entity
 @Table(name = "subjects", indexes = {
     @Index(name = "idx_subject_name", columnList = "subjectName"),
+    @Index(name = "idx_subject_course_code", columnList = "course_code"),
+    @Index(name = "idx_subject_semester_active", columnList = "semester, active"),
     @Index(name = "idx_professor", columnList = "professor"),
     @Index(name = "idx_department", columnList = "department"),
     @Index(name = "idx_grade", columnList = "grade"),
@@ -34,6 +36,16 @@ public class Subject {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "course_code", length = 32)
+    private String courseCode;
+
+    @Column(length = 20)
+    private String semester;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean active = true;
     
     @Column(nullable = false)
     private String subjectName;

@@ -25,6 +25,14 @@ import java.util.List;
 @AllArgsConstructor
 public class SubjectManagementRequest {
 
+    @Size(max = 32)
+    private String courseCode;
+
+    @Size(max = 20)
+    private String semester;
+
+    private Boolean active = true;
+
     @NotBlank
     @Size(max = 200)
     private String subjectName;

@@ -112,6 +112,9 @@ class SubjectAdminServiceTest {
 
     private SubjectManagementRequest sampleRequest() {
         return new SubjectManagementRequest(
+                "CSE0001001",
+                "2026-1",
+                true,
                 "자료구조",
                 3,
                 "김교수",

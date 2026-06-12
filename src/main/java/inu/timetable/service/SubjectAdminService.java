@@ -63,6 +63,9 @@ public class SubjectAdminService {
     }
 
     private void applyRequest(Subject subject, SubjectManagementRequest request) {
+        subject.setCourseCode(trimToNull(request.getCourseCode()));
+        subject.setSemester(trimToNull(request.getSemester()));
+        subject.setActive(request.getActive() == null || request.getActive());
         subject.setSubjectName(request.getSubjectName().trim());
         subject.setCredits(request.getCredits());
         subject.setProfessor(request.getProfessor().trim());

@@ -16,6 +16,9 @@ import java.util.List;
 public class SubjectManagementResponse {
 
     private Long id;
+    private String courseCode;
+    private String semester;
+    private Boolean active;
     private String subjectName;
     private Integer credits;
     private String professor;
@@ -29,6 +32,9 @@ public class SubjectManagementResponse {
     public static SubjectManagementResponse from(Subject subject) {
         return SubjectManagementResponse.builder()
                 .id(subject.getId())
+                .courseCode(subject.getCourseCode())
+                .semester(subject.getSemester())
+                .active(subject.getActive())
                 .subjectName(subject.getSubjectName())
                 .credits(subject.getCredits())
                 .professor(subject.getProfessor())

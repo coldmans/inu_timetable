@@ -1,19 +1,21 @@
 package inu.timetable.controller;
 
+import inu.timetable.service.AdminAuthService;
+import inu.timetable.service.AdminOperationLockService;
 import inu.timetable.service.ExcelParseService;
+import inu.timetable.service.OfficialSubjectImportService;
 import inu.timetable.service.ParsingValidationService;
 import inu.timetable.service.PdfParseService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.util.Map;
 
@@ -26,14 +28,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private static final String SESSION_AUTHENTICATED = "admin_authenticated";
-
+    private final AdminAuthService adminAuthService;
+    private final AdminOperationLockService adminOperationLockService;
     private final PdfParseService pdfParseService;
     private final ExcelParseService excelParseService;
+    private final OfficialSubjectImportService officialSubjectImportService;
     private final ParsingValidationService validationService;
-
-    @Value("${admin.password:}")
-    private String adminPassword;
 
     /**
      * 로그인 페이지
@@ -51,11 +51,21 @@ public class AdminController {
      * 로그인 처리
      */
     @PostMapping("/login")
-    public String login(@RequestParam String password, HttpSession session, RedirectAttributes redirectAttributes) {
-        if (StringUtils.hasText(adminPassword) && adminPassword.equals(password)) {
-            session.setAttribute(SESSION_AUTHENTICATED, true);
+    public String login(
+            @RequestParam String username,
+            @RequestParam String password,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes) {
+        try {
+            adminAuthService.login(username, password, request);
             return "redirect:/admin/upload";
-        } else {
+        } catch (ResponseStatusException e) {
+            String message = e.getStatusCode().equals(HttpStatus.TOO_MANY_REQUESTS)
+                    ? "로그인 실패가 너무 많습니다. 잠시 후 다시 시도해주세요."
+                    : "관리자 계정 정보가 올바르지 않습니다.";
+            redirectAttributes.addFlashAttribute("error", message);
+            return "redirect:/admin/login";
+        } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", "비밀번호가 올바르지 않습니다.");
             return "redirect:/admin/login";
         }
@@ -65,8 +75,8 @@ public class AdminController {
      * 로그아웃
      */
     @GetMapping("/logout")
-    public String logout(HttpSession session) {
-        session.invalidate();
+    public String logout(HttpServletRequest request) {
+        adminAuthService.logout(request);
         return "redirect:/admin/login";
     }
 
@@ -125,6 +135,8 @@ public class AdminController {
     @PostMapping("/upload/excel")
     public String uploadExcel(@RequestParam("file") MultipartFile file,
             @RequestParam(value = "mode", defaultValue = "replace") String mode,
+            @RequestParam String semester,
+            @RequestParam(value = "deactivateMissing", defaultValue = "false") boolean deactivateMissing,
             HttpSession session,
             RedirectAttributes redirectAttributes) {
         if (!isAuthenticated(session)) {
@@ -139,12 +151,13 @@ public class AdminController {
                 count = excelParseService.parseAndSaveSubjectsIncremental(file);
                 modeDescription = "증분 추가";
             } else {
-                count = excelParseService.parseAndSaveSubjectsReplace(file);
-                modeDescription = "전체 교체";
+                count = adminOperationLockService.runExclusive("subject-import-apply",
+                        () -> officialSubjectImportService.apply(file, semester, deactivateMissing)).getTotalRows();
+                modeDescription = "학수번호 기준 전체 반영";
             }
 
             redirectAttributes.addFlashAttribute("success",
-                    "Excel 파싱 완료 (" + modeDescription + ")! " + count + "개의 과목이 처리되었습니다.");
+                    "Excel 처리 완료 (" + modeDescription + ", " + semester + ")! " + count + "개의 과목이 처리되었습니다.");
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error",
                     "Excel 파싱 실패: " + e.getMessage());
@@ -228,8 +241,7 @@ public class AdminController {
      * 인증 확인
      */
     private boolean isAuthenticated(HttpSession session) {
-        Boolean authenticated = (Boolean) session.getAttribute(SESSION_AUTHENTICATED);
-        return authenticated != null && authenticated;
+        return adminAuthService.isAuthenticated(session);
     }
 
     /**

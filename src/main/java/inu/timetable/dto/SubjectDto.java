@@ -21,6 +21,9 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 public class SubjectDto {
     private Long id;
+    private String courseCode;
+    private String semester;
+    private Boolean active;
     private String subjectName;
     private Integer credits;
     private String professor;
@@ -55,6 +58,9 @@ public class SubjectDto {
     public static SubjectDto from(Subject subject) {
         return SubjectDto.builder()
             .id(subject.getId())
+            .courseCode(subject.getCourseCode())
+            .semester(subject.getSemester())
+            .active(subject.getActive())
             .subjectName(subject.getSubjectName())
             .credits(subject.getCredits())
             .professor(subject.getProfessor())

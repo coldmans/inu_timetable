@@ -28,12 +28,27 @@ spring:
     baseline-on-migrate: true
     locations: classpath:db/migration
 
+server:
+  servlet:
+    session:
+      timeout: ${ADMIN_SESSION_TIMEOUT:30m}
+      cookie:
+        path: /admin
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:false}
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
+
 gemini:
   api:
     key: ${GEMINI_API_KEY}
 
 admin:
-  password: ${ADMIN_PASSWORD:}
+  username: ${ADMIN_USERNAME:}
+  password-hash: ${ADMIN_PASSWORD_HASH:}
+  bcrypt-strength: ${ADMIN_BCRYPT_STRENGTH:12}
+  login:
+    max-failures: ${ADMIN_LOGIN_MAX_FAILURES:5}
+    lock-minutes: ${ADMIN_LOGIN_LOCK_MINUTES:10}
 
 # Actuator 모니터링 설정
 management:
