@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -36,6 +38,9 @@ public class AdminAuthService {
 
     @Value("${admin.password-hash:}")
     private String adminPasswordHash;
+
+    @Value("${admin.password:}")
+    private String legacyAdminPassword;
 
     @Value("${admin.login.max-failures:5}")
     private int maxFailures;
@@ -92,10 +97,22 @@ public class AdminAuthService {
     }
 
     private boolean isValidCredentials(String username, String password) {
-        if (!StringUtils.hasText(adminUsername) || !StringUtils.hasText(adminPasswordHash)) {
+        if (!StringUtils.hasText(adminUsername)) {
             return false;
         }
-        return adminUsername.equals(username) && passwordEncoder.matches(password, adminPasswordHash);
+        if (!adminUsername.equals(username)) {
+            return false;
+        }
+        if (StringUtils.hasText(adminPasswordHash)) {
+            return passwordEncoder.matches(password, adminPasswordHash);
+        }
+        return StringUtils.hasText(legacyAdminPassword) && constantTimeEquals(password, legacyAdminPassword);
+    }
+
+    private boolean constantTimeEquals(String actual, String expected) {
+        byte[] actualBytes = String.valueOf(actual).getBytes(StandardCharsets.UTF_8);
+        byte[] expectedBytes = String.valueOf(expected).getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(actualBytes, expectedBytes);
     }
 
     private void rejectIfLocked(String attemptKey) {

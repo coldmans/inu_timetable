@@ -43,8 +43,9 @@ gemini:
     key: ${GEMINI_API_KEY}
 
 admin:
-  username: ${ADMIN_USERNAME:}
+  username: ${ADMIN_USERNAME:admin}
   password-hash: ${ADMIN_PASSWORD_HASH:}
+  password: ${ADMIN_PASSWORD:}
   bcrypt-strength: ${ADMIN_BCRYPT_STRENGTH:12}
   login:
     max-failures: ${ADMIN_LOGIN_MAX_FAILURES:5}

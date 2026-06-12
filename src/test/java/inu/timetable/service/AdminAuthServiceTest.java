@@ -23,6 +23,7 @@ class AdminAuthServiceTest {
         adminAuthService = new AdminAuthService(passwordEncoder);
         ReflectionTestUtils.setField(adminAuthService, "adminUsername", "admin");
         ReflectionTestUtils.setField(adminAuthService, "adminPasswordHash", passwordEncoder.encode("secret"));
+        ReflectionTestUtils.setField(adminAuthService, "legacyAdminPassword", "");
         ReflectionTestUtils.setField(adminAuthService, "maxFailures", 2);
         ReflectionTestUtils.setField(adminAuthService, "lockMinutes", 10L);
     }
@@ -78,6 +79,18 @@ class AdminAuthServiceTest {
                         .isEqualTo(HttpStatus.FORBIDDEN));
 
         AdminAuthResponse response = adminAuthService.login("admin", "secret", request);
+
+        assertThat(response.authenticated()).isTrue();
+        assertThat(response.username()).isEqualTo("admin");
+    }
+
+    @Test
+    void loginAllowsLegacyPlainPasswordWhenHashIsNotConfigured() {
+        ReflectionTestUtils.setField(adminAuthService, "adminPasswordHash", "");
+        ReflectionTestUtils.setField(adminAuthService, "legacyAdminPassword", "legacy-secret");
+        MockHttpServletRequest request = new MockHttpServletRequest();
+
+        AdminAuthResponse response = adminAuthService.login("admin", "legacy-secret", request);
 
         assertThat(response.authenticated()).isTrue();
         assertThat(response.username()).isEqualTo("admin");
