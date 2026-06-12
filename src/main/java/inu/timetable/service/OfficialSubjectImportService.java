@@ -5,8 +5,10 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
+import inu.timetable.event.SubjectDataChangedEvent;
 import inu.timetable.repository.SubjectRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -44,6 +46,7 @@ public class OfficialSubjectImportService {
     private static final String DAYS = "월화수목금토일";
 
     private final SubjectRepository subjectRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public OfficialSubjectImportResponse preview(MultipartFile file, String semester) throws IOException {
@@ -80,6 +83,7 @@ public class OfficialSubjectImportService {
             }
         }
 
+        eventPublisher.publishEvent(new SubjectDataChangedEvent("official-subject-import"));
         return toResponse(true, normalizedSemester, records, diff, deactivateMissing);
     }
 

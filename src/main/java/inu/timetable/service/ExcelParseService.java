@@ -6,12 +6,19 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
+import inu.timetable.event.SubjectDataChangedEvent;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.repository.UserRepository;
 import inu.timetable.repository.UserTimetableRepository;
 import inu.timetable.repository.WishlistRepository;
 import lombok.RequiredArgsConstructor;
-import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.springframework.context.ApplicationEventPublisher;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,6 +38,7 @@ public class ExcelParseService {
     private final WishlistRepository wishlistRepository;
     private final UserTimetableRepository userTimetableRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final WebClient webClient = WebClient.builder().build();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -124,6 +132,7 @@ public class ExcelParseService {
                 if (!newSubjects.isEmpty()) {
                     List<Subject> savedSubjects = subjectRepository.saveAll(newSubjects);
                     System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
+                    eventPublisher.publishEvent(new SubjectDataChangedEvent("excel-incremental-import"));
                 } else {
                     System.out.println("저장할 새로운 과목이 없습니다.");
                 }
