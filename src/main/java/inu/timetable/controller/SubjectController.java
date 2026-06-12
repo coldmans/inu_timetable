@@ -1,6 +1,7 @@
 package inu.timetable.controller;
 
 import inu.timetable.entity.Subject;
+import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.dto.SubjectDto;
@@ -104,6 +105,7 @@ public class SubjectController {
             @RequestParam(required = false) SubjectType subjectType,
             @RequestParam(required = false) Integer grade,
             @RequestParam(required = false) Boolean isNight,
+            @RequestParam(required = false) Boolean unassignedTime,
             @RequestParam(required = false) Integer credits,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -115,7 +117,8 @@ public class SubjectController {
         // 1단계: 필터로 과목 ID 조회 (페이지네이션 적용)
         Page<Long> subjectIdPage = subjectRepository.findIdsWithFilters(
                 subjectName, professor, department, dayOfWeek,
-                startTime, endTime, subjectType, grade, isNight, credits, pageable);
+                startTime, endTime, subjectType, grade, isNight, credits,
+                unassignedTime, ClassMethod.ONLINE, pageable);
 
         // 2단계: 조회된 ID로 과목 상세 정보와 시간표를 함께 조회
         List<Long> subjectIds = subjectIdPage.getContent();

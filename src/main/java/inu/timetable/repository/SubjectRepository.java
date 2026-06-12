@@ -1,6 +1,7 @@
 package inu.timetable.repository;
 
 import inu.timetable.entity.Subject;
+import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -68,6 +69,8 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "AND (:grade IS NULL OR s.grade = :grade) " +
                         "AND (:isNight IS NULL OR s.isNight = :isNight) " +
                         "AND (:credits IS NULL OR s.credits = :credits) " +
+                        "AND (:unassignedTime IS NULL OR :unassignedTime = false OR " +
+                        "(:unassignedTime = true AND (s.classMethod = :onlineClassMethod OR sch.id IS NULL))) " +
                         "AND (:dayOfWeek IS NULL OR sch.dayOfWeek = :dayOfWeek) " +
                         "AND (:startTime IS NULL OR sch.startTime >= :startTime) " +
                         "AND (:endTime IS NULL OR sch.endTime <= :endTime)", countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch "
@@ -80,6 +83,8 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                                         "AND (:grade IS NULL OR s.grade = :grade) " +
                                         "AND (:isNight IS NULL OR s.isNight = :isNight) " +
                                         "AND (:credits IS NULL OR s.credits = :credits) " +
+                                        "AND (:unassignedTime IS NULL OR :unassignedTime = false OR " +
+                                        "(:unassignedTime = true AND (s.classMethod = :onlineClassMethod OR sch.id IS NULL))) " +
                                         "AND (:dayOfWeek IS NULL OR sch.dayOfWeek = :dayOfWeek) " +
                                         "AND (:startTime IS NULL OR sch.startTime >= :startTime) " +
                                         "AND (:endTime IS NULL OR sch.endTime <= :endTime)")
@@ -94,6 +99,8 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         @Param("grade") Integer grade,
                         @Param("isNight") Boolean isNight,
                         @Param("credits") Integer credits,
+                        @Param("unassignedTime") Boolean unassignedTime,
+                        @Param("onlineClassMethod") ClassMethod onlineClassMethod,
                         Pageable pageable);
 
         @Query("SELECT DISTINCT s FROM Subject s LEFT JOIN FETCH s.schedules WHERE s.active = true AND s.id IN :subjectIds")

@@ -5,6 +5,8 @@ import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -81,6 +83,26 @@ class SubjectRepositoryIntegrationTest {
                 .containsExactly("컴퓨터공학부");
     }
 
+    @Test
+    void findIdsWithFiltersCanFindOnlineAndUnscheduledSubjects() {
+        Subject scheduledOffline = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        Subject unscheduledOffline = persistSubject("AI01001002", "2026-1", true, null, null, null);
+        Subject scheduledOnline = persistSubject("AI01001003", "2026-1", true, "화", 1.0, 3.0);
+        scheduledOnline.setClassMethod(ClassMethod.ONLINE);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> unassignedTimeIds = subjectRepository.findIdsWithFilters(
+                null, null, null, null,
+                null, null, null, null, null, null,
+                true, ClassMethod.ONLINE, PageRequest.of(0, 10));
+
+        assertThat(unassignedTimeIds.getContent())
+                .containsExactlyInAnyOrder(unscheduledOffline.getId(), scheduledOnline.getId())
+                .doesNotContain(scheduledOffline.getId());
+    }
+
     private Subject persistSubject(
             String courseCode,
             String semester,
@@ -102,12 +124,14 @@ class SubjectRepositoryIntegrationTest {
                 .isNight(false)
                 .schedules(new ArrayList<>())
                 .build();
-        subject.getSchedules().add(Schedule.builder()
-                .subject(subject)
-                .dayOfWeek(day)
-                .startTime(start)
-                .endTime(end)
-                .build());
+        if (day != null) {
+            subject.getSchedules().add(Schedule.builder()
+                    .subject(subject)
+                    .dayOfWeek(day)
+                    .startTime(start)
+                    .endTime(end)
+                    .build());
+        }
         return entityManager.persistAndFlush(subject);
     }
 }
