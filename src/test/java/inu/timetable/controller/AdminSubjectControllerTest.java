@@ -1,7 +1,7 @@
 package inu.timetable.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
+import inu.timetable.controller.CsrfTestSupport.CsrfProof;
 import inu.timetable.dto.SubjectManagementRequest;
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
@@ -9,7 +9,6 @@ import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.service.AdminAuthService;
-import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,9 +26,9 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static inu.timetable.controller.CsrfTestSupport.fetchCsrfProof;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -54,7 +53,7 @@ class AdminSubjectControllerTest {
     @DisplayName("관리자 과목 추가 API는 과목과 시간표를 함께 저장한다")
     void createSubjectSavesSubjectAndSchedules() throws Exception {
         MockHttpSession session = adminSession();
-        CsrfProof csrfProof = fetchCsrfProof(session);
+        CsrfProof csrfProof = fetchCsrfProof(mockMvc, objectMapper, session);
         SubjectManagementRequest request = new SubjectManagementRequest(
                 "CSE9999001",
                 "2026-2",
@@ -101,7 +100,7 @@ class AdminSubjectControllerTest {
     @DisplayName("수동 과목 추가 API는 시간 문자열을 파싱해 시간표를 저장한다")
     void manualAddParsesTimeStringAndSavesSchedules() throws Exception {
         MockHttpSession session = adminSession();
-        CsrfProof csrfProof = fetchCsrfProof(session);
+        CsrfProof csrfProof = fetchCsrfProof(mockMvc, objectMapper, session);
         List<Map<String, Object>> request = List.of(Map.ofEntries(
                 entry("subjectName", "수동추가테스트"),
                 entry("credits", 2),
@@ -164,7 +163,7 @@ class AdminSubjectControllerTest {
     @DisplayName("실제 공식 Excel 파일 preview는 전체 과목 행을 읽는다")
     void previewActualOfficialExcelFile() throws Exception {
         MockHttpSession session = adminSession();
-        CsrfProof csrfProof = fetchCsrfProof(session);
+        CsrfProof csrfProof = fetchCsrfProof(mockMvc, objectMapper, session);
 
         mockMvc.perform(multipart("/admin/api/subjects/import/preview")
                 .file(actualOfficialExcelFile())
@@ -187,7 +186,7 @@ class AdminSubjectControllerTest {
     @DisplayName("실제 공식 Excel 파일 apply는 과목과 시간표를 DB에 저장한다")
     void applyActualOfficialExcelFile() throws Exception {
         MockHttpSession session = adminSession();
-        CsrfProof csrfProof = fetchCsrfProof(session);
+        CsrfProof csrfProof = fetchCsrfProof(mockMvc, objectMapper, session);
 
         mockMvc.perform(multipart("/admin/api/subjects/import/apply")
                 .file(actualOfficialExcelFile())
@@ -241,17 +240,6 @@ class AdminSubjectControllerTest {
         return session;
     }
 
-    private CsrfProof fetchCsrfProof(MockHttpSession session) throws Exception {
-        var result = mockMvc.perform(get("/api/auth/csrf").session(session))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        JsonNode responseBody = objectMapper.readTree(result.getResponse().getContentAsString());
-        Cookie cookie = result.getResponse().getCookie("XSRF-TOKEN");
-        assertThat(cookie).isNotNull();
-        return new CsrfProof(responseBody.get("token").asText(), cookie);
-    }
-
     private MockMultipartFile actualOfficialExcelFile() throws Exception {
         InputStream inputStream = getClass().getResourceAsStream("/sample_timetable.xlsx");
         assertThat(inputStream).isNotNull();
@@ -286,8 +274,5 @@ class AdminSubjectControllerTest {
         return subjectRepository.findAllWithSchedules().stream()
                 .filter(subject -> subjectName.equals(subject.getSubjectName()))
                 .toList();
-    }
-
-    private record CsrfProof(String token, Cookie cookie) {
     }
 }

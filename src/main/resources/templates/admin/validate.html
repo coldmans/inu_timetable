@@ -122,7 +122,6 @@
             <div class="nav-links">
                 <a href="/admin/upload">업로드 페이지</a>
                 <form th:action="@{/admin/logout}" method="post">
-                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <button type="submit">로그아웃</button>
                 </form>
             </div>
@@ -134,7 +133,6 @@
             <h2>📄 PDF 파싱 검증</h2>
             <p class="description">PDF를 파싱하여 DB 데이터와 비교합니다. (DB에 저장하지 않음)</p>
             <form th:action="@{/admin/validate/pdf}" method="post" enctype="multipart/form-data">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <div class="form-group">
                     <label for="pdf-file">PDF 파일</label>
                     <input type="file" id="pdf-file" name="file" accept=".pdf" required>
@@ -151,7 +149,6 @@
             <h2>📊 Excel 파싱 검증</h2>
             <p class="description">Excel을 파싱하여 DB 데이터와 비교합니다. (DB에 저장하지 않음)</p>
             <form th:action="@{/admin/validate/excel}" method="post" enctype="multipart/form-data">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <div class="form-group">
                     <label for="excel-file">Excel 파일</label>
                     <input type="file" id="excel-file" name="file" accept=".xlsx" required>

@@ -1,8 +1,7 @@
 package inu.timetable.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.Cookie;
+import inu.timetable.controller.CsrfTestSupport.CsrfProof;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static inu.timetable.controller.CsrfTestSupport.fetchCsrfProof;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -56,7 +55,7 @@ class AdminCsrfIntegrationTest {
     @DisplayName("관리자 API 로그인은 Spring CSRF 토큰이 있으면 성공한다")
     void adminApiLoginAllowsSpringCsrfToken() throws Exception {
         MockHttpSession session = new MockHttpSession();
-        CsrfProof csrfProof = fetchCsrfProof(session);
+        CsrfProof csrfProof = fetchCsrfProof(mockMvc, objectMapper, session);
 
         mockMvc.perform(post("/admin/api/auth/login")
                 .session(session)
@@ -82,17 +81,4 @@ class AdminCsrfIntegrationTest {
                 .andExpect(content().string(containsString("name=\"_csrf\"")));
     }
 
-    private CsrfProof fetchCsrfProof(MockHttpSession session) throws Exception {
-        var result = mockMvc.perform(get("/api/auth/csrf").session(session))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        JsonNode responseBody = objectMapper.readTree(result.getResponse().getContentAsString());
-        Cookie cookie = result.getResponse().getCookie("XSRF-TOKEN");
-        assertThat(cookie).isNotNull();
-        return new CsrfProof(responseBody.get("token").asText(), cookie);
-    }
-
-    private record CsrfProof(String token, Cookie cookie) {
-    }
 }
