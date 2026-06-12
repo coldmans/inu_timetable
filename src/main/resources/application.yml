@@ -33,7 +33,7 @@ server:
     session:
       timeout: ${ADMIN_SESSION_TIMEOUT:30m}
       cookie:
-        path: /admin
+        path: ${SESSION_COOKIE_PATH:/}
         http-only: true
         secure: ${SESSION_COOKIE_SECURE:false}
         same-site: ${SESSION_COOKIE_SAME_SITE:lax}
@@ -50,6 +50,9 @@ admin:
   login:
     max-failures: ${ADMIN_LOGIN_MAX_FAILURES:5}
     lock-minutes: ${ADMIN_LOGIN_LOCK_MINUTES:10}
+
+user:
+  bcrypt-strength: ${USER_BCRYPT_STRENGTH:12}
 
 # Actuator 모니터링 설정
 management:
