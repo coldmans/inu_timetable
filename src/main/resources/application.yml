@@ -51,6 +51,15 @@ admin:
     max-failures: ${ADMIN_LOGIN_MAX_FAILURES:5}
     lock-minutes: ${ADMIN_LOGIN_LOCK_MINUTES:10}
 
+subject:
+  cache:
+    maximum-size: ${SUBJECT_CACHE_MAXIMUM_SIZE:1000}
+    expire-after-write: ${SUBJECT_CACHE_EXPIRE_AFTER_WRITE:10m}
+    warm-up:
+      enabled: ${SUBJECT_CACHE_WARM_UP_ENABLED:true}
+      concurrency: ${SUBJECT_CACHE_WARM_UP_CONCURRENCY:4}
+      page-size: ${SUBJECT_CACHE_WARM_UP_PAGE_SIZE:20}
+
 # Actuator 모니터링 설정
 management:
   endpoints:

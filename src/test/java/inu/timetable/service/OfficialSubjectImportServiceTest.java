@@ -5,6 +5,7 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
+import inu.timetable.event.SubjectDataChangedEvent;
 import inu.timetable.repository.SubjectRepository;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayOutputStream;
@@ -22,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,11 +35,14 @@ class OfficialSubjectImportServiceTest {
     @Mock
     private SubjectRepository subjectRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private OfficialSubjectImportService officialSubjectImportService;
 
     @BeforeEach
     void setUp() {
-        officialSubjectImportService = new OfficialSubjectImportService(subjectRepository);
+        officialSubjectImportService = new OfficialSubjectImportService(subjectRepository, eventPublisher);
     }
 
     @Test
@@ -68,6 +74,7 @@ class OfficialSubjectImportServiceTest {
         assertThat(legacyUnkeyed.getActive()).isFalse();
         assertThat(response.getRemovedCount()).isEqualTo(2);
         verify(subjectRepository).saveAll(anyList());
+        verify(eventPublisher).publishEvent(any(SubjectDataChangedEvent.class));
     }
 
     @Test

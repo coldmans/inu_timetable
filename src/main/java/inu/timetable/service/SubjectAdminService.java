@@ -4,8 +4,10 @@ import inu.timetable.dto.SubjectManagementRequest;
 import inu.timetable.dto.SubjectManagementResponse;
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
+import inu.timetable.event.SubjectDataChangedEvent;
 import inu.timetable.repository.SubjectRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ import java.util.ArrayList;
 public class SubjectAdminService {
 
     private final SubjectRepository subjectRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public SubjectManagementResponse getSubject(Long id) {
@@ -33,6 +36,7 @@ public class SubjectAdminService {
         applyRequest(subject, request);
 
         Subject savedSubject = subjectRepository.save(subject);
+        publishSubjectDataChanged("admin-create");
         return SubjectManagementResponse.from(savedSubject);
     }
 
@@ -40,6 +44,7 @@ public class SubjectAdminService {
     public SubjectManagementResponse updateSubject(Long id, SubjectManagementRequest request) {
         Subject subject = findSubject(id);
         applyRequest(subject, request);
+        publishSubjectDataChanged("admin-update");
         return SubjectManagementResponse.from(subject);
     }
 
@@ -49,6 +54,7 @@ public class SubjectAdminService {
         try {
             subjectRepository.delete(subject);
             subjectRepository.flush();
+            publishSubjectDataChanged("admin-delete");
         } catch (DataIntegrityViolationException exception) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -99,5 +105,9 @@ public class SubjectAdminService {
             return null;
         }
         return value.trim();
+    }
+
+    private void publishSubjectDataChanged(String source) {
+        eventPublisher.publishEvent(new SubjectDataChangedEvent(source));
     }
 }
