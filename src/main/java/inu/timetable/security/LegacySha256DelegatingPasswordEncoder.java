@@ -4,6 +4,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 public class LegacySha256DelegatingPasswordEncoder implements PasswordEncoder {
@@ -23,13 +24,13 @@ public class LegacySha256DelegatingPasswordEncoder implements PasswordEncoder {
 
     @Override
     public boolean matches(CharSequence rawPassword, String encodedPassword) {
-        if (encodedPassword == null) {
+        if (rawPassword == null || encodedPassword == null) {
             return false;
         }
         if (isLegacySha256(encodedPassword)) {
             return MessageDigest.isEqual(
                     sha256(rawPassword).getBytes(StandardCharsets.UTF_8),
-                    encodedPassword.getBytes(StandardCharsets.UTF_8));
+                    encodedPassword.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
         }
         return bcryptPasswordEncoder.matches(rawPassword, encodedPassword);
     }

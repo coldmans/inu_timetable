@@ -5,6 +5,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -19,6 +20,20 @@ class LegacySha256DelegatingPasswordEncoderTest {
 
         assertThat(passwordEncoder.matches("password123", legacyHash)).isTrue();
         assertThat(passwordEncoder.upgradeEncoding(legacyHash)).isTrue();
+    }
+
+    @Test
+    void matchesUppercaseLegacySha256Password() {
+        String legacyHash = sha256("password123").toUpperCase(Locale.ROOT);
+
+        assertThat(passwordEncoder.matches("password123", legacyHash)).isTrue();
+    }
+
+    @Test
+    void rejectsNullRawPassword() {
+        String legacyHash = sha256("password123");
+
+        assertThat(passwordEncoder.matches(null, legacyHash)).isFalse();
     }
 
     @Test
