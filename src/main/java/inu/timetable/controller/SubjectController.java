@@ -12,12 +12,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @RestController
 @RequestMapping("/api/subjects")
@@ -142,7 +145,12 @@ public class SubjectController {
                     subjectIdPage.getTotalElements());
         }
 
-        List<Subject> subjectsWithSchedules = subjectRepository.findWithSchedulesByIds(subjectIds);
+        List<Subject> subjectsWithSchedules = new ArrayList<>(subjectRepository.findWithSchedulesByIds(subjectIds));
+        Map<Long, Integer> subjectOrder = IntStream.range(0, subjectIds.size())
+                .boxed()
+                .collect(Collectors.toMap(subjectIds::get, index -> index));
+        subjectsWithSchedules.sort(Comparator.comparingInt(
+                subject -> subjectOrder.getOrDefault(subject.getId(), Integer.MAX_VALUE)));
         System.out.println(">>> [API] Returning page with " + subjectsWithSchedules.size() + " subjects.");
 
         Map<Long, Long> wishlistCounts = wishlistRepository.countBySubjectIds(subjectIds).stream()

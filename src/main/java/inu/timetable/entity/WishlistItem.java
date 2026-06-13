@@ -12,7 +12,9 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "wishlist_items")
+@Table(name = "wishlist_items", indexes = {
+    @Index(name = "idx_wishlist_subject_id", columnList = "subject_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor

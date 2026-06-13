@@ -58,7 +58,7 @@ class SubjectControllerTest {
                 any()))
                 .thenReturn(new PageImpl<>(List.of(101L, 102L), pageRequest, 2));
         when(subjectRepository.findWithSchedulesByIds(List.of(101L, 102L)))
-                .thenReturn(List.of(popularSubject, emptySubject));
+                .thenReturn(List.of(emptySubject, popularSubject));
         when(wishlistRepository.countBySubjectIds(List.of(101L, 102L)))
                 .thenReturn(List.of(count(101L, 7L)));
 

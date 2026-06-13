@@ -66,7 +66,9 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
         long countByActiveTrue();
 
-        @Query(value = "SELECT DISTINCT s.id FROM Subject s LEFT JOIN s.schedules sch " +
+        @Query(value = "SELECT s.id FROM Subject s " +
+                        "LEFT JOIN s.schedules sch " +
+                        "LEFT JOIN WishlistItem w ON w.subject = s " +
                         "WHERE s.active = true " +
                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
@@ -80,7 +82,9 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "(:unassignedTime = true AND (s.classMethod = :onlineClassMethod OR sch.id IS NULL))) " +
                         "AND (:dayOfWeek IS NULL OR sch.dayOfWeek = :dayOfWeek) " +
                         "AND (:startTime IS NULL OR sch.startTime >= :startTime) " +
-                        "AND (:endTime IS NULL OR sch.endTime <= :endTime)", countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch "
+                        "AND (:endTime IS NULL OR sch.endTime <= :endTime) " +
+                        "GROUP BY s.id " +
+                        "ORDER BY COUNT(DISTINCT w.id) DESC, s.id ASC", countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch "
                                         +
                                         "WHERE s.active = true " +
                                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +

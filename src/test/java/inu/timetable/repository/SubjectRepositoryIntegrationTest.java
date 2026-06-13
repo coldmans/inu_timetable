@@ -159,6 +159,32 @@ class SubjectRepositoryIntegrationTest {
                 .containsExactly(tuple(popular.getId(), 2L));
     }
 
+    @Test
+    void findIdsWithFiltersOrdersByWishlistCountDescending() {
+        Subject quiet = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        Subject popular = persistSubject("AI01001002", "2026-1", true, "화", 1.0, 3.0);
+        Subject multiSchedule = persistSubject("AI01001003", "2026-1", true, "수", 1.0, 3.0);
+        persistSchedule(multiSchedule, "목", 4.0, 6.0);
+
+        User firstUser = persistUser();
+        User secondUser = persistUser();
+        User thirdUser = persistUser();
+        persistWishlistItem(firstUser, popular);
+        persistWishlistItem(secondUser, popular);
+        persistWishlistItem(thirdUser, multiSchedule);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
+                null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+
+        assertThat(subjectIds.getContent())
+                .containsExactly(popular.getId(), multiSchedule.getId(), quiet.getId());
+    }
+
     private Subject persistSubject(
             String courseCode,
             String semester,
@@ -189,6 +215,16 @@ class SubjectRepositoryIntegrationTest {
                     .build());
         }
         return entityManager.persistAndFlush(subject);
+    }
+
+    private Schedule persistSchedule(Subject subject, String day, Double start, Double end) {
+        Schedule schedule = Schedule.builder()
+                .subject(subject)
+                .dayOfWeek(day)
+                .startTime(start)
+                .endTime(end)
+                .build();
+        return entityManager.persistAndFlush(schedule);
     }
 
     private User persistUser() {
