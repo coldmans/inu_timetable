@@ -58,6 +58,8 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
         Page<Subject> findByActiveTrue(Pageable pageable);
 
+        Optional<Subject> findFirstByCourseCodeAndSemesterOrderByIdAsc(String courseCode, String semester);
+
         @Query(value = "SELECT s FROM Subject s " +
                         "WHERE s.active = true AND (s.semester = :semester OR s.semester IS NULL)",
                         countQuery = "SELECT count(s) FROM Subject s " +

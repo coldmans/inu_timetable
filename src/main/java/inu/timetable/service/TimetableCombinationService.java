@@ -12,6 +12,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class TimetableCombinationService {
+
+    private static final int CREDIT_TOLERANCE = 3;
+    private static final int SLOTS_PER_DAY = 128;
+    private static final List<String> KNOWN_DAYS = List.of("월", "화", "수", "목", "금", "토", "일");
     
     private final WishlistRepository wishlistRepository;
     
@@ -54,16 +58,32 @@ public class TimetableCombinationService {
             .map(WishlistItem::getSubject)
             .collect(Collectors.toList());
 
-        // 필수 과목들이 시간 겹침 없이 배치 가능한지 먼저 확인
-        if (!isValidTimetable(requiredSubjects, freeDays)) {
-            return new ArrayList<>(); // 필수 과목들끼리 시간이 겹치거나 공강 요일을 위반하면 조합 생성 불가
+        Set<String> freeDaySet = freeDays == null ? Set.of() : new HashSet<>(freeDays);
+        TimeSlotEncoder timeSlotEncoder = new TimeSlotEncoder();
+        List<SubjectOption> requiredOptions = requiredSubjects.stream()
+                .map(subject -> SubjectOption.from(subject, timeSlotEncoder))
+                .toList();
+        List<SubjectOption> optionalOptions = optionalSubjects.stream()
+                .map(subject -> SubjectOption.from(subject, timeSlotEncoder))
+                .toList();
+
+        BitSet requiredTimeMask = new BitSet();
+        int requiredCredits = 0;
+        for (SubjectOption requiredOption : requiredOptions) {
+            if (requiredOption.hasFreeDayConflict(freeDaySet)
+                    || requiredOption.hasTimeConflict(requiredTimeMask)) {
+                return new ArrayList<>(); // 필수 과목들끼리 시간이 겹치거나 공강 요일을 위반하면 조합 생성 불가
+            }
+            requiredTimeMask.or(requiredOption.timeMask());
+            requiredCredits += requiredOption.credits();
         }
 
         List<List<Subject>> combinations = new ArrayList<>();
 
         // 필수 과목을 먼저 포함한 상태로 조합 생성
-        generateCombinationsWithRequired(requiredSubjects, optionalSubjects, new ArrayList<>(requiredSubjects),
-                                       0, targetCredits, combinations, maxCombinations, freeDays);
+        generateCombinationsWithRequired(optionalOptions, new ArrayList<>(requiredSubjects), 0,
+                requiredCredits, requiredTimeMask, targetCredits, combinations, maxCombinations,
+                freeDaySet, suffixCredits(optionalOptions));
 
         // 학점 기준으로 정렬 (목표 학점에 가까운 순)
         combinations.sort((a, b) -> {
@@ -79,121 +99,61 @@ public class TimetableCombinationService {
         return combinations.stream().limit(maxCombinations).collect(Collectors.toList());
     }
     
-    private void generateCombinationsWithRequired(List<Subject> requiredSubjects, List<Subject> optionalSubjects,
-                                                List<Subject> current, int startIndex, int targetCredits,
-                                                List<List<Subject>> combinations, int maxCombinations, List<String> freeDays) {
+    private void generateCombinationsWithRequired(List<SubjectOption> optionalSubjects, List<Subject> current,
+                                                int startIndex, int currentCredits, BitSet currentTimeMask,
+                                                int targetCredits, List<List<Subject>> combinations,
+                                                int maxCombinations, Set<String> freeDays, int[] suffixCredits) {
 
         if (combinations.size() >= maxCombinations) {
             return;
         }
 
-        int currentCredits = current.stream().mapToInt(Subject::getCredits).sum();
+        int minCredits = targetCredits - CREDIT_TOLERANCE;
+        int maxCredits = targetCredits + CREDIT_TOLERANCE;
 
         // 목표 학점 달성 또는 근사치 도달 시 조합 추가
-        if (currentCredits >= targetCredits - 3 && currentCredits <= targetCredits + 3) {
-            if (isValidTimetable(current, freeDays)) {
-                combinations.add(new ArrayList<>(current));
-            }
+        if (currentCredits >= minCredits && currentCredits <= maxCredits) {
+            combinations.add(new ArrayList<>(current));
         }
 
         // 학점이 목표보다 너무 크면 중단
-        if (currentCredits > targetCredits + 3) {
+        if (currentCredits >= maxCredits) {
+            return;
+        }
+
+        if (startIndex >= optionalSubjects.size() || currentCredits + suffixCredits[startIndex] < minCredits) {
             return;
         }
 
         // 선택 과목들을 재귀적으로 추가
         for (int i = startIndex; i < optionalSubjects.size(); i++) {
-            Subject subject = optionalSubjects.get(i);
-            current.add(subject);
-            generateCombinationsWithRequired(requiredSubjects, optionalSubjects, current, i + 1,
-                                           targetCredits, combinations, maxCombinations, freeDays);
+            SubjectOption option = optionalSubjects.get(i);
+            if (option.hasFreeDayConflict(freeDays)
+                    || option.hasTimeConflict(currentTimeMask)
+                    || currentCredits + option.credits() > maxCredits) {
+                continue;
+            }
+
+            current.add(option.subject());
+            BitSet nextTimeMask = (BitSet) currentTimeMask.clone();
+            nextTimeMask.or(option.timeMask());
+            generateCombinationsWithRequired(optionalSubjects, current, i + 1,
+                    currentCredits + option.credits(), nextTimeMask, targetCredits, combinations,
+                    maxCombinations, freeDays, suffixCredits);
             current.remove(current.size() - 1);
+
+            if (combinations.size() >= maxCombinations) {
+                return;
+            }
         }
     }
 
-    private void generateCombinations(List<Subject> subjects, List<Subject> current, int startIndex, 
-                                     int targetCredits, List<List<Subject>> combinations, int maxCombinations) {
-        
-        if (combinations.size() >= maxCombinations) {
-            return;
+    private int[] suffixCredits(List<SubjectOption> optionalSubjects) {
+        int[] suffixCredits = new int[optionalSubjects.size() + 1];
+        for (int i = optionalSubjects.size() - 1; i >= 0; i--) {
+            suffixCredits[i] = suffixCredits[i + 1] + optionalSubjects.get(i).credits();
         }
-        
-        int currentCredits = current.stream().mapToInt(Subject::getCredits).sum();
-        
-        // 목표 학점 달성 또는 근사치 도달 시 조합 추가
-        if (currentCredits >= targetCredits - 3 && currentCredits <= targetCredits + 3) {
-            if (isValidTimetable(current)) {
-                combinations.add(new ArrayList<>(current));
-            }
-        }
-        
-        // 학점이 목표보다 너무 크면 중단
-        if (currentCredits > targetCredits + 3) {
-            return;
-        }
-        
-        // 재귀적으로 과목 추가
-        for (int i = startIndex; i < subjects.size(); i++) {
-            Subject subject = subjects.get(i);
-            current.add(subject);
-            generateCombinations(subjects, current, i + 1, targetCredits, combinations, maxCombinations);
-            current.remove(current.size() - 1);
-        }
-    }
-    
-    private boolean isValidTimetable(List<Subject> subjects) {
-        return isValidTimetable(subjects, new ArrayList<>());
-    }
-
-    private boolean isValidTimetable(List<Subject> subjects, List<String> freeDays) {
-        // 모든 과목 쌍에 대해 시간 겹침 체크
-        for (int i = 0; i < subjects.size(); i++) {
-            for (int j = i + 1; j < subjects.size(); j++) {
-                if (hasTimeConflict(subjects.get(i), subjects.get(j))) {
-                    return false;
-                }
-            }
-        }
-
-        // 공강 요일 체크
-        if (freeDays != null && !freeDays.isEmpty()) {
-            for (Subject subject : subjects) {
-                for (Schedule schedule : subject.getSchedules()) {
-                    if (freeDays.contains(schedule.getDayOfWeek())) {
-                        return false; // 공강 요일에 수업이 있으면 invalid
-                    }
-                }
-            }
-        }
-
-        return true;
-    }
-    
-    private boolean hasTimeConflict(Subject subject1, Subject subject2) {
-        for (Schedule s1 : subject1.getSchedules()) {
-            for (Schedule s2 : subject2.getSchedules()) {
-                if (isScheduleConflict(s1, s2)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    
-    private boolean isScheduleConflict(Schedule s1, Schedule s2) {
-        // 같은 요일이 아니면 겹치지 않음
-        if (!s1.getDayOfWeek().equals(s2.getDayOfWeek())) {
-            return false;
-        }
-        
-        // 시간 겹침 체크
-        double start1 = s1.getStartTime();
-        double end1 = s1.getEndTime();
-        double start2 = s2.getStartTime();
-        double end2 = s2.getEndTime();
-        
-        // 겹치지 않는 경우: s1이 s2보다 완전히 이전이거나 완전히 이후
-        return !(end1 <= start2 || end2 <= start1);
+        return suffixCredits;
     }
     
     public Map<String, Object> getTimetableStatistics(List<Subject> subjects) {
@@ -228,5 +188,52 @@ public class TimetableCombinationService {
         stats.put("freeDays", actualFreeDays);
 
         return stats;
+    }
+
+    private record SubjectOption(Subject subject, int credits, BitSet timeMask, Set<String> classDays) {
+
+        private static SubjectOption from(Subject subject, TimeSlotEncoder timeSlotEncoder) {
+            BitSet timeMask = new BitSet();
+            Set<String> classDays = new HashSet<>();
+            for (Schedule schedule : subject.getSchedules()) {
+                if (schedule.getDayOfWeek() != null) {
+                    classDays.add(schedule.getDayOfWeek());
+                }
+                if (schedule.getDayOfWeek() == null
+                        || schedule.getStartTime() == null
+                        || schedule.getEndTime() == null) {
+                    continue;
+                }
+                int dayIndex = timeSlotEncoder.dayIndex(schedule.getDayOfWeek());
+                int startSlot = (int) Math.round(schedule.getStartTime() * 2);
+                int endSlot = (int) Math.round(schedule.getEndTime() * 2);
+                for (int slot = startSlot; slot < endSlot; slot++) {
+                    timeMask.set(dayIndex * SLOTS_PER_DAY + slot);
+                }
+            }
+            return new SubjectOption(subject, subject.getCredits(), timeMask, classDays);
+        }
+
+        private boolean hasTimeConflict(BitSet currentTimeMask) {
+            return currentTimeMask.intersects(timeMask);
+        }
+
+        private boolean hasFreeDayConflict(Set<String> freeDays) {
+            return !freeDays.isEmpty() && classDays.stream().anyMatch(freeDays::contains);
+        }
+    }
+
+    private static class TimeSlotEncoder {
+        private final Map<String, Integer> dayIndexes = new HashMap<>();
+
+        private TimeSlotEncoder() {
+            for (int i = 0; i < KNOWN_DAYS.size(); i++) {
+                dayIndexes.put(KNOWN_DAYS.get(i), i);
+            }
+        }
+
+        private int dayIndex(String dayOfWeek) {
+            return dayIndexes.computeIfAbsent(dayOfWeek, ignored -> dayIndexes.size());
+        }
     }
 }
