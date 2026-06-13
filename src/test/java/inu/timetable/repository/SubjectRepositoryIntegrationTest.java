@@ -2,6 +2,8 @@ package inu.timetable.repository;
 
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
+import inu.timetable.entity.User;
+import inu.timetable.entity.WishlistItem;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import org.junit.jupiter.api.Test;
@@ -17,8 +19,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
@@ -34,6 +38,9 @@ class SubjectRepositoryIntegrationTest {
 
     @Autowired
     private SubjectRepository subjectRepository;
+
+    @Autowired
+    private WishlistRepository wishlistRepository;
 
     @Autowired
     private TestEntityManager entityManager;
@@ -127,6 +134,31 @@ class SubjectRepositoryIntegrationTest {
                 .doesNotContain(math.getId());
     }
 
+    @Test
+    void countBySubjectIdsReturnsWishlistCountsForSubjects() {
+        Subject popular = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        Subject quiet = persistSubject("AI01001002", "2026-1", true, "화", 1.0, 3.0);
+        Subject other = persistSubject("AI01001003", "2026-1", true, "수", 1.0, 3.0);
+        User firstUser = persistUser();
+        User secondUser = persistUser();
+        User thirdUser = persistUser();
+        persistWishlistItem(firstUser, popular);
+        persistWishlistItem(secondUser, popular);
+        persistWishlistItem(thirdUser, other);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<WishlistRepository.SubjectWishlistCount> counts = wishlistRepository.countBySubjectIds(
+                List.of(popular.getId(), quiet.getId()));
+
+        assertThat(counts)
+                .extracting(
+                        WishlistRepository.SubjectWishlistCount::getSubjectId,
+                        WishlistRepository.SubjectWishlistCount::getWishlistCount)
+                .containsExactly(tuple(popular.getId(), 2L));
+    }
+
     private Subject persistSubject(
             String courseCode,
             String semester,
@@ -157,5 +189,25 @@ class SubjectRepositoryIntegrationTest {
                     .build());
         }
         return entityManager.persistAndFlush(subject);
+    }
+
+    private User persistUser() {
+        User user = User.builder()
+                .username("student-" + UUID.randomUUID())
+                .password("password")
+                .grade(2)
+                .major("컴퓨터공학부")
+                .build();
+        return entityManager.persistAndFlush(user);
+    }
+
+    private WishlistItem persistWishlistItem(User user, Subject subject) {
+        WishlistItem item = WishlistItem.builder()
+                .user(user)
+                .subject(subject)
+                .semester("2026-1")
+                .priority(1)
+                .build();
+        return entityManager.persistAndFlush(item);
     }
 }

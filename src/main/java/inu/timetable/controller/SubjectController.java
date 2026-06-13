@@ -4,6 +4,7 @@ import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.SubjectRepository;
+import inu.timetable.repository.WishlistRepository;
 import inu.timetable.dto.SubjectDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 public class SubjectController {
 
     private final SubjectRepository subjectRepository;
+    private final WishlistRepository wishlistRepository;
 
     @GetMapping
     public Page<Subject> getAllSubjects(
@@ -142,9 +145,14 @@ public class SubjectController {
         List<Subject> subjectsWithSchedules = subjectRepository.findWithSchedulesByIds(subjectIds);
         System.out.println(">>> [API] Returning page with " + subjectsWithSchedules.size() + " subjects.");
 
+        Map<Long, Long> wishlistCounts = wishlistRepository.countBySubjectIds(subjectIds).stream()
+                .collect(Collectors.toMap(
+                        WishlistRepository.SubjectWishlistCount::getSubjectId,
+                        WishlistRepository.SubjectWishlistCount::getWishlistCount));
+
         // DTO로 변환
         List<SubjectDto> subjectDtos = subjectsWithSchedules.stream()
-                .map(SubjectDto::from)
+                .map(subject -> SubjectDto.from(subject, wishlistCounts.getOrDefault(subject.getId(), 0L)))
                 .collect(Collectors.toList());
 
         // Page 객체는 유지하되, 내용물만 교체

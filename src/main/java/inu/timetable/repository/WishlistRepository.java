@@ -12,6 +12,11 @@ import java.util.Optional;
 
 @Repository
 public interface WishlistRepository extends JpaRepository<WishlistItem, Long> {
+
+    interface SubjectWishlistCount {
+        Long getSubjectId();
+        Long getWishlistCount();
+    }
     
     List<WishlistItem> findByUserIdAndSemester(Long userId, String semester);
     
@@ -28,4 +33,10 @@ public interface WishlistRepository extends JpaRepository<WishlistItem, Long> {
     @Modifying
     @Query("DELETE FROM WishlistItem w WHERE w.user.id = :userId AND w.subject.id = :subjectId")
     void deleteByUserIdAndSubjectId(@Param("userId") Long userId, @Param("subjectId") Long subjectId);
+
+    @Query("SELECT w.subject.id AS subjectId, COUNT(w.id) AS wishlistCount " +
+           "FROM WishlistItem w " +
+           "WHERE w.subject.id IN :subjectIds " +
+           "GROUP BY w.subject.id")
+    List<SubjectWishlistCount> countBySubjectIds(@Param("subjectIds") List<Long> subjectIds);
 }
