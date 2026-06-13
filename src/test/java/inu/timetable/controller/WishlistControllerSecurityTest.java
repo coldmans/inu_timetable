@@ -1,5 +1,7 @@
 package inu.timetable.controller;
 
+import inu.timetable.enums.UserStatus;
+import inu.timetable.repository.UserRepository;
 import inu.timetable.security.AuthenticatedUser;
 import inu.timetable.security.UserAccessGuard;
 import inu.timetable.service.WishlistService;
@@ -24,13 +26,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class WishlistControllerSecurityTest {
 
     private WishlistService wishlistService;
+    private UserRepository userRepository;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         wishlistService = mock(WishlistService.class);
+        userRepository = mock(UserRepository.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new WishlistController(wishlistService, new UserAccessGuard()))
+                .standaloneSetup(new WishlistController(wishlistService, new UserAccessGuard(userRepository)))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
     }
@@ -62,6 +66,7 @@ class WishlistControllerSecurityTest {
     @Test
     void getUserWishlistAllowsOwnUserId() throws Exception {
         authenticate(1L);
+        when(userRepository.existsByIdAndStatus(1L, UserStatus.ACTIVE)).thenReturn(true);
         when(wishlistService.getUserWishlist(1L, "2026-1")).thenReturn(List.of());
 
         mockMvc.perform(get("/api/wishlist/user/1")

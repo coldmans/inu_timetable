@@ -58,6 +58,12 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
         Page<Subject> findByActiveTrue(Pageable pageable);
 
+        @Query(value = "SELECT s FROM Subject s " +
+                        "WHERE s.active = true AND (s.semester = :semester OR s.semester IS NULL)",
+                        countQuery = "SELECT count(s) FROM Subject s " +
+                                        "WHERE s.active = true AND (s.semester = :semester OR s.semester IS NULL)")
+        Page<Subject> findActiveSeedCandidatesBySemester(@Param("semester") String semester, Pageable pageable);
+
         long countByActiveTrue();
 
         @Query(value = "SELECT DISTINCT s.id FROM Subject s LEFT JOIN s.schedules sch " +
@@ -65,6 +71,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
                         "AND (:department IS NULL OR s.department LIKE %:department%) " +
+                        "AND (:departmentCount = 0 OR s.department IN :departments) " +
                         "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
                         "AND (:grade IS NULL OR s.grade = :grade) " +
                         "AND (:isNight IS NULL OR s.isNight = :isNight) " +
@@ -79,6 +86,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
                                         "AND (:department IS NULL OR s.department LIKE %:department%) " +
+                                        "AND (:departmentCount = 0 OR s.department IN :departments) " +
                                         "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
                                         "AND (:grade IS NULL OR s.grade = :grade) " +
                                         "AND (:isNight IS NULL OR s.isNight = :isNight) " +
@@ -92,6 +100,8 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         @Param("subjectName") String subjectName,
                         @Param("professor") String professor,
                         @Param("department") String department,
+                        @Param("departments") List<String> departments,
+                        @Param("departmentCount") int departmentCount,
                         @Param("dayOfWeek") String dayOfWeek,
                         @Param("startTime") Double startTime,
                         @Param("endTime") Double endTime,

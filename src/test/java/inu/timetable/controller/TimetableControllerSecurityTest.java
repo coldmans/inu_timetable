@@ -1,5 +1,7 @@
 package inu.timetable.controller;
 
+import inu.timetable.enums.UserStatus;
+import inu.timetable.repository.UserRepository;
 import inu.timetable.security.AuthenticatedUser;
 import inu.timetable.security.UserAccessGuard;
 import inu.timetable.service.TimetableService;
@@ -24,13 +26,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TimetableControllerSecurityTest {
 
     private TimetableService timetableService;
+    private UserRepository userRepository;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         timetableService = mock(TimetableService.class);
+        userRepository = mock(UserRepository.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new TimetableController(timetableService, new UserAccessGuard()))
+                .standaloneSetup(new TimetableController(timetableService, new UserAccessGuard(userRepository)))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
     }
@@ -62,6 +66,7 @@ class TimetableControllerSecurityTest {
     @Test
     void getUserTimetableAllowsOwnUserId() throws Exception {
         authenticate(1L);
+        when(userRepository.existsByIdAndStatus(1L, UserStatus.ACTIVE)).thenReturn(true);
         when(timetableService.getUserTimetable(1L, "2026-1")).thenReturn(List.of());
 
         mockMvc.perform(get("/api/timetable/user/1")

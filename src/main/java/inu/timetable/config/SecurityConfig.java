@@ -78,6 +78,7 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/register",
                                 "/api/auth/csrf",
+                                "/api/dev/**",
                                 "/api/subjects",
                                 "/api/subjects/**"))
                 .authorizeHttpRequests(auth -> auth
@@ -87,6 +88,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
+                        .requestMatchers("/api/dev/**").permitAll()
                         .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
                         .requestMatchers("/api/wishlist/**", "/api/timetable/**", "/api/timetable-combination/**").authenticated()
                         .requestMatchers("/api/subjects/**").permitAll()

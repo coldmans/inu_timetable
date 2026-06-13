@@ -1,5 +1,6 @@
 package inu.timetable.entity;
 
+import inu.timetable.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -38,6 +39,14 @@ public class User {
     
     @Column
     private String major; // 전공
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private UserStatus status = UserStatus.ACTIVE;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
     
     @Column(name = "created_at")
     @Builder.Default
@@ -46,4 +55,26 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<UserTimetable> timetables = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<UserMajor> userMajors = new ArrayList<>();
+
+    public void replaceUserMajors(List<UserMajor> nextUserMajors) {
+        userMajors.clear();
+        nextUserMajors.forEach(this::addUserMajor);
+    }
+
+    public void addUserMajor(UserMajor userMajor) {
+        userMajors.add(userMajor);
+        userMajor.setUser(this);
+    }
+
+    public void withdraw(String anonymizedUsername, String anonymizedPassword, LocalDateTime withdrawnAt) {
+        this.username = anonymizedUsername;
+        this.password = anonymizedPassword;
+        this.nickname = null;
+        this.status = UserStatus.WITHDRAWN;
+        this.deletedAt = withdrawnAt;
+    }
 }

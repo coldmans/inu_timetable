@@ -11,7 +11,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
@@ -99,6 +102,7 @@ public class SubjectController {
             @RequestParam(required = false) String subjectName,
             @RequestParam(required = false) String professor,
             @RequestParam(required = false) String department,
+            @RequestParam(required = false) List<String> departments,
             @RequestParam(required = false) String dayOfWeek,
             @RequestParam(required = false) Double startTime,
             @RequestParam(required = false) Double endTime,
@@ -113,10 +117,15 @@ public class SubjectController {
         System.out.println(">>> [API] Received request for /filter with page=" + page + ", size=" + size);
 
         Pageable pageable = PageRequest.of(page, size);
+        String normalizedDepartment = normalizeDepartment(department);
+        List<String> normalizedDepartments = normalizeDepartments(departments);
+        List<String> departmentListParam = normalizedDepartments.isEmpty()
+                ? Collections.singletonList("__unused_department__")
+                : normalizedDepartments;
 
         // 1단계: 필터로 과목 ID 조회 (페이지네이션 적용)
         Page<Long> subjectIdPage = subjectRepository.findIdsWithFilters(
-                subjectName, professor, department, dayOfWeek,
+                subjectName, professor, normalizedDepartment, departmentListParam, normalizedDepartments.size(), dayOfWeek,
                 startTime, endTime, subjectType, grade, isNight, credits,
                 unassignedTime, ClassMethod.ONLINE, pageable);
 
@@ -140,6 +149,28 @@ public class SubjectController {
 
         // Page 객체는 유지하되, 내용물만 교체
         return new org.springframework.data.domain.PageImpl<>(subjectDtos, pageable, subjectIdPage.getTotalElements());
+    }
+
+    private String normalizeDepartment(String department) {
+        if (department == null || department.isBlank() || "전체".equals(department)) {
+            return null;
+        }
+
+        return department.trim();
+    }
+
+    private List<String> normalizeDepartments(List<String> departments) {
+        if (departments == null) {
+            return Collections.emptyList();
+        }
+
+        return departments.stream()
+                .filter(Objects::nonNull)
+                .flatMap(value -> Arrays.stream(value.split(",")))
+                .map(String::trim)
+                .filter(value -> !value.isBlank() && !"전체".equals(value))
+                .distinct()
+                .collect(Collectors.toList());
     }
 
 }

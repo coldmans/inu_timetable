@@ -1,14 +1,19 @@
 package inu.timetable.security;
 
+import inu.timetable.enums.UserStatus;
+import inu.timetable.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class UserAccessGuardTest {
 
-    private final UserAccessGuard userAccessGuard = new UserAccessGuard();
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final UserAccessGuard userAccessGuard = new UserAccessGuard(userRepository);
 
     @Test
     void requireMatchingUserRejectsMissingPrincipal() {
@@ -29,8 +34,19 @@ class UserAccessGuardTest {
     @Test
     void requireMatchingUserReturnsAuthenticatedUserId() {
         AuthenticatedUser authenticatedUser = authenticatedUser(1L);
+        when(userRepository.existsByIdAndStatus(1L, UserStatus.ACTIVE)).thenReturn(true);
 
         assertThat(userAccessGuard.requireMatchingUser(authenticatedUser, 1L)).isEqualTo(1L);
+    }
+
+    @Test
+    void requireMatchingUserRejectsWithdrawnUser() {
+        AuthenticatedUser authenticatedUser = authenticatedUser(1L);
+        when(userRepository.existsByIdAndStatus(1L, UserStatus.ACTIVE)).thenReturn(false);
+
+        assertThatThrownBy(() -> userAccessGuard.requireMatchingUser(authenticatedUser, 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("401 UNAUTHORIZED");
     }
 
     private AuthenticatedUser authenticatedUser(Long userId) {

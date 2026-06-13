@@ -14,6 +14,8 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.test.context.TestPropertySource;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -94,13 +96,35 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> unassignedTimeIds = subjectRepository.findIdsWithFilters(
-                null, null, null, null,
+                null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
                 true, ClassMethod.ONLINE, PageRequest.of(0, 10));
 
         assertThat(unassignedTimeIds.getContent())
                 .containsExactlyInAnyOrder(unscheduledOffline.getId(), scheduledOnline.getId())
                 .doesNotContain(scheduledOffline.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersCanFilterByMultipleDepartments() {
+        Subject computer = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        computer.setDepartment("컴퓨터공학부");
+        Subject embedded = persistSubject("AI01001002", "2026-1", true, "화", 1.0, 3.0);
+        embedded.setDepartment("임베디드시스템공학과");
+        Subject math = persistSubject("AI01001003", "2026-1", true, "수", 1.0, 3.0);
+        math.setDepartment("수학과");
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
+                null, null, null, Arrays.asList("컴퓨터공학부", "임베디드시스템공학과"), 2, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+
+        assertThat(subjectIds.getContent())
+                .containsExactlyInAnyOrder(computer.getId(), embedded.getId())
+                .doesNotContain(math.getId());
     }
 
     private Subject persistSubject(

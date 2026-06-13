@@ -18,7 +18,9 @@ public class CorsConfig implements WebMvcConfigurer {
                     "https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app",
                     "https://inuu-timetable.vercel.app",
                     "http://localhost:3000",
-                    "http://localhost:5173"
+                    "http://localhost:5173",
+                    "http://localhost:5174",
+                    "http://localhost:5175"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
