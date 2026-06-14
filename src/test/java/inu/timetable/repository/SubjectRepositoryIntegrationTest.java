@@ -3,6 +3,7 @@ package inu.timetable.repository;
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.entity.User;
+import inu.timetable.entity.UserTimetable;
 import inu.timetable.entity.WishlistItem;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
@@ -41,6 +42,9 @@ class SubjectRepositoryIntegrationTest {
 
     @Autowired
     private WishlistRepository wishlistRepository;
+
+    @Autowired
+    private UserTimetableRepository userTimetableRepository;
 
     @Autowired
     private TestEntityManager entityManager;
@@ -160,7 +164,32 @@ class SubjectRepositoryIntegrationTest {
     }
 
     @Test
-    void findIdsWithFiltersOrdersByWishlistCountDescending() {
+    void countAddedUsersBySubjectIdsReturnsTimetableAddCountsForSubjects() {
+        Subject popular = persistSubject("AI01001004", "2026-1", true, "월", 4.0, 7.0);
+        Subject quiet = persistSubject("AI01001005", "2026-1", true, "화", 1.0, 3.0);
+        Subject other = persistSubject("AI01001006", "2026-1", true, "수", 1.0, 3.0);
+        User firstUser = persistUser();
+        User secondUser = persistUser();
+        User thirdUser = persistUser();
+        persistUserTimetable(firstUser, popular);
+        persistUserTimetable(secondUser, popular);
+        persistUserTimetable(thirdUser, other);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<UserTimetableRepository.SubjectTimetableAddCount> counts =
+                userTimetableRepository.countAddedUsersBySubjectIds(List.of(popular.getId(), quiet.getId()));
+
+        assertThat(counts)
+                .extracting(
+                        UserTimetableRepository.SubjectTimetableAddCount::getSubjectId,
+                        UserTimetableRepository.SubjectTimetableAddCount::getTimetableAddCount)
+                .containsExactly(tuple(popular.getId(), 2L));
+    }
+
+    @Test
+    void findIdsWithFiltersOrdersByTimetableAddCountDescending() {
         Subject quiet = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
         Subject popular = persistSubject("AI01001002", "2026-1", true, "화", 1.0, 3.0);
         Subject multiSchedule = persistSubject("AI01001003", "2026-1", true, "수", 1.0, 3.0);
@@ -169,9 +198,9 @@ class SubjectRepositoryIntegrationTest {
         User firstUser = persistUser();
         User secondUser = persistUser();
         User thirdUser = persistUser();
-        persistWishlistItem(firstUser, popular);
-        persistWishlistItem(secondUser, popular);
-        persistWishlistItem(thirdUser, multiSchedule);
+        persistUserTimetable(firstUser, popular);
+        persistUserTimetable(secondUser, popular);
+        persistUserTimetable(thirdUser, multiSchedule);
 
         entityManager.flush();
         entityManager.clear();
@@ -243,6 +272,15 @@ class SubjectRepositoryIntegrationTest {
                 .subject(subject)
                 .semester("2026-1")
                 .priority(1)
+                .build();
+        return entityManager.persistAndFlush(item);
+    }
+
+    private UserTimetable persistUserTimetable(User user, Subject subject) {
+        UserTimetable item = UserTimetable.builder()
+                .user(user)
+                .subject(subject)
+                .semester("2026-1")
                 .build();
         return entityManager.persistAndFlush(item);
     }

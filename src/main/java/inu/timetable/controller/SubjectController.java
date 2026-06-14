@@ -1,11 +1,11 @@
 package inu.timetable.controller;
 
+import inu.timetable.dto.SubjectDto;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.SubjectRepository;
-import inu.timetable.repository.WishlistRepository;
-import inu.timetable.dto.SubjectDto;
+import inu.timetable.repository.UserTimetableRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
 public class SubjectController {
 
     private final SubjectRepository subjectRepository;
-    private final WishlistRepository wishlistRepository;
+    private final UserTimetableRepository userTimetableRepository;
 
     @GetMapping
     public Page<Subject> getAllSubjects(
@@ -153,14 +153,14 @@ public class SubjectController {
                 subject -> subjectOrder.getOrDefault(subject.getId(), Integer.MAX_VALUE)));
         System.out.println(">>> [API] Returning page with " + subjectsWithSchedules.size() + " subjects.");
 
-        Map<Long, Long> wishlistCounts = wishlistRepository.countBySubjectIds(subjectIds).stream()
+        Map<Long, Long> timetableAddCounts = userTimetableRepository.countAddedUsersBySubjectIds(subjectIds).stream()
                 .collect(Collectors.toMap(
-                        WishlistRepository.SubjectWishlistCount::getSubjectId,
-                        WishlistRepository.SubjectWishlistCount::getWishlistCount));
+                        UserTimetableRepository.SubjectTimetableAddCount::getSubjectId,
+                        UserTimetableRepository.SubjectTimetableAddCount::getTimetableAddCount));
 
         // DTO로 변환
         List<SubjectDto> subjectDtos = subjectsWithSchedules.stream()
-                .map(subject -> SubjectDto.from(subject, wishlistCounts.getOrDefault(subject.getId(), 0L)))
+                .map(subject -> SubjectDto.from(subject, timetableAddCounts.getOrDefault(subject.getId(), 0L)))
                 .collect(Collectors.toList());
 
         // Page 객체는 유지하되, 내용물만 교체

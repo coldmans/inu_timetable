@@ -34,6 +34,7 @@ public class SubjectDto {
     private Boolean isNight;
     private List<ScheduleDto> schedules;
     private Long wishlistCount;
+    private Long timetableAddCount;
     
     @Getter
     @Setter
@@ -60,7 +61,7 @@ public class SubjectDto {
         return from(subject, null);
     }
 
-    public static SubjectDto from(Subject subject, Long wishlistCount) {
+    public static SubjectDto from(Subject subject, Long timetableAddCount) {
         return SubjectDto.builder()
             .id(subject.getId())
             .courseCode(subject.getCourseCode())
@@ -77,7 +78,8 @@ public class SubjectDto {
             .schedules(subject.getSchedules().stream()
                 .map(ScheduleDto::fromEntity)
                 .collect(Collectors.toList()))
-            .wishlistCount(wishlistCount)
+            .wishlistCount(timetableAddCount)
+            .timetableAddCount(timetableAddCount)
             .build();
     }
 }

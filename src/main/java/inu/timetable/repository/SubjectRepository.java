@@ -70,7 +70,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
         @Query(value = "SELECT s.id FROM Subject s " +
                         "LEFT JOIN s.schedules sch " +
-                        "LEFT JOIN WishlistItem w ON w.subject = s " +
+                        "LEFT JOIN UserTimetable ut ON ut.subject = s " +
                         "WHERE s.active = true " +
                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
@@ -86,7 +86,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "AND (:startTime IS NULL OR sch.startTime >= :startTime) " +
                         "AND (:endTime IS NULL OR sch.endTime <= :endTime) " +
                         "GROUP BY s.id " +
-                        "ORDER BY COUNT(DISTINCT w.id) DESC, s.id ASC", countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch "
+                        "ORDER BY COUNT(DISTINCT ut.user.id) DESC, s.id ASC", countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch "
                                         +
                                         "WHERE s.active = true " +
                                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +

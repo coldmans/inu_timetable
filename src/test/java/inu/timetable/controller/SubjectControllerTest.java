@@ -6,7 +6,7 @@ import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.SubjectRepository;
-import inu.timetable.repository.WishlistRepository;
+import inu.timetable.repository.UserTimetableRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,14 +31,14 @@ class SubjectControllerTest {
     private SubjectRepository subjectRepository;
 
     @org.mockito.Mock
-    private WishlistRepository wishlistRepository;
+    private UserTimetableRepository userTimetableRepository;
 
     @Test
-    void filterSubjectsIncludesWishlistCount() {
+    void filterSubjectsIncludesTimetableAddCount() {
         Subject popularSubject = subject(101L, "운영체제");
         Subject emptySubject = subject(102L, "자료구조");
         PageRequest pageRequest = PageRequest.of(0, 20);
-        SubjectController controller = new SubjectController(subjectRepository, wishlistRepository);
+        SubjectController controller = new SubjectController(subjectRepository, userTimetableRepository);
 
         when(subjectRepository.findIdsWithFilters(
                 nullable(String.class),
@@ -59,7 +59,7 @@ class SubjectControllerTest {
                 .thenReturn(new PageImpl<>(List.of(101L, 102L), pageRequest, 2));
         when(subjectRepository.findWithSchedulesByIds(List.of(101L, 102L)))
                 .thenReturn(List.of(emptySubject, popularSubject));
-        when(wishlistRepository.countBySubjectIds(List.of(101L, 102L)))
+        when(userTimetableRepository.countAddedUsersBySubjectIds(List.of(101L, 102L)))
                 .thenReturn(List.of(count(101L, 7L)));
 
         Page<SubjectDto> result = controller.filterSubjects(
@@ -68,10 +68,10 @@ class SubjectControllerTest {
 
         assertThat(result.getTotalElements()).isEqualTo(2);
         assertThat(result.getContent())
-                .extracting(SubjectDto::getSubjectName, SubjectDto::getWishlistCount)
+                .extracting(SubjectDto::getSubjectName, SubjectDto::getTimetableAddCount, SubjectDto::getWishlistCount)
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("운영체제", 7L),
-                        org.assertj.core.groups.Tuple.tuple("자료구조", 0L));
+                        org.assertj.core.groups.Tuple.tuple("운영체제", 7L, 7L),
+                        org.assertj.core.groups.Tuple.tuple("자료구조", 0L, 0L));
     }
 
     private Subject subject(Long id, String subjectName) {
@@ -97,16 +97,16 @@ class SubjectControllerTest {
         return subject;
     }
 
-    private WishlistRepository.SubjectWishlistCount count(Long subjectId, Long wishlistCount) {
-        return new WishlistRepository.SubjectWishlistCount() {
+    private UserTimetableRepository.SubjectTimetableAddCount count(Long subjectId, Long timetableAddCount) {
+        return new UserTimetableRepository.SubjectTimetableAddCount() {
             @Override
             public Long getSubjectId() {
                 return subjectId;
             }
 
             @Override
-            public Long getWishlistCount() {
-                return wishlistCount;
+            public Long getTimetableAddCount() {
+                return timetableAddCount;
             }
         };
     }

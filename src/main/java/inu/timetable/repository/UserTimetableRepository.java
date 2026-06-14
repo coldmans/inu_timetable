@@ -11,6 +11,11 @@ import java.util.Optional;
 
 @Repository
 public interface UserTimetableRepository extends JpaRepository<UserTimetable, Long> {
+
+    interface SubjectTimetableAddCount {
+        Long getSubjectId();
+        Long getTimetableAddCount();
+    }
     
     List<UserTimetable> findByUserIdAndSemester(Long userId, String semester);
     
@@ -20,4 +25,10 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
     
     @Query("SELECT DISTINCT ut FROM UserTimetable ut JOIN FETCH ut.subject s WHERE ut.user.id = :userId AND ut.semester = :semester")
     List<UserTimetable> findByUserIdAndSemesterWithSubjectAndSchedules(@Param("userId") Long userId, @Param("semester") String semester);
+
+    @Query("SELECT ut.subject.id AS subjectId, COUNT(DISTINCT ut.user.id) AS timetableAddCount " +
+           "FROM UserTimetable ut " +
+           "WHERE ut.subject.id IN :subjectIds " +
+           "GROUP BY ut.subject.id")
+    List<SubjectTimetableAddCount> countAddedUsersBySubjectIds(@Param("subjectIds") List<Long> subjectIds);
 }
