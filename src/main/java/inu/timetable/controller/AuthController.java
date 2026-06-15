@@ -5,6 +5,7 @@ import inu.timetable.entity.User;
 import inu.timetable.enums.UserMajorType;
 import inu.timetable.security.AuthenticatedUser;
 import inu.timetable.service.AuthService;
+import inu.timetable.service.UserActivityService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
+    private final UserActivityService userActivityService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(
@@ -57,6 +59,7 @@ public class AuthController {
             Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                     principal, null, principal.getAuthorities());
             saveAuthentication(authentication, servletRequest, servletResponse);
+            userActivityService.recordActivity(user.getId());
             return ResponseEntity.ok(UserResponse.from(user));
 
         } catch (RuntimeException e) {
@@ -79,6 +82,7 @@ public class AuthController {
 
             AuthenticatedUser principal = (AuthenticatedUser) authentication.getPrincipal();
             User user = authService.findById(principal.id());
+            userActivityService.recordActivity(user.getId());
             return ResponseEntity.ok(UserResponse.from(user));
 
         } catch (BadCredentialsException e) {

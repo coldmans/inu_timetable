@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: INU Timetable
+    orgId: 1
+    folder: INU Timetable
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

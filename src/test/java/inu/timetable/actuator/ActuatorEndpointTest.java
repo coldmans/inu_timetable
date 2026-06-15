@@ -42,7 +42,7 @@ class ActuatorEndpointTest {
     }
 
     @Test
-    @Disabled("테스트 환경에서 Prometheus 엔드포인트가 제대로 등록되지 않음 - 실제 환경에서는 정상 동작 확인")
+    @Disabled("MockMvc 테스트 환경에서는 Prometheus scrape 엔드포인트가 등록되지 않아 /actuator/metrics로 메트릭 등록을 검증한다")
     @DisplayName("Prometheus 메트릭 엔드포인트가 정상적으로 응답한다")
     void prometheusEndpointShouldReturnMetrics() throws Exception {
         mockMvc.perform(get("/actuator/prometheus"))
@@ -63,5 +63,17 @@ class ActuatorEndpointTest {
         mockMvc.perform(get("/actuator/metrics"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.names").isArray());
+    }
+
+    @Test
+    @DisplayName("사용자 관측성 메트릭이 Actuator에 등록된다")
+    void userObservabilityMetricsShouldBeRegistered() throws Exception {
+        mockMvc.perform(get("/actuator/metrics/inu.users.registered"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("inu.users.registered"));
+
+        mockMvc.perform(get("/actuator/metrics/inu.users.dau"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("inu.users.dau"));
     }
 }
