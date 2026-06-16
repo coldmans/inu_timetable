@@ -3,6 +3,7 @@ package inu.timetable.service;
 import inu.timetable.entity.Subject;
 import inu.timetable.entity.User;
 import inu.timetable.entity.WishlistItem;
+import inu.timetable.exception.ApiException;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.repository.UserRepository;
 import inu.timetable.repository.WishlistRepository;
@@ -35,15 +36,15 @@ public class WishlistService {
     
     public WishlistItem addToWishlist(Long userId, Long subjectId, String semester, Integer priority, Boolean isRequired) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+            .orElseThrow(() -> ApiException.notFound("사용자를 찾을 수 없습니다."));
             
         Subject subject = subjectRepository.findById(subjectId)
-            .orElseThrow(() -> new RuntimeException("과목을 찾을 수 없습니다."));
+            .orElseThrow(() -> ApiException.notFound("과목을 찾을 수 없습니다."));
         
         // 이미 위시리스트에 있는지 확인
         Optional<WishlistItem> existing = wishlistRepository.findByUserIdAndSubjectId(userId, subjectId);
         if (existing.isPresent()) {
-            throw new RuntimeException("이미 위시리스트에 추가된 과목입니다.");
+            throw ApiException.conflict("이미 위시리스트에 추가된 과목입니다.");
         }
         
         WishlistItem wishlistItem = WishlistItem.builder()
@@ -68,7 +69,7 @@ public class WishlistService {
     
     public WishlistItem updatePriority(Long userId, Long subjectId, Integer priority) {
         WishlistItem wishlistItem = wishlistRepository.findByUserIdAndSubjectId(userId, subjectId)
-            .orElseThrow(() -> new RuntimeException("위시리스트에서 해당 과목을 찾을 수 없습니다."));
+            .orElseThrow(() -> ApiException.notFound("위시리스트에서 해당 과목을 찾을 수 없습니다."));
             
         wishlistItem.setPriority(priority);
         return wishlistRepository.save(wishlistItem);
@@ -76,15 +77,10 @@ public class WishlistService {
     
     public WishlistItem updateRequired(Long userId, Long subjectId, Boolean isRequired) {
         WishlistItem wishlistItem = wishlistRepository.findByUserIdAndSubjectId(userId, subjectId)
-            .orElseThrow(() -> new RuntimeException("위시리스트에서 해당 과목을 찾을 수 없습니다."));
+            .orElseThrow(() -> ApiException.notFound("위시리스트에서 해당 과목을 찾을 수 없습니다."));
             
         wishlistItem.setIsRequired(isRequired);
         return wishlistRepository.save(wishlistItem);
     }
     
-    public List<WishlistItem> getAllWishlistItems(Long userId) {
-        return wishlistRepository.findAll().stream()
-            .filter(item -> item.getUser().getId().equals(userId))
-            .collect(java.util.stream.Collectors.toList());
-    }
 }

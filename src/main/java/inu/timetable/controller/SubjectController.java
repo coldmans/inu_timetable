@@ -7,6 +7,7 @@ import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.repository.UserTimetableRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +26,7 @@ import java.util.stream.IntStream;
 @RestController
 @RequestMapping("/api/subjects")
 @RequiredArgsConstructor
+@Slf4j
 public class SubjectController {
 
     private final SubjectRepository subjectRepository;
@@ -120,7 +122,7 @@ public class SubjectController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        System.out.println(">>> [API] Received request for /filter with page=" + page + ", size=" + size);
+        log.debug("Filtering subjects page={}, size={}", page, size);
 
         Pageable pageable = PageRequest.of(page, size);
         String normalizedDepartment = normalizeDepartment(department);
@@ -137,10 +139,10 @@ public class SubjectController {
 
         // 2단계: 조회된 ID로 과목 상세 정보와 시간표를 함께 조회
         List<Long> subjectIds = subjectIdPage.getContent();
-        System.out.println(">>> [DB] Found " + subjectIds.size() + " subject IDs for this page.");
+        log.debug("Subject filter matched {} subject ids for current page", subjectIds.size());
 
         if (subjectIds.isEmpty()) {
-            System.out.println(">>> [API] Returning empty page.");
+            log.debug("Subject filter returned an empty page");
             return new org.springframework.data.domain.PageImpl<>(new java.util.ArrayList<>(), pageable,
                     subjectIdPage.getTotalElements());
         }
@@ -151,7 +153,7 @@ public class SubjectController {
                 .collect(Collectors.toMap(subjectIds::get, index -> index));
         subjectsWithSchedules.sort(Comparator.comparingInt(
                 subject -> subjectOrder.getOrDefault(subject.getId(), Integer.MAX_VALUE)));
-        System.out.println(">>> [API] Returning page with " + subjectsWithSchedules.size() + " subjects.");
+        log.debug("Subject filter returning {} subjects", subjectsWithSchedules.size());
 
         Map<Long, Long> timetableAddCounts = userTimetableRepository.countAddedUsersBySubjectIds(subjectIds).stream()
                 .collect(Collectors.toMap(

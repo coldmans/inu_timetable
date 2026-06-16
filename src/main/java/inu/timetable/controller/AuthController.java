@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -47,24 +46,19 @@ public class AuthController {
             @RequestBody Map<String, Object> request,
             HttpServletRequest servletRequest,
             HttpServletResponse servletResponse) {
-        try {
-            String username = (String) request.get("username");
-            String password = (String) request.get("password");
-            Integer grade = parseInteger(request.get("grade"));
-            String major = (String) request.get("major");
-            List<AuthService.MajorSelection> majorSelections = parseMajorSelections(request.get("majors"));
+        String username = (String) request.get("username");
+        String password = (String) request.get("password");
+        Integer grade = parseInteger(request.get("grade"));
+        String major = (String) request.get("major");
+        List<AuthService.MajorSelection> majorSelections = parseMajorSelections(request.get("majors"));
 
-            User user = authService.register(username, password, grade, major, majorSelections);
-            AuthenticatedUser principal = AuthenticatedUser.from(user);
-            Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
-                    principal, null, principal.getAuthorities());
-            saveAuthentication(authentication, servletRequest, servletResponse);
-            userActivityService.recordActivity(user.getId());
-            return ResponseEntity.ok(UserResponse.from(user));
-
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        User user = authService.register(username, password, grade, major, majorSelections);
+        AuthenticatedUser principal = AuthenticatedUser.from(user);
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
+                principal, null, principal.getAuthorities());
+        saveAuthentication(authentication, servletRequest, servletResponse);
+        userActivityService.recordActivity(user.getId());
+        return ResponseEntity.ok(UserResponse.from(user));
     }
 
     @PostMapping("/login")
@@ -72,25 +66,17 @@ public class AuthController {
             @RequestBody Map<String, String> request,
             HttpServletRequest servletRequest,
             HttpServletResponse servletResponse) {
-        try {
-            String username = request.get("username");
-            String password = request.get("password");
+        String username = request.get("username");
+        String password = request.get("password");
 
-            Authentication authentication = authenticationManager.authenticate(
-                    UsernamePasswordAuthenticationToken.unauthenticated(username, password));
-            saveAuthentication(authentication, servletRequest, servletResponse);
+        Authentication authentication = authenticationManager.authenticate(
+                UsernamePasswordAuthenticationToken.unauthenticated(username, password));
+        saveAuthentication(authentication, servletRequest, servletResponse);
 
-            AuthenticatedUser principal = (AuthenticatedUser) authentication.getPrincipal();
-            User user = authService.findById(principal.id());
-            userActivityService.recordActivity(user.getId());
-            return ResponseEntity.ok(UserResponse.from(user));
-
-        } catch (BadCredentialsException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "아이디 또는 비밀번호가 일치하지 않습니다."));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        AuthenticatedUser principal = (AuthenticatedUser) authentication.getPrincipal();
+        User user = authService.findById(principal.id());
+        userActivityService.recordActivity(user.getId());
+        return ResponseEntity.ok(UserResponse.from(user));
     }
 
     @GetMapping("/me")

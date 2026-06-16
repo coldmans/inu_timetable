@@ -11,12 +11,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static inu.timetable.util.ApiRequestValues.optionalStringList;
+import static inu.timetable.util.ApiRequestValues.requiredInteger;
+import static inu.timetable.util.ApiRequestValues.requiredLong;
+import static inu.timetable.util.ApiRequestValues.optionalString;
 
 @RestController
 @RequestMapping("/api/timetable-combination")
@@ -37,40 +41,30 @@ public class TimetableCombinationController {
             @Parameter(description = "요청 파라미터: userId, semester, targetCredits, maxCombinations(선택), freeDays(선택)")
             @RequestBody Map<String, Object> request,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            Long userId = Long.valueOf(request.get("userId").toString());
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            String semester = (String) request.get("semester");
-            int targetCredits = Integer.valueOf(request.get("targetCredits").toString());
-            int maxCombinations = request.containsKey("maxCombinations") ?
-                Integer.valueOf(request.get("maxCombinations").toString()) : 20;
+        Long userId = requiredLong(request, "userId");
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        String semester = optionalString(request, "semester");
+        int targetCredits = requiredInteger(request, "targetCredits");
+        int maxCombinations = request.containsKey("maxCombinations")
+                ? requiredInteger(request, "maxCombinations")
+                : 20;
+        List<String> freeDays = new ArrayList<>(optionalStringList(request, "freeDays"));
 
-            // 공강 요일 파라미터 추가 (예: ["월", "금"])
-            List<String> freeDays = request.containsKey("freeDays") ?
-                (List<String>) request.get("freeDays") : new ArrayList<>();
+        List<List<Subject>> combinations = combinationService.generateTimetableCombinations(
+            userId, semester, targetCredits, maxCombinations, freeDays);
 
-            List<List<Subject>> combinations = combinationService.generateTimetableCombinations(
-                userId, semester, targetCredits, maxCombinations, freeDays);
+        Map<String, Object> response = new HashMap<>();
+        response.put("combinations", combinations);
+        response.put("totalCount", combinations.size());
+        response.put("targetCredits", targetCredits);
+        response.put("freeDays", freeDays);
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("combinations", combinations);
-            response.put("totalCount", combinations.size());
-            response.put("targetCredits", targetCredits);
-            response.put("freeDays", freeDays);
+        List<Map<String, Object>> combinationStats = combinations.stream()
+            .map(combinationService::getTimetableStatistics)
+            .toList();
+        response.put("statistics", combinationStats);
 
-            // 각 조합에 대한 통계 추가
-            List<Map<String, Object>> combinationStats = combinations.stream()
-                .map(combinationService::getTimetableStatistics)
-                .toList();
-            response.put("statistics", combinationStats);
-
-            return ResponseEntity.ok(response);
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/stats/{userId}")
@@ -80,28 +74,21 @@ public class TimetableCombinationController {
             @RequestParam int targetCredits,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
-        try {
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            List<List<Subject>> combinations = combinationService.generateTimetableCombinations(
-                userId, semester, targetCredits, 1);
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        List<List<Subject>> combinations = combinationService.generateTimetableCombinations(
+            userId, semester, targetCredits, 1);
 
-            if (combinations.isEmpty()) {
-                return ResponseEntity.ok(Map.of(
-                    "message", "생성 가능한 시간표 조합이 없습니다.",
-                    "possibleCombinations", 0
-                ));
-            }
-
-            Map<String, Object> stats = new HashMap<>();
-            stats.put("possibleCombinations", combinations.size());
-            stats.put("targetCredits", targetCredits);
-
-            return ResponseEntity.ok(stats);
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        if (combinations.isEmpty()) {
+            return ResponseEntity.ok(Map.of(
+                "message", "생성 가능한 시간표 조합이 없습니다.",
+                "possibleCombinations", 0
+            ));
         }
+
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("possibleCombinations", combinations.size());
+        stats.put("targetCredits", targetCredits);
+
+        return ResponseEntity.ok(stats);
     }
 }

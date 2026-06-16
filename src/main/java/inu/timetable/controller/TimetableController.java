@@ -8,10 +8,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+
+import static inu.timetable.util.ApiRequestValues.optionalString;
+import static inu.timetable.util.ApiRequestValues.requiredLong;
 
 @RestController
 @RequestMapping("/api/timetable")
@@ -25,21 +27,14 @@ public class TimetableController {
     public ResponseEntity<?> addSubjectToTimetable(
             @RequestBody Map<String, Object> request,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            Long userId = Long.valueOf(request.get("userId").toString());
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            Long subjectId = Long.valueOf(request.get("subjectId").toString());
-            String semester = (String) request.get("semester");
-            String memo = (String) request.get("memo");
+        Long userId = requiredLong(request, "userId");
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        Long subjectId = requiredLong(request, "subjectId");
+        String semester = optionalString(request, "semester");
+        String memo = optionalString(request, "memo");
 
-            UserTimetable userTimetable = timetableService.addSubjectToTimetable(userId, subjectId, semester, memo);
-            return ResponseEntity.ok(userTimetable);
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        UserTimetable userTimetable = timetableService.addSubjectToTimetable(userId, subjectId, semester, memo);
+        return ResponseEntity.ok(userTimetable);
     }
 
     @DeleteMapping("/remove")
@@ -47,16 +42,9 @@ public class TimetableController {
             @RequestParam Long userId,
             @RequestParam Long subjectId,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            timetableService.removeSubjectFromTimetable(userId, subjectId);
-            return ResponseEntity.ok(Map.of("message", "과목이 시간표에서 제거되었습니다."));
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        timetableService.removeSubjectFromTimetable(userId, subjectId);
+        return ResponseEntity.ok(Map.of("message", "과목이 시간표에서 제거되었습니다."));
     }
 
     @GetMapping("/user/{userId}")
@@ -74,20 +62,13 @@ public class TimetableController {
     public ResponseEntity<?> updateMemo(
             @RequestBody Map<String, Object> request,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            Long userId = Long.valueOf(request.get("userId").toString());
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            Long subjectId = Long.valueOf(request.get("subjectId").toString());
-            String memo = (String) request.get("memo");
+        Long userId = requiredLong(request, "userId");
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        Long subjectId = requiredLong(request, "subjectId");
+        String memo = optionalString(request, "memo");
 
-            UserTimetable userTimetable = timetableService.updateMemo(userId, subjectId, memo);
-            return ResponseEntity.ok(userTimetable);
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        UserTimetable userTimetable = timetableService.updateMemo(userId, subjectId, memo);
+        return ResponseEntity.ok(userTimetable);
     }
 
     @DeleteMapping("/clear")
@@ -95,18 +76,11 @@ public class TimetableController {
             @RequestParam Long userId,
             @RequestParam(required = false) String semester,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            timetableService.removeAllSubjectsFromTimetable(userId, semester);
-            String message = semester != null && !semester.isEmpty() 
-                ? semester + " 학기 시간표가 전체 삭제되었습니다." 
-                : "전체 시간표가 삭제되었습니다.";
-            return ResponseEntity.ok(Map.of("message", message));
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        timetableService.removeAllSubjectsFromTimetable(userId, semester);
+        String message = semester != null && !semester.isEmpty()
+            ? semester + " 학기 시간표가 전체 삭제되었습니다."
+            : "전체 시간표가 삭제되었습니다.";
+        return ResponseEntity.ok(Map.of("message", message));
     }
 }

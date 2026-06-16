@@ -144,6 +144,25 @@ class UserSecurityIntegrationTest {
     }
 
     @Test
+    void duplicateRegisterReturnsConflictErrorResponse() throws Exception {
+        RegisteredUser registeredUser = registerAndReturnSession();
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "%s",
+                                  "password": "password123",
+                                  "grade": 2,
+                                  "major": "컴퓨터공학부"
+                                }
+                                """.formatted(registeredUser.username())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("이미 사용 중인 아이디입니다. 다른 아이디를 입력해주세요."));
+    }
+
+    @Test
     void csrfTokenAllowsPrivateMutationAfterLogin() throws Exception {
         RegisteredUser registeredUser = registerAndReturnSession();
         CsrfProof csrfProof = fetchCsrfProof(registeredUser.session());
@@ -161,6 +180,36 @@ class UserSecurityIntegrationTest {
                                 }
                                 """.formatted(registeredUser.userId())))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void privateApiValidationReturnsStandardBadRequestResponse() throws Exception {
+        RegisteredUser registeredUser = registerAndReturnSession();
+        CsrfProof csrfProof = fetchCsrfProof(registeredUser.session());
+
+        mockMvc.perform(post("/api/timetable-combination/generate")
+                        .session(registeredUser.session())
+                        .cookie(csrfProof.cookie())
+                        .header("X-XSRF-TOKEN", csrfProof.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "userId": %d,
+                                  "semester": "2026-1"
+                                }
+                                """.formatted(registeredUser.userId())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("targetCredits 값이 필요합니다."));
+    }
+
+    @Test
+    void wishlistDebugEndpointIsNotMappedForAuthenticatedUsers() throws Exception {
+        RegisteredUser registeredUser = registerAndReturnSession();
+
+        mockMvc.perform(get("/api/wishlist/debug/%d".formatted(registeredUser.userId()))
+                        .session(registeredUser.session()))
+                .andExpect(status().isNotFound());
     }
 
     @Test

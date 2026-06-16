@@ -9,11 +9,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static inu.timetable.util.ApiRequestValues.optionalBoolean;
+import static inu.timetable.util.ApiRequestValues.optionalInteger;
+import static inu.timetable.util.ApiRequestValues.optionalString;
+import static inu.timetable.util.ApiRequestValues.requiredInteger;
+import static inu.timetable.util.ApiRequestValues.requiredLong;
 
 @RestController
 @RequestMapping("/api/wishlist")
@@ -27,24 +32,15 @@ public class WishlistController {
     public ResponseEntity<?> addToWishlist(
             @RequestBody Map<String, Object> request,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            Long userId = Long.valueOf(request.get("userId").toString());
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            Long subjectId = Long.valueOf(request.get("subjectId").toString());
-            String semester = (String) request.get("semester");
-            Integer priority = request.get("priority") != null ? 
-                Integer.valueOf(request.get("priority").toString()) : null;
-            Boolean isRequired = request.get("isRequired") != null ? 
-                Boolean.valueOf(request.get("isRequired").toString()) : false;
+        Long userId = requiredLong(request, "userId");
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        Long subjectId = requiredLong(request, "subjectId");
+        String semester = optionalString(request, "semester");
+        Integer priority = optionalInteger(request, "priority");
+        Boolean isRequired = optionalBoolean(request, "isRequired", false);
 
-            wishlistService.addToWishlist(userId, subjectId, semester, priority, isRequired);
-            return ResponseEntity.ok(Map.of("message", "위시리스트에 추가되었습니다."));
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        wishlistService.addToWishlist(userId, subjectId, semester, priority, isRequired);
+        return ResponseEntity.ok(Map.of("message", "위시리스트에 추가되었습니다."));
     }
 
     @DeleteMapping("/remove")
@@ -52,16 +48,9 @@ public class WishlistController {
             @RequestParam Long userId,
             @RequestParam Long subjectId,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            wishlistService.removeFromWishlist(userId, subjectId);
-            return ResponseEntity.ok(Map.of("message", "위시리스트에서 제거되었습니다."));
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        wishlistService.removeFromWishlist(userId, subjectId);
+        return ResponseEntity.ok(Map.of("message", "위시리스트에서 제거되었습니다."));
     }
 
     @GetMapping("/user/{userId}")
@@ -69,87 +58,38 @@ public class WishlistController {
             @PathVariable Long userId,
             @RequestParam String semester,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            System.out.println(">>> [API] Getting wishlist for userId=" + userId + ", semester=" + semester);
-            List<WishlistItem> wishlist = wishlistService.getUserWishlist(userId, semester);
-            System.out.println(">>> [API] Found " + wishlist.size() + " wishlist items");
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        List<WishlistItem> wishlist = wishlistService.getUserWishlist(userId, semester);
+        List<WishlistItemDto> wishlistDto = wishlist.stream()
+            .map(WishlistItemDto::fromEntity)
+            .collect(Collectors.toList());
 
-            List<WishlistItemDto> wishlistDto = wishlist.stream()
-                .map(WishlistItemDto::fromEntity)
-                .collect(Collectors.toList());
-
-            System.out.println(">>> [API] Returning " + wishlistDto.size() + " wishlist DTOs");
-            return ResponseEntity.ok(wishlistDto);
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            System.err.println(">>> [API] Error getting wishlist: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        return ResponseEntity.ok(wishlistDto);
     }
 
     @PutMapping("/priority")
     public ResponseEntity<?> updatePriority(
             @RequestBody Map<String, Object> request,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            Long userId = Long.valueOf(request.get("userId").toString());
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            Long subjectId = Long.valueOf(request.get("subjectId").toString());
-            Integer priority = Integer.valueOf(request.get("priority").toString());
+        Long userId = requiredLong(request, "userId");
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        Long subjectId = requiredLong(request, "subjectId");
+        Integer priority = requiredInteger(request, "priority");
 
-            wishlistService.updatePriority(userId, subjectId, priority);
-            return ResponseEntity.ok(Map.of("message", "우선순위가 업데이트되었습니다."));
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        wishlistService.updatePriority(userId, subjectId, priority);
+        return ResponseEntity.ok(Map.of("message", "우선순위가 업데이트되었습니다."));
     }
 
     @PutMapping("/required")
     public ResponseEntity<?> updateRequired(
             @RequestBody Map<String, Object> request,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            Long userId = Long.valueOf(request.get("userId").toString());
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            Long subjectId = Long.valueOf(request.get("subjectId").toString());
-            Boolean isRequired = Boolean.valueOf(request.get("isRequired").toString());
+        Long userId = requiredLong(request, "userId");
+        userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        Long subjectId = requiredLong(request, "subjectId");
+        Boolean isRequired = optionalBoolean(request, "isRequired", false);
 
-            wishlistService.updateRequired(userId, subjectId, isRequired);
-            return ResponseEntity.ok(Map.of("message", "필수 과목 설정이 업데이트되었습니다."));
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    @GetMapping("/debug/{userId}")
-    public ResponseEntity<?> debugWishlist(
-            @PathVariable Long userId,
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        try {
-            userAccessGuard.requireMatchingUser(authenticatedUser, userId);
-            List<WishlistItem> allItems = wishlistService.getAllWishlistItems(userId);
-            return ResponseEntity.ok(allItems.stream()
-                .map(item -> Map.of(
-                    "id", item.getId(),
-                    "subjectId", item.getSubject().getId(),
-                    "subjectName", item.getSubject().getSubjectName(),
-                    "semester", item.getSemester(),
-                    "isRequired", item.getIsRequired()
-                ))
-                .collect(Collectors.toList()));
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        wishlistService.updateRequired(userId, subjectId, isRequired);
+        return ResponseEntity.ok(Map.of("message", "필수 과목 설정이 업데이트되었습니다."));
     }
 }

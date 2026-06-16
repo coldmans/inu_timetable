@@ -3,6 +3,7 @@ package inu.timetable.service;
 import inu.timetable.entity.Subject;
 import inu.timetable.entity.User;
 import inu.timetable.entity.UserTimetable;
+import inu.timetable.exception.ApiException;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.repository.UserRepository;
 import inu.timetable.repository.UserTimetableRepository;
@@ -30,21 +31,21 @@ public class TimetableService {
     
     public UserTimetable addSubjectToTimetable(Long userId, Long subjectId, String semester, String memo) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+            .orElseThrow(() -> ApiException.notFound("사용자를 찾을 수 없습니다."));
             
         Subject subject = subjectRepository.findById(subjectId)
-            .orElseThrow(() -> new RuntimeException("과목을 찾을 수 없습니다."));
+            .orElseThrow(() -> ApiException.notFound("과목을 찾을 수 없습니다."));
         
         // 이미 추가된 과목인지 확인
         Optional<UserTimetable> existing = userTimetableRepository.findByUserIdAndSubjectId(userId, subjectId);
         if (existing.isPresent()) {
-            throw new RuntimeException("이미 시간표에 추가된 과목입니다.");
+            throw ApiException.conflict("이미 시간표에 추가된 과목입니다.");
         }
         
         // 시간표 겹침 확인
         List<UserTimetable> currentTimetable = userTimetableRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester);
         if (hasTimeConflict(currentTimetable, subject)) {
-            throw new RuntimeException("시간표가 겹치는 과목이 있습니다.");
+            throw ApiException.conflict("시간표가 겹치는 과목이 있습니다.");
         }
         
         UserTimetable userTimetable = UserTimetable.builder()
@@ -59,7 +60,7 @@ public class TimetableService {
     
     public void removeSubjectFromTimetable(Long userId, Long subjectId) {
         UserTimetable userTimetable = userTimetableRepository.findByUserIdAndSubjectId(userId, subjectId)
-            .orElseThrow(() -> new RuntimeException("시간표에서 해당 과목을 찾을 수 없습니다."));
+            .orElseThrow(() -> ApiException.notFound("시간표에서 해당 과목을 찾을 수 없습니다."));
             
         userTimetableRepository.delete(userTimetable);
     }
@@ -74,7 +75,7 @@ public class TimetableService {
     
     public UserTimetable updateMemo(Long userId, Long subjectId, String memo) {
         UserTimetable userTimetable = userTimetableRepository.findByUserIdAndSubjectId(userId, subjectId)
-            .orElseThrow(() -> new RuntimeException("시간표에서 해당 과목을 찾을 수 없습니다."));
+            .orElseThrow(() -> ApiException.notFound("시간표에서 해당 과목을 찾을 수 없습니다."));
             
         userTimetable.setMemo(memo);
         return userTimetableRepository.save(userTimetable);
@@ -89,7 +90,7 @@ public class TimetableService {
         }
         
         if (timetables.isEmpty()) {
-            throw new RuntimeException("삭제할 시간표가 없습니다.");
+            throw ApiException.notFound("삭제할 시간표가 없습니다.");
         }
         
         userTimetableRepository.deleteAll(timetables);

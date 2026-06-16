@@ -4,6 +4,7 @@ import inu.timetable.entity.User;
 import inu.timetable.entity.UserMajor;
 import inu.timetable.enums.UserMajorType;
 import inu.timetable.enums.UserStatus;
+import inu.timetable.exception.ApiException;
 import inu.timetable.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,7 +45,7 @@ public class AuthService {
         validateCredentials(username, password);
         String normalizedUsername = username.trim();
         if (userRepository.existsByUsername(normalizedUsername)) {
-            throw new RuntimeException("이미 사용 중인 아이디입니다. 다른 아이디를 입력해주세요.");
+            throw ApiException.conflict("이미 사용 중인 아이디입니다. 다른 아이디를 입력해주세요.");
         }
 
         List<MajorSelection> normalizedMajors = normalizeMajorSelections(major, majorSelections);
@@ -72,13 +73,13 @@ public class AuthService {
 
     public User findById(Long userId) {
         return userRepository.findByIdAndStatus(userId, UserStatus.ACTIVE)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> ApiException.notFound("사용자를 찾을 수 없습니다."));
     }
 
     @Transactional
     public User withdraw(Long userId) {
         User user = userRepository.findByIdAndStatus(userId, UserStatus.ACTIVE)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> ApiException.notFound("사용자를 찾을 수 없습니다."));
         String anonymizedUsername = "withdrawn_user_%d_%s".formatted(
                 user.getId(),
                 UUID.randomUUID());
@@ -89,7 +90,7 @@ public class AuthService {
 
     private void validateCredentials(String username, String password) {
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
-            throw new RuntimeException("아이디와 비밀번호를 입력해주세요.");
+            throw ApiException.badRequest("아이디와 비밀번호를 입력해주세요.");
         }
     }
 
