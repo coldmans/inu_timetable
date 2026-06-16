@@ -36,55 +36,32 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest
 
-      - name: Deploy to GCP
-        uses: appleboy/ssh-action@master
+      - name: Copy deployment script to GCP
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.GCP_HOST }}
           username: ${{ secrets.GCP_USER }}
           key: ${{ secrets.GCP_SSH_KEY }}
+          source: scripts/deploy-blue-green.sh
+          target: /tmp/inu-deploy
+          strip_components: 1
+
+      - name: Deploy to GCP
+        uses: appleboy/ssh-action@master
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_KEY }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME || 'admin' }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        with:
+          host: ${{ secrets.GCP_HOST }}
+          username: ${{ secrets.GCP_USER }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          envs: IMAGE,DB_URL,DB_USERNAME,DB_PASSWORD,GEMINI_API_KEY,ADMIN_USERNAME,ADMIN_PASSWORD_HASH,ADMIN_PASSWORD
           script: |
-            # 1. Docker Hub에서 최신 이미지 가져오기
-            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest
-            
-            # 2. 기존 컨테이너 중지 및 삭제 (청소)
-            sudo docker rm -f inu-backend || true
-            
-            # 3. 안 쓰는 찌꺼기 이미지 정리 (용량 확보)
-            sudo docker image prune -f
-
-            # 4. 새 이미지로 실행 (완전체 명령어)
-            sudo docker run -d -p 8080:8080 \
-              --name inu-backend \
-              -e SPRING_DATASOURCE_URL="${{ secrets.DB_URL }}" \
-              -e SPRING_DATASOURCE_USERNAME="${{ secrets.DB_USERNAME }}" \
-              -e SPRING_DATASOURCE_PASSWORD='${{ secrets.DB_PASSWORD }}' \
-              -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
-              -e SPRING_FLYWAY_ENABLED=false \
-              -e GEMINI_API_KEY="${{ secrets.GEMINI_KEY }}" \
-              -e ADMIN_USERNAME="${{ secrets.ADMIN_USERNAME || 'admin' }}" \
-              -e ADMIN_PASSWORD_HASH='${{ secrets.ADMIN_PASSWORD_HASH }}' \
-              -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
-              -e SPRING_PROFILES_ACTIVE=prod \
-              ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest
-
-            # 5. 컨테이너가 실제로 정상 부팅했는지 확인
-            i=1
-            while [ "$i" -le 30 ]; do
-              if curl -fsS http://localhost:8080/actuator/health; then
-                echo "Backend health check passed."
-                exit 0
-              fi
-
-              if ! sudo docker ps --filter "name=inu-backend" --filter "status=running" --format "{{.Names}}" | grep -q "^inu-backend$"; then
-                echo "Backend container stopped during startup."
-                sudo docker logs --tail=200 inu-backend
-                exit 1
-              fi
-
-              sleep 2
-              i=$((i + 1))
-            done
-
-            echo "Backend health check timed out."
-            sudo docker logs --tail=200 inu-backend
-            exit 1
+            chmod +x /tmp/inu-deploy/deploy-blue-green.sh
+            /tmp/inu-deploy/deploy-blue-green.sh

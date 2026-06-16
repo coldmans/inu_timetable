@@ -170,6 +170,27 @@ The server runs on `http://localhost:8080`.
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - API Docs: `http://localhost:8080/v3/api-docs`
 
+## Production Deployment
+
+Production deployments are handled by GitHub Actions in `.github/workflows/docker-image.yml`.
+
+- Docker image: `${DOCKERHUB_USERNAME}/inutable:latest`
+- Public backend port: `8080`
+- Reverse proxy: nginx
+- App containers: `inu-backend-blue` on `127.0.0.1:8081` and `inu-backend-green` on `127.0.0.1:8082`
+
+The deployment script starts the inactive color first, waits for `/actuator/health`, switches nginx to the healthy container, and then removes the previous container. The first migration from the old single-container deployment may require stopping the legacy `inu-backend` container once so nginx can bind port `8080`; subsequent deployments switch through nginx without stopping the active app first.
+
+Production schema changes are managed by Flyway. The prod profile uses Hibernate `ddl-auto=validate`, and the deployment script explicitly sets:
+
+```text
+SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+SPRING_FLYWAY_ENABLED=true
+SPRING_FLYWAY_BASELINE_ON_MIGRATE=true
+```
+
+Before the first Flyway-enabled production deployment, take a database backup and verify that the existing schema can pass the migration history baseline.
+
 ## Performance Test
 
 ```bash
