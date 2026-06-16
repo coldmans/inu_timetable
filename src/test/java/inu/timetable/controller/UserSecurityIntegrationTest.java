@@ -24,6 +24,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -140,6 +141,75 @@ class UserSecurityIntegrationTest {
                         "PRIMARY:컴퓨터공학부",
                         "DOUBLE:데이터과학과",
                         "MINOR:경영학부"
+                );
+    }
+
+    @Test
+    void updateProfileChangesGradeAndMajorSelectionsForAuthenticatedUser() throws Exception {
+        String username = "student-" + UUID.randomUUID();
+        var registerResult = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "%s",
+                                  "password": "password123",
+                                  "grade": 2,
+                                  "major": "컴퓨터공학부",
+                                  "majors": [
+                                    {"type": "PRIMARY", "department": "컴퓨터공학부"},
+                                    {"type": "DOUBLE", "department": "경영학부"},
+                                    {"type": "MINOR", "department": "국어국문학과"}
+                                  ]
+                                }
+                                """.formatted(username)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MockHttpSession session = (MockHttpSession) registerResult.getRequest().getSession(false);
+        JsonNode registerBody = objectMapper.readTree(registerResult.getResponse().getContentAsString());
+        long userId = registerBody.get("id").asLong();
+        CsrfProof csrfProof = fetchCsrfProof(session);
+
+        mockMvc.perform(patch("/api/auth/me")
+                        .session(session)
+                        .cookie(csrfProof.cookie())
+                        .header("X-XSRF-TOKEN", csrfProof.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "grade": 3,
+                                  "major": "데이터과학과",
+                                  "majors": [
+                                    {"type": "PRIMARY", "department": "데이터과학과"},
+                                    {"type": "DOUBLE", "department": "경영학부"},
+                                    {"type": "MINOR", "department": "국어국문학과"}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grade").value(3))
+                .andExpect(jsonPath("$.major").value("데이터과학과"))
+                .andExpect(jsonPath("$.majors[0].type").value("PRIMARY"))
+                .andExpect(jsonPath("$.majors[0].department").value("데이터과학과"))
+                .andExpect(jsonPath("$.majors[1].type").value("DOUBLE"))
+                .andExpect(jsonPath("$.majors[1].department").value("경영학부"))
+                .andExpect(jsonPath("$.majors[2].type").value("MINOR"))
+                .andExpect(jsonPath("$.majors[2].department").value("국어국문학과"));
+
+        mockMvc.perform(get("/api/auth/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grade").value(3))
+                .andExpect(jsonPath("$.major").value("데이터과학과"));
+
+        User user = userRepository.findByIdAndStatus(userId, UserStatus.ACTIVE).orElseThrow();
+        assertThat(user.getGrade()).isEqualTo(3);
+        assertThat(user.getMajor()).isEqualTo("데이터과학과");
+        assertThat(user.getUserMajors())
+                .extracting(userMajor -> userMajor.getType() + ":" + userMajor.getDepartment())
+                .containsExactlyInAnyOrder(
+                        "PRIMARY:데이터과학과",
+                        "DOUBLE:경영학부",
+                        "MINOR:국어국문학과"
                 );
     }
 

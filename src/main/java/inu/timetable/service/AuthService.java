@@ -77,6 +77,37 @@ public class AuthService {
     }
 
     @Transactional
+    public User updateProfile(
+            Long userId,
+            Integer grade,
+            String major,
+            List<MajorSelection> majorSelections) {
+        User user = userRepository.findByIdAndStatus(userId, UserStatus.ACTIVE)
+                .orElseThrow(() -> ApiException.notFound("사용자를 찾을 수 없습니다."));
+
+        if (grade != null) {
+            validateGrade(grade);
+            user.setGrade(grade);
+        }
+
+        boolean shouldUpdateMajors = StringUtils.hasText(major)
+                || (majorSelections != null && !majorSelections.isEmpty());
+        if (shouldUpdateMajors) {
+            List<MajorSelection> normalizedMajors = normalizeMajorSelections(major, majorSelections);
+            String primaryMajor = normalizedMajors.stream()
+                    .filter(selection -> selection.type() == UserMajorType.PRIMARY)
+                    .map(MajorSelection::department)
+                    .findFirst()
+                    .orElseThrow(() -> ApiException.badRequest("전공을 선택해주세요."));
+
+            user.setMajor(primaryMajor);
+            replaceUserMajors(user, normalizedMajors);
+        }
+
+        return user;
+    }
+
+    @Transactional
     public User withdraw(Long userId) {
         User user = userRepository.findByIdAndStatus(userId, UserStatus.ACTIVE)
                 .orElseThrow(() -> ApiException.notFound("사용자를 찾을 수 없습니다."));
@@ -91,6 +122,12 @@ public class AuthService {
     private void validateCredentials(String username, String password) {
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
             throw ApiException.badRequest("아이디와 비밀번호를 입력해주세요.");
+        }
+    }
+
+    private void validateGrade(Integer grade) {
+        if (grade < 1 || grade > 4) {
+            throw ApiException.badRequest("학년은 1~4학년 중에서 선택해주세요.");
         }
     }
 
@@ -111,6 +148,31 @@ public class AuthService {
         }
 
         return new ArrayList<>(uniqueSelections.values());
+    }
+
+    private void replaceUserMajors(User user, List<MajorSelection> normalizedMajors) {
+        Map<String, MajorSelection> selectionsByDepartment = new LinkedHashMap<>();
+        for (MajorSelection selection : normalizedMajors) {
+            selectionsByDepartment.put(selection.department(), selection);
+        }
+
+        user.getUserMajors().removeIf(userMajor -> !selectionsByDepartment.containsKey(userMajor.getDepartment()));
+        for (MajorSelection selection : selectionsByDepartment.values()) {
+            UserMajor existingUserMajor = user.getUserMajors().stream()
+                    .filter(userMajor -> userMajor.getDepartment().equals(selection.department()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (existingUserMajor != null) {
+                existingUserMajor.setType(selection.type());
+                continue;
+            }
+
+            user.addUserMajor(UserMajor.builder()
+                    .type(selection.type())
+                    .department(selection.department())
+                    .build());
+        }
     }
 
     private String selectionKey(MajorSelection selection) {

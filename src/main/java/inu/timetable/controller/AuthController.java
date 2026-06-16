@@ -3,6 +3,7 @@ package inu.timetable.controller;
 import inu.timetable.dto.UserResponse;
 import inu.timetable.entity.User;
 import inu.timetable.enums.UserMajorType;
+import inu.timetable.exception.ApiException;
 import inu.timetable.security.AuthenticatedUser;
 import inu.timetable.service.AuthService;
 import inu.timetable.service.UserActivityService;
@@ -84,6 +85,28 @@ public class AuthController {
         return UserResponse.from(authService.findById(authenticatedUser.id()));
     }
 
+    @PatchMapping("/me")
+    public ResponseEntity<UserResponse> updateProfile(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @RequestBody Map<String, Object> request,
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse) {
+        if (authenticatedUser == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Login required");
+        }
+
+        Integer grade = request.containsKey("grade") ? parseInteger(request.get("grade")) : null;
+        String major = parseString(request.get("major"));
+        List<AuthService.MajorSelection> majorSelections = parseMajorSelections(request.get("majors"));
+
+        User user = authService.updateProfile(authenticatedUser.id(), grade, major, majorSelections);
+        AuthenticatedUser principal = AuthenticatedUser.from(user);
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
+                principal, null, principal.getAuthorities());
+        replaceAuthentication(authentication, servletRequest, servletResponse);
+        return ResponseEntity.ok(UserResponse.from(user));
+    }
+
     @GetMapping("/csrf")
     public Map<String, String> csrf(CsrfToken csrfToken) {
         return Map.of("token", csrfToken.getToken());
@@ -120,7 +143,13 @@ public class AuthController {
             HttpServletRequest request,
             HttpServletResponse response) {
         sessionAuthenticationStrategy.onAuthentication(authentication, request, response);
+        replaceAuthentication(authentication, request, response);
+    }
 
+    private void replaceAuthentication(
+            Authentication authentication,
+            HttpServletRequest request,
+            HttpServletResponse response) {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
@@ -132,7 +161,11 @@ public class AuthController {
             return number.intValue();
         }
         if (value instanceof String text && StringUtils.hasText(text)) {
-            return Integer.parseInt(text);
+            try {
+                return Integer.parseInt(text);
+            } catch (NumberFormatException exception) {
+                throw ApiException.badRequest("학년은 숫자로 입력해주세요.");
+            }
         }
         return null;
     }
@@ -163,7 +196,11 @@ public class AuthController {
             return null;
         }
 
-        return UserMajorType.valueOf(type.trim().toUpperCase(Locale.ROOT));
+        try {
+            return UserMajorType.valueOf(type.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw ApiException.badRequest("전공 구분이 올바르지 않습니다.");
+        }
     }
 
     private String parseString(Object value) {
