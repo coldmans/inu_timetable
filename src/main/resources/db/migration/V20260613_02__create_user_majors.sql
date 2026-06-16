@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS user_majors (
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_user_major_department
-    ON user_majors (user_id, department);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_user_major_type_department
+    ON user_majors (user_id, major_type, department);
 
 INSERT INTO user_majors (user_id, major_type, department, created_at)
 SELECT id, 'PRIMARY', major, COALESCE(created_at, CURRENT_TIMESTAMP)
