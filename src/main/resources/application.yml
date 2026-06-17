@@ -53,6 +53,9 @@ admin:
 
 user:
   bcrypt-strength: ${USER_BCRYPT_STRENGTH:12}
+  login:
+    max-failures: ${USER_LOGIN_MAX_FAILURES:5}
+    lock-minutes: ${USER_LOGIN_LOCK_MINUTES:10}
 
 # Actuator 모니터링 설정
 management:

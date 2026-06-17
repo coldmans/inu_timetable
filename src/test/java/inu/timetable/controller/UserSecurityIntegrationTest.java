@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
@@ -32,6 +33,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("dev")
+@TestPropertySource(properties = {
+        "user.login.max-failures=2",
+        "user.login.lock-minutes=10"
+})
 class UserSecurityIntegrationTest {
 
     @Autowired
@@ -76,6 +81,34 @@ class UserSecurityIntegrationTest {
                                 }
                                 """.formatted(registeredUser.userId())))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void repeatedUserLoginFailuresAreRateLimited() throws Exception {
+        RegisteredUser registeredUser = registerAndReturnSession();
+
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "username": "%s",
+                                      "password": "wrong-password"
+                                    }
+                                    """.formatted(registeredUser.username())))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "%s",
+                                  "password": "password123"
+                                }
+                                """.formatted(registeredUser.username())))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429));
     }
 
     @Test

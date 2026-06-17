@@ -1,0 +1,55 @@
+flowchart TB
+    student["Student browser"]
+    admin["Admin browser"]
+
+    subgraph frontend["Frontend"]
+        vercel["Vercel\nReact/Vite SPA\ninuu-timetable.vercel.app"]
+    end
+
+    subgraph gcp["GCP VM"]
+        nginx["nginx reverse proxy\npublic :8080"]
+        blue["Spring Boot backend\ninu-backend-blue\n127.0.0.1:8081"]
+        green["Spring Boot backend\ninu-backend-green\n127.0.0.1:8082"]
+    end
+
+    subgraph data["Data stores"]
+        postgres["PostgreSQL / Supabase\nsubjects, schedules, users,\nwishlist, timetables"]
+        audit["admin_audit_logs"]
+        activity["user_activity_daily"]
+    end
+
+    subgraph observability["Observability"]
+        actuator["Spring Actuator\n/actuator/health\n/actuator/prometheus"]
+        prometheus["Prometheus"]
+        grafana["Grafana dashboard"]
+    end
+
+    subgraph cicd["CI/CD"]
+        github["GitHub main"]
+        actions["GitHub Actions\nGradle build/test"]
+        dockerhub["Docker Hub image"]
+        deploy["deploy-blue-green.sh"]
+    end
+
+    student -->|Loads SPA| vercel
+    admin -->|Hidden admin route| vercel
+    vercel -->|/api/** and /admin/api/**| nginx
+    nginx -->|Active upstream| blue
+    nginx -. switches to .-> green
+
+    blue -->|JPA/Flyway| postgres
+    green -->|JPA/Flyway| postgres
+    blue -->|Writes admin metadata| audit
+    green -->|Writes daily distinct usage| activity
+
+    blue --> actuator
+    green --> actuator
+    prometheus -->|Scrapes| actuator
+    grafana -->|Queries| prometheus
+
+    github --> actions
+    actions -->|Builds and pushes| dockerhub
+    actions -->|Copies and runs| deploy
+    deploy -->|Starts inactive color and health checks| blue
+    deploy -->|Starts inactive color and health checks| green
+    deploy -->|Reloads upstream or rolls back| nginx

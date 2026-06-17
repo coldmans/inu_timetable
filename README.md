@@ -2,12 +2,30 @@
 
 인천대학교 학생을 위한 시간표 검색, 위시리스트, 자동 시간표 조합 서비스의 Spring Boot 백엔드입니다.
 
+## Portfolio Summary
+
+이 프로젝트는 단순 과제용 API가 아니라 실제 학생들이 사용한 시간표 서비스의 운영 백엔드입니다. 운영 snapshot 기준 과목 2,894개, 사용자 2,686명, 시간표 추가 14,668건, 위시리스트 6,701건의 데이터를 다뤘고, 이후 보안, 성능, 배포, 관측 가능성을 단계적으로 개선했습니다.
+
+| Area | Portfolio Story | Evidence |
+|---|---|---|
+| Usage | 테스트 계정 제외 가입자 2,660명 중 2,512명이 저장 행동 수행 | `reports/usage-report-2026-04-29.md` |
+| Performance | DB/search p95 30s -> 386ms, failure rate 25.79% -> 0% | `PERFORMANCE_TEST_REPORT.md` |
+| Algorithm | 시간표 조합 30개 케이스 p95 348.72ms -> 9.39ms | `reports/combination-performance/README.md` |
+| Security | 세션 인증, IDOR 방어, CSRF, BCrypt lazy migration, login rate limit | `src/test/java/inu/timetable/controller/UserSecurityIntegrationTest.java` |
+| Admin Safety | 관리자 route 분리, CSRF, audit log, import lock | `src/test/java/inu/timetable/controller/AdminEndpointSeparationTest.java` |
+| Operations | Flyway `ddl-auto=validate`, nginx blue-green deploy, rollback path | `scripts/deploy-blue-green.sh` |
+| Observability | Prometheus/Grafana, p95/p99, DAU/MAU, registered/active user gauges | `docs/observability.md` |
+
+Portfolio packet: [`docs/portfolio/README.md`](docs/portfolio/README.md)
+
 ## Portfolio Highlights
 
-- 1인 개발로 시작한 실사용 서비스이며, 공개 README 기준 400명 이상의 학우가 사용한 시간표 조합 서비스입니다.
+- 1인 개발로 시작한 실사용 서비스이며, 수강신청/시간표 편성 기간에 사용이 집중된 학생용 서비스입니다.
 - Gemini API로 수강편람 PDF를 구조화 데이터로 변환하고, Java/Spring 로직으로 과목/교수/이수구분/시간표 데이터를 정리했습니다.
 - k6 부하 테스트로 병목을 확인한 뒤 HikariCP connection pool, PostgreSQL prepared statement 설정, 검색 인덱스를 개선했습니다.
 - 200명 동시 사용자 시나리오에서 평균 응답시간을 14.5초에서 약 200ms로 낮추고 실패율을 25.79%에서 0%로 줄였습니다.
+- Spring Security 기반 세션 인증, CSRF, 사용자 소유권 검증, BCrypt 전환, 관리자 감사 로그를 적용했습니다.
+- GitHub Actions, Docker, nginx blue-green, Flyway validate로 운영 배포 안정성을 높였습니다.
 
 ## My Role
 
@@ -26,7 +44,7 @@
 | Database | PostgreSQL, Supabase, HikariCP |
 | AI/Data Import | Google Gemini API, Apache POI |
 | Test/Performance | JUnit 5, k6 |
-| Docs/Infra | Swagger/OpenAPI, Dockerfile |
+| Docs/Infra | Swagger/OpenAPI, Docker, GitHub Actions, Flyway, Prometheus, Grafana |
 
 ## Features
 

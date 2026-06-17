@@ -6,6 +6,7 @@ import inu.timetable.enums.UserMajorType;
 import inu.timetable.exception.ApiException;
 import inu.timetable.security.AuthenticatedUser;
 import inu.timetable.service.AuthService;
+import inu.timetable.service.LoginRateLimitService;
 import inu.timetable.service.UserActivityService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -41,6 +43,7 @@ public class AuthController {
     private final SecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
     private final UserActivityService userActivityService;
+    private final LoginRateLimitService loginRateLimitService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(
@@ -70,8 +73,18 @@ public class AuthController {
         String username = request.get("username");
         String password = request.get("password");
 
-        Authentication authentication = authenticationManager.authenticate(
-                UsernamePasswordAuthenticationToken.unauthenticated(username, password));
+        loginRateLimitService.rejectIfLocked(username, servletRequest);
+
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    UsernamePasswordAuthenticationToken.unauthenticated(username, password));
+        } catch (BadCredentialsException exception) {
+            loginRateLimitService.recordFailure(username, servletRequest);
+            throw exception;
+        }
+
+        loginRateLimitService.recordSuccess(username, servletRequest);
         saveAuthentication(authentication, servletRequest, servletResponse);
 
         AuthenticatedUser principal = (AuthenticatedUser) authentication.getPrincipal();
