@@ -3,6 +3,7 @@ package inu.timetable.controller;
 import inu.timetable.dto.ApiErrorResponse;
 import inu.timetable.exception.ApiException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -37,6 +38,14 @@ public class ApiExceptionHandler {
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiErrorResponse> handleBadCredentials() {
         return error(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 일치하지 않습니다.");
+    }
+
+    // 유니크/제약 위반(중복 추가, 동시 가입 경쟁 등)은 클라이언트가 재시도 판단 가능한 409 로 매핑한다.
+    // 미처리 시 전역 핸들러로 떨어져 500 이 나가는 문제를 방지.
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException exception) {
+        log.warn("Data integrity violation", exception);
+        return error(HttpStatus.CONFLICT, "이미 존재하거나 중복된 데이터입니다.");
     }
 
     @ExceptionHandler({

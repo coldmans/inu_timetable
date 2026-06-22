@@ -9,6 +9,7 @@ import inu.timetable.repository.UserRepository;
 import inu.timetable.repository.UserTimetableRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +30,7 @@ public class TimetableService {
         this.subjectRepository = subjectRepository;
     }
     
+    @Transactional
     public UserTimetable addSubjectToTimetable(Long userId, Long subjectId, String semester, String memo) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> ApiException.notFound("사용자를 찾을 수 없습니다."));
@@ -100,6 +102,16 @@ public class TimetableService {
         for (UserTimetable existing : currentTimetable) {
             for (var existingSchedule : existing.getSubject().getSchedules()) {
                 for (var newSchedule : newSubject.getSchedules()) {
+                    // 온라인/시간 미지정 과목은 요일·시간이 null 이므로 충돌 판정에서 제외한다.
+                    // (조합 서비스 SubjectOption.from 과 동일한 정책 — 두 경로의 동작을 일치시킨다.)
+                    if (existingSchedule.getDayOfWeek() == null
+                            || existingSchedule.getStartTime() == null
+                            || existingSchedule.getEndTime() == null
+                            || newSchedule.getDayOfWeek() == null
+                            || newSchedule.getStartTime() == null
+                            || newSchedule.getEndTime() == null) {
+                        continue;
+                    }
                     // 같은 요일인지 확인
                     if (existingSchedule.getDayOfWeek().equals(newSchedule.getDayOfWeek())) {
                         // 시간이 겹치는지 확인

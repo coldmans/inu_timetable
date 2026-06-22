@@ -30,10 +30,12 @@ public class WishlistService {
         this.subjectRepository = subjectRepository;
     }
     
+    @Transactional
     public WishlistItem addToWishlist(Long userId, Long subjectId, String semester, Integer priority) {
         return addToWishlist(userId, subjectId, semester, priority, false);
     }
-    
+
+    @Transactional
     public WishlistItem addToWishlist(Long userId, Long subjectId, String semester, Integer priority, Boolean isRequired) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> ApiException.notFound("사용자를 찾을 수 없습니다."));

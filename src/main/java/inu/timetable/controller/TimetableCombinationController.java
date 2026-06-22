@@ -1,6 +1,7 @@
 package inu.timetable.controller;
 
 import inu.timetable.entity.Subject;
+import inu.timetable.exception.ApiException;
 import inu.timetable.security.AuthenticatedUser;
 import inu.timetable.security.UserAccessGuard;
 import inu.timetable.service.TimetableCombinationService;
@@ -28,6 +29,10 @@ import static inu.timetable.util.ApiRequestValues.optionalString;
 @Tag(name = "시간표 조합", description = "시간표 자동 조합 생성 API")
 public class TimetableCombinationController {
 
+    private static final int MAX_COMBINATIONS = 100;
+    private static final int MIN_TARGET_CREDITS = 1;
+    private static final int MAX_TARGET_CREDITS = 40;
+
     private final TimetableCombinationService combinationService;
     private final UserAccessGuard userAccessGuard;
 
@@ -45,9 +50,12 @@ public class TimetableCombinationController {
         userAccessGuard.requireMatchingUser(authenticatedUser, userId);
         String semester = optionalString(request, "semester");
         int targetCredits = requiredInteger(request, "targetCredits");
+        validateTargetCredits(targetCredits);
         int maxCombinations = request.containsKey("maxCombinations")
                 ? requiredInteger(request, "maxCombinations")
                 : 20;
+        // 상한을 두어 대량 조합 적재로 인한 메모리/CPU 폭주(공유 인스턴스 DoS)를 방지한다.
+        maxCombinations = Math.max(1, Math.min(maxCombinations, MAX_COMBINATIONS));
         List<String> freeDays = new ArrayList<>(optionalStringList(request, "freeDays"));
 
         List<List<Subject>> combinations = combinationService.generateTimetableCombinations(
@@ -75,6 +83,7 @@ public class TimetableCombinationController {
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
 
         userAccessGuard.requireMatchingUser(authenticatedUser, userId);
+        validateTargetCredits(targetCredits);
         List<List<Subject>> combinations = combinationService.generateTimetableCombinations(
             userId, semester, targetCredits, 1);
 
@@ -90,5 +99,12 @@ public class TimetableCombinationController {
         stats.put("targetCredits", targetCredits);
 
         return ResponseEntity.ok(stats);
+    }
+
+    private void validateTargetCredits(int targetCredits) {
+        if (targetCredits < MIN_TARGET_CREDITS || targetCredits > MAX_TARGET_CREDITS) {
+            throw ApiException.badRequest(
+                    "목표 학점은 " + MIN_TARGET_CREDITS + "~" + MAX_TARGET_CREDITS + " 학점 사이로 입력해주세요.");
+        }
     }
 }

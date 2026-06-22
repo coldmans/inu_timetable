@@ -36,6 +36,7 @@ public class AuthService {
         return register(username, password, grade, major, List.of());
     }
 
+    @Transactional
     public User register(
             String username,
             String password,
@@ -119,9 +120,20 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    private static final int USERNAME_MAX_LENGTH = 50;
+    private static final int PASSWORD_MIN_LENGTH = 8;
+    private static final int PASSWORD_MAX_LENGTH = 72; // bcrypt 입력 바이트 한계 고려
+
     private void validateCredentials(String username, String password) {
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
             throw ApiException.badRequest("아이디와 비밀번호를 입력해주세요.");
+        }
+        if (username.trim().length() > USERNAME_MAX_LENGTH) {
+            throw ApiException.badRequest("아이디는 " + USERNAME_MAX_LENGTH + "자 이하로 입력해주세요.");
+        }
+        if (password.length() < PASSWORD_MIN_LENGTH || password.length() > PASSWORD_MAX_LENGTH) {
+            throw ApiException.badRequest(
+                    "비밀번호는 " + PASSWORD_MIN_LENGTH + "자 이상 " + PASSWORD_MAX_LENGTH + "자 이하로 입력해주세요.");
         }
     }
 
