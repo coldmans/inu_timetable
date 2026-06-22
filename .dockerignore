@@ -23,3 +23,11 @@ bin/
 /dist/
 /nbdist/
 /.nb-gradle/
+
+# Secrets / 환경 파일 (빌드 컨텍스트에 절대 포함하지 않음)
+.env
+.env.*
+*.env
+
+# Gemini 파싱 응답 덤프 (운영 이미지에 불필요)
+gemini_response_*.txt

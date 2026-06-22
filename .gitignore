@@ -72,6 +72,7 @@ wipe_db.py
 wipe_db_now.sh
 *.sql
 !src/main/resources/db/migration/*.sql
+!src/main/resources/db/baseline/*.sql
 
 ### Ad-hoc Test Files ###
 **/AdHoc*.java
