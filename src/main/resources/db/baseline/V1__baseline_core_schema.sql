@@ -107,3 +107,15 @@ CREATE INDEX IF NOT EXISTS idx_schedules_subject_id ON schedules (subject_id);
 CREATE INDEX IF NOT EXISTS idx_user_timetables_user_id ON user_timetables (user_id);
 CREATE INDEX IF NOT EXISTS idx_user_timetables_subject_id ON user_timetables (subject_id);
 CREATE INDEX IF NOT EXISTS idx_wishlist_items_user_id ON wishlist_items (user_id);
+
+-- subjects 조회/필터 인덱스 (Subject 엔티티 @Table(indexes=...) 정의와 일치).
+-- 신규 DB(시나리오 B)에서 이 인덱스가 없으면 과목 필터/검색이 전체 테이블 스캔으로 동작한다.
+CREATE INDEX IF NOT EXISTS idx_subject_name ON subjects (subject_name);
+CREATE INDEX IF NOT EXISTS idx_subject_course_code ON subjects (course_code);
+CREATE INDEX IF NOT EXISTS idx_subject_semester_active ON subjects (semester, active);
+CREATE INDEX IF NOT EXISTS idx_professor ON subjects (professor);
+CREATE INDEX IF NOT EXISTS idx_department ON subjects (department);
+CREATE INDEX IF NOT EXISTS idx_grade ON subjects (grade);
+CREATE INDEX IF NOT EXISTS idx_subject_type ON subjects (subject_type);
+CREATE INDEX IF NOT EXISTS idx_is_night ON subjects (is_night);
+CREATE INDEX IF NOT EXISTS idx_search_filter ON subjects (subject_name, grade, department);

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -122,7 +123,7 @@ public class AuthService {
 
     private static final int USERNAME_MAX_LENGTH = 50;
     private static final int PASSWORD_MIN_LENGTH = 8;
-    private static final int PASSWORD_MAX_LENGTH = 72; // bcrypt 입력 바이트 한계 고려
+    private static final int PASSWORD_MAX_BYTES = 72; // bcrypt 입력 바이트 한계
 
     private void validateCredentials(String username, String password) {
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
@@ -131,9 +132,13 @@ public class AuthService {
         if (username.trim().length() > USERNAME_MAX_LENGTH) {
             throw ApiException.badRequest("아이디는 " + USERNAME_MAX_LENGTH + "자 이하로 입력해주세요.");
         }
-        if (password.length() < PASSWORD_MIN_LENGTH || password.length() > PASSWORD_MAX_LENGTH) {
+        // bcrypt 는 입력을 최대 72바이트까지만 처리하므로(초과분 silent truncation),
+        // 글자 수가 아닌 UTF-8 바이트 길이로 상한을 검증한다(한글/이모지 비밀번호 대응).
+        if (password.length() < PASSWORD_MIN_LENGTH
+                || password.getBytes(StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES) {
             throw ApiException.badRequest(
-                    "비밀번호는 " + PASSWORD_MIN_LENGTH + "자 이상 " + PASSWORD_MAX_LENGTH + "자 이하로 입력해주세요.");
+                    "비밀번호는 " + PASSWORD_MIN_LENGTH + "자 이상이어야 하며, "
+                            + PASSWORD_MAX_BYTES + "바이트를 넘을 수 없습니다.");
         }
     }
 

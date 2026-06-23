@@ -19,6 +19,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.sql.SQLException;
+
 @Slf4j
 @RestControllerAdvice(annotations = RestController.class)
 public class ApiExceptionHandler {
@@ -40,12 +42,23 @@ public class ApiExceptionHandler {
         return error(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 일치하지 않습니다.");
     }
 
-    // 유니크/제약 위반(중복 추가, 동시 가입 경쟁 등)은 클라이언트가 재시도 판단 가능한 409 로 매핑한다.
-    // 미처리 시 전역 핸들러로 떨어져 500 이 나가는 문제를 방지.
+    // 데이터 무결성 위반 중 '유니크 제약 위반'(중복 추가/동시 가입 경쟁, SQLState 23505)만
+    // 클라이언트가 재시도/안내 판단 가능한 409 로 매핑한다.
+    // FK/NOT NULL/타입 불일치 등 그 외 제약 위반은 잘못된 요청(400)으로 구분해 응답한다.
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException exception) {
-        log.warn("Data integrity violation", exception);
-        return error(HttpStatus.CONFLICT, "이미 존재하거나 중복된 데이터입니다.");
+        if (isUniqueViolation(exception)) {
+            log.warn("Unique constraint violation", exception);
+            return error(HttpStatus.CONFLICT, "이미 존재하거나 중복된 데이터입니다.");
+        }
+        log.error("Data integrity violation", exception);
+        return error(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.");
+    }
+
+    private boolean isUniqueViolation(DataIntegrityViolationException exception) {
+        Throwable cause = exception.getMostSpecificCause();
+        return cause instanceof SQLException sqlException
+                && "23505".equals(sqlException.getSQLState());
     }
 
     @ExceptionHandler({
