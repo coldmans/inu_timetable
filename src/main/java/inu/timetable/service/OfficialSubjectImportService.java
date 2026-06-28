@@ -111,8 +111,12 @@ public class OfficialSubjectImportService {
                 .map(OfficialSubjectRecord::courseCode)
                 .collect(Collectors.toSet());
 
+        // 학수번호(courseCode)가 있는 과목만 '공식 엑셀에서 빠짐 → 비활성화' 대상으로 본다.
+        // 학수번호 없는 레거시(PDF/AI 파싱) 과목은 공식 엑셀과 키가 겹칠 수 없어,
+        // 이 필터가 없으면 공식 엑셀을 적용할 때마다 전량 비활성화되는 문제가 있었다.
         List<Subject> removed = candidates.stream()
                 .filter(subject -> Boolean.TRUE.equals(subject.getActive()))
+                .filter(subject -> hasText(subject.getCourseCode()))
                 .filter(subject -> !incomingCodes.contains(subject.getCourseCode()))
                 .toList();
 

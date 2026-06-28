@@ -678,13 +678,17 @@ public class PdfParseService {
         Pattern timePattern = Pattern.compile("(야[1-3]|[1-9][0-9]?[AB]?)");
         Matcher timeMatcher = timePattern.matcher(timeSlots);
 
+        String lastPeriod = null;
         while (timeMatcher.find()) {
           times.add(convertToTime(timeMatcher.group(1)));
+          lastPeriod = timeMatcher.group(1);
         }
 
         if (!times.isEmpty()) {
           minStartTime = times.get(0);
-          maxEndTime = times.get(times.size() - 1) + 1.0; // 마지막 교시 끝시간
+          // 마지막 교시의 A/B 접미사를 반영해 끝시간을 계산한다(range 분기 convertToTimeEnd 와 동일 규칙).
+          // 단순 +1.0 은 '6A'(→6.5여야)·'6B'(→7.0여야)에서 0.5교시 길게 잡히는 버그가 있었다.
+          maxEndTime = convertToTimeEnd(lastPeriod, lastPeriod);
         }
       }
 
