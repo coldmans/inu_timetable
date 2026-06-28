@@ -3,6 +3,7 @@ package inu.timetable.service;
 import inu.timetable.entity.User;
 import inu.timetable.enums.UserMajorType;
 import inu.timetable.enums.UserStatus;
+import inu.timetable.exception.ApiException;
 import inu.timetable.repository.UserRepository;
 import inu.timetable.security.LegacySha256DelegatingPasswordEncoder;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -97,5 +99,13 @@ class AuthServiceTest {
         assertThat(passwordEncoder.matches("password123", withdrawnUser.getPassword())).isFalse();
         assertThat(withdrawnUser.getGrade()).isEqualTo(3);
         assertThat(withdrawnUser.getMajor()).isEqualTo("컴퓨터공학부");
+    }
+
+    @Test
+    void registerRejectsMultiplePrimaryMajors() {
+        assertThatThrownBy(() -> authService.register("student", "password123", 2, null, List.of(
+                new AuthService.MajorSelection(UserMajorType.PRIMARY, "컴퓨터공학부"),
+                new AuthService.MajorSelection(UserMajorType.PRIMARY, "데이터과학과"))))
+                .isInstanceOf(ApiException.class);
     }
 }

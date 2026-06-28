@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class TimetableService {
@@ -38,9 +37,8 @@ public class TimetableService {
         Subject subject = subjectRepository.findById(subjectId)
             .orElseThrow(() -> ApiException.notFound("과목을 찾을 수 없습니다."));
         
-        // 이미 추가된 과목인지 확인
-        Optional<UserTimetable> existing = userTimetableRepository.findByUserIdAndSubjectId(userId, subjectId);
-        if (existing.isPresent()) {
+        // 같은 학기에 이미 추가된 과목인지 확인(다른 학기에는 같은 과목을 추가할 수 있다)
+        if (userTimetableRepository.existsByUserIdAndSubjectIdAndSemester(userId, subjectId, semester)) {
             throw ApiException.conflict("이미 시간표에 추가된 과목입니다.");
         }
         
@@ -60,11 +58,12 @@ public class TimetableService {
         return userTimetableRepository.save(userTimetable);
     }
     
+    @Transactional
     public void removeSubjectFromTimetable(Long userId, Long subjectId) {
-        UserTimetable userTimetable = userTimetableRepository.findByUserIdAndSubjectId(userId, subjectId)
-            .orElseThrow(() -> ApiException.notFound("시간표에서 해당 과목을 찾을 수 없습니다."));
-            
-        userTimetableRepository.delete(userTimetable);
+        int deleted = userTimetableRepository.deleteAllByUserIdAndSubjectId(userId, subjectId);
+        if (deleted == 0) {
+            throw ApiException.notFound("시간표에서 해당 과목을 찾을 수 없습니다.");
+        }
     }
     
     public List<UserTimetable> getUserTimetable(Long userId, String semester) {
@@ -75,14 +74,17 @@ public class TimetableService {
         }
     }
     
+    @Transactional
     public UserTimetable updateMemo(Long userId, Long subjectId, String memo) {
-        UserTimetable userTimetable = userTimetableRepository.findByUserIdAndSubjectId(userId, subjectId)
-            .orElseThrow(() -> ApiException.notFound("시간표에서 해당 과목을 찾을 수 없습니다."));
-            
-        userTimetable.setMemo(memo);
-        return userTimetableRepository.save(userTimetable);
+        List<UserTimetable> items = userTimetableRepository.findAllByUserIdAndSubjectId(userId, subjectId);
+        if (items.isEmpty()) {
+            throw ApiException.notFound("시간표에서 해당 과목을 찾을 수 없습니다.");
+        }
+        items.forEach(item -> item.setMemo(memo));
+        return items.get(0);
     }
     
+    @Transactional
     public void removeAllSubjectsFromTimetable(Long userId, String semester) {
         List<UserTimetable> timetables;
         if (semester != null && !semester.isEmpty()) {
@@ -90,12 +92,11 @@ public class TimetableService {
         } else {
             timetables = userTimetableRepository.findByUserId(userId);
         }
-        
-        if (timetables.isEmpty()) {
-            throw ApiException.notFound("삭제할 시간표가 없습니다.");
+
+        // 전체 비우기는 멱등 연산 — 이미 비어 있어도 오류가 아니라 0건 삭제로 정상 처리한다.
+        if (!timetables.isEmpty()) {
+            userTimetableRepository.deleteAll(timetables);
         }
-        
-        userTimetableRepository.deleteAll(timetables);
     }
     
     private boolean hasTimeConflict(List<UserTimetable> currentTimetable, Subject newSubject) {

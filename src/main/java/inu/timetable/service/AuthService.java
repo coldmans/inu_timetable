@@ -164,7 +164,16 @@ public class AuthService {
             uniqueSelections.putIfAbsent(selectionKey(normalized), normalized);
         }
 
-        return new ArrayList<>(uniqueSelections.values());
+        List<MajorSelection> normalizedSelections = new ArrayList<>(uniqueSelections.values());
+        // 주전공(PRIMARY)은 0~1개여야 한다. API 로 서로 다른 학과를 PRIMARY 로 2개 이상 보내면
+        // user.major(단일)와 userMajors 목록이 모순되므로 거부한다.
+        long primaryCount = normalizedSelections.stream()
+                .filter(selection -> selection.type() == UserMajorType.PRIMARY)
+                .count();
+        if (primaryCount > 1) {
+            throw ApiException.badRequest("주전공은 1개만 선택할 수 있습니다.");
+        }
+        return normalizedSelections;
     }
 
     private void replaceUserMajors(User user, List<MajorSelection> normalizedMajors) {
