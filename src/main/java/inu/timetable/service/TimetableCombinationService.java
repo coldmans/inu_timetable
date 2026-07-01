@@ -36,11 +36,17 @@ public class TimetableCombinationService {
             return new ArrayList<>();
         }
 
-        // 과목명별로 그룹화하여 중복 제거 (같은 과목명 중 첫 번째만 선택)
+        // 과목명별로 그룹화하여 중복 제거.
+        // 같은 과목명 그룹 안에 '필수(isRequired)' 분반이 있으면 그 분반을 우선 보존한다.
+        // (priority 가 앞선 선택 분반이 필수 분반을 덮어 필수 플래그가 소실되는 문제 방지)
         Map<String, WishlistItem> uniqueSubjects = new LinkedHashMap<>();
         for (WishlistItem item : wishlist) {
             String subjectName = item.getSubject().getSubjectName();
-            if (!uniqueSubjects.containsKey(subjectName)) {
+            WishlistItem existing = uniqueSubjects.get(subjectName);
+            if (existing == null) {
+                uniqueSubjects.put(subjectName, item);
+            } else if (Boolean.TRUE.equals(item.getIsRequired())
+                    && !Boolean.TRUE.equals(existing.getIsRequired())) {
                 uniqueSubjects.put(subjectName, item);
             }
         }
@@ -85,6 +91,13 @@ public class TimetableCombinationService {
                 requiredCredits, requiredTimeMask, targetCredits, combinations, maxCombinations,
                 freeDaySet, suffixCredits(optionalOptions));
 
+        // 필수 과목 학점 합이 목표+tolerance 를 넘어 유효 조합이 하나도 없으면,
+        // 필수 과목만으로 구성된 시간표를 최소 1개 보장한다(필수는 반드시 포함되어야 하므로).
+        // 필수끼리의 시간 충돌은 위에서 이미 걸러졌으므로 여기 도달하면 유효한 조합이다.
+        if (combinations.isEmpty() && !requiredSubjects.isEmpty()) {
+            combinations.add(new ArrayList<>(requiredSubjects));
+        }
+
         // 학점 기준으로 정렬 (목표 학점에 가까운 순)
         combinations.sort((a, b) -> {
             int creditsA = a.stream().mapToInt(Subject::getCredits).sum();
@@ -111,8 +124,9 @@ public class TimetableCombinationService {
         int minCredits = targetCredits - CREDIT_TOLERANCE;
         int maxCredits = targetCredits + CREDIT_TOLERANCE;
 
-        // 목표 학점 달성 또는 근사치 도달 시 조합 추가
-        if (currentCredits >= minCredits && currentCredits <= maxCredits) {
+        // 목표 학점 달성 또는 근사치 도달 시 조합 추가.
+        // 과목 0개(빈 시간표)는 targetCredits 가 작아 minCredits<=0 이 되는 경우에도 추천하지 않는다.
+        if (!current.isEmpty() && currentCredits >= minCredits && currentCredits <= maxCredits) {
             combinations.add(new ArrayList<>(current));
         }
 

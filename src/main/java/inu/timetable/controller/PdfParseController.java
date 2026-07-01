@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/admin/api")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "파일 업로드", description = "PDF 및 Excel 파일 업로드 및 파싱 API")
 public class PdfParseController {
 
@@ -33,7 +35,9 @@ public class PdfParseController {
             int savedCount = pdfParseService.parseAndSaveSubjectsIncremental(file);
             return ResponseEntity.ok("PDF 파싱 완료. " + savedCount + "개의 과목이 저장되었습니다.");
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("PDF 파싱 실패: " + e.getMessage());
+            // 내부/외부 API 오류 메시지를 응답으로 노출하지 않고 로그로만 남긴다.
+            log.error("PDF 파싱 실패", e);
+            return ResponseEntity.badRequest().body("PDF 파싱에 실패했습니다. 파일 형식과 내용을 확인해주세요.");
         }
     }
 
@@ -47,7 +51,8 @@ public class PdfParseController {
             int savedCount = excelParseService.parseAndSaveSubjectsIncremental(file);
             return ResponseEntity.ok("Excel 파싱 완료. " + savedCount + "개의 과목이 저장되었습니다.");
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Excel 파싱 실패: " + e.getMessage());
+            log.error("Excel 파싱 실패", e);
+            return ResponseEntity.badRequest().body("Excel 파싱에 실패했습니다. 파일 형식과 내용을 확인해주세요.");
         }
     }
 }

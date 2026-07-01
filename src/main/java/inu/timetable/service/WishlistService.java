@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class WishlistService {
@@ -30,10 +29,12 @@ public class WishlistService {
         this.subjectRepository = subjectRepository;
     }
     
+    @Transactional
     public WishlistItem addToWishlist(Long userId, Long subjectId, String semester, Integer priority) {
         return addToWishlist(userId, subjectId, semester, priority, false);
     }
-    
+
+    @Transactional
     public WishlistItem addToWishlist(Long userId, Long subjectId, String semester, Integer priority, Boolean isRequired) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> ApiException.notFound("사용자를 찾을 수 없습니다."));
@@ -41,9 +42,8 @@ public class WishlistService {
         Subject subject = subjectRepository.findById(subjectId)
             .orElseThrow(() -> ApiException.notFound("과목을 찾을 수 없습니다."));
         
-        // 이미 위시리스트에 있는지 확인
-        Optional<WishlistItem> existing = wishlistRepository.findByUserIdAndSubjectId(userId, subjectId);
-        if (existing.isPresent()) {
+        // 같은 학기에 이미 담겨 있는지 확인(다른 학기에는 같은 과목을 담을 수 있다)
+        if (wishlistRepository.existsByUserIdAndSubjectIdAndSemester(userId, subjectId, semester)) {
             throw ApiException.conflict("이미 위시리스트에 추가된 과목입니다.");
         }
         
@@ -67,20 +67,25 @@ public class WishlistService {
         return wishlistRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester);
     }
     
+    @Transactional
     public WishlistItem updatePriority(Long userId, Long subjectId, Integer priority) {
-        WishlistItem wishlistItem = wishlistRepository.findByUserIdAndSubjectId(userId, subjectId)
-            .orElseThrow(() -> ApiException.notFound("위시리스트에서 해당 과목을 찾을 수 없습니다."));
-            
-        wishlistItem.setPriority(priority);
-        return wishlistRepository.save(wishlistItem);
+        // 같은 과목이 여러 학기에 존재할 수 있으므로 단건 조회(NonUniqueResult 위험) 대신 모두 갱신한다.
+        List<WishlistItem> items = wishlistRepository.findAllByUserIdAndSubjectId(userId, subjectId);
+        if (items.isEmpty()) {
+            throw ApiException.notFound("위시리스트에서 해당 과목을 찾을 수 없습니다.");
+        }
+        items.forEach(item -> item.setPriority(priority));
+        return items.get(0);
     }
-    
+
+    @Transactional
     public WishlistItem updateRequired(Long userId, Long subjectId, Boolean isRequired) {
-        WishlistItem wishlistItem = wishlistRepository.findByUserIdAndSubjectId(userId, subjectId)
-            .orElseThrow(() -> ApiException.notFound("위시리스트에서 해당 과목을 찾을 수 없습니다."));
-            
-        wishlistItem.setIsRequired(isRequired);
-        return wishlistRepository.save(wishlistItem);
+        List<WishlistItem> items = wishlistRepository.findAllByUserIdAndSubjectId(userId, subjectId);
+        if (items.isEmpty()) {
+            throw ApiException.notFound("위시리스트에서 해당 과목을 찾을 수 없습니다.");
+        }
+        items.forEach(item -> item.setIsRequired(isRequired));
+        return items.get(0);
     }
     
 }

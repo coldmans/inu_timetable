@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -36,6 +37,7 @@ public class AuthService {
         return register(username, password, grade, major, List.of());
     }
 
+    @Transactional
     public User register(
             String username,
             String password,
@@ -119,9 +121,24 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    private static final int USERNAME_MAX_LENGTH = 50;
+    private static final int PASSWORD_MIN_LENGTH = 8;
+    private static final int PASSWORD_MAX_BYTES = 72; // bcrypt 입력 바이트 한계
+
     private void validateCredentials(String username, String password) {
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
             throw ApiException.badRequest("아이디와 비밀번호를 입력해주세요.");
+        }
+        if (username.trim().length() > USERNAME_MAX_LENGTH) {
+            throw ApiException.badRequest("아이디는 " + USERNAME_MAX_LENGTH + "자 이하로 입력해주세요.");
+        }
+        // bcrypt 는 입력을 최대 72바이트까지만 처리하므로(초과분 silent truncation),
+        // 글자 수가 아닌 UTF-8 바이트 길이로 상한을 검증한다(한글/이모지 비밀번호 대응).
+        if (password.length() < PASSWORD_MIN_LENGTH
+                || password.getBytes(StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES) {
+            throw ApiException.badRequest(
+                    "비밀번호는 " + PASSWORD_MIN_LENGTH + "자 이상이어야 하며, "
+                            + PASSWORD_MAX_BYTES + "바이트를 넘을 수 없습니다.");
         }
     }
 
@@ -147,7 +164,16 @@ public class AuthService {
             uniqueSelections.putIfAbsent(selectionKey(normalized), normalized);
         }
 
-        return new ArrayList<>(uniqueSelections.values());
+        List<MajorSelection> normalizedSelections = new ArrayList<>(uniqueSelections.values());
+        // 주전공(PRIMARY)은 0~1개여야 한다. API 로 서로 다른 학과를 PRIMARY 로 2개 이상 보내면
+        // user.major(단일)와 userMajors 목록이 모순되므로 거부한다.
+        long primaryCount = normalizedSelections.stream()
+                .filter(selection -> selection.type() == UserMajorType.PRIMARY)
+                .count();
+        if (primaryCount > 1) {
+            throw ApiException.badRequest("주전공은 1개만 선택할 수 있습니다.");
+        }
+        return normalizedSelections;
     }
 
     private void replaceUserMajors(User user, List<MajorSelection> normalizedMajors) {

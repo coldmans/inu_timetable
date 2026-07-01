@@ -11,6 +11,7 @@ import inu.timetable.service.UserActivityService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -36,6 +37,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Slf4j
 public class AuthController {
 
     private final AuthService authService;
@@ -61,7 +63,7 @@ public class AuthController {
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 principal, null, principal.getAuthorities());
         saveAuthentication(authentication, servletRequest, servletResponse);
-        userActivityService.recordActivity(user.getId());
+        recordActivityQuietly(user.getId());
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
@@ -89,7 +91,7 @@ public class AuthController {
 
         AuthenticatedUser principal = (AuthenticatedUser) authentication.getPrincipal();
         User user = authService.findById(principal.id());
-        userActivityService.recordActivity(user.getId());
+        recordActivityQuietly(user.getId());
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
@@ -218,5 +220,15 @@ public class AuthController {
 
     private String parseString(Object value) {
         return value instanceof String text ? text : null;
+    }
+
+    // 활동 기록은 부가 통계이므로, 실패(저장 오류/트랜잭션 롤백)가 회원가입·로그인 같은
+    // 주 요청을 500 으로 떨어뜨리지 않도록 흡수한다.
+    private void recordActivityQuietly(Long userId) {
+        try {
+            userActivityService.recordActivity(userId);
+        } catch (RuntimeException ex) {
+            log.warn("사용자 활동 기록 실패(무시): userId={}", userId, ex);
+        }
     }
 }

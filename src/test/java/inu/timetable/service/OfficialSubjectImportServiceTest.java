@@ -57,16 +57,18 @@ class OfficialSubjectImportServiceTest {
     }
 
     @Test
-    void applyDeactivatesMissingExistingSubject() throws Exception {
+    void applyDeactivatesMissingKeyedSubjectButKeepsLegacyUnkeyed() throws Exception {
         Subject removed = subject("OLD0000001", "이전교수", true);
         Subject legacyUnkeyed = subject(null, "AI파싱교수", true);
         when(subjectRepository.findImportCandidatesBySemester("2026-1")).thenReturn(List.of(removed, legacyUnkeyed));
 
         OfficialSubjectImportResponse response = officialSubjectImportService.apply(sampleWorkbook(), "2026-1", true);
 
+        // 학수번호가 있고 공식 엑셀에서 빠진 과목만 비활성화한다.
         assertThat(removed.getActive()).isFalse();
-        assertThat(legacyUnkeyed.getActive()).isFalse();
-        assertThat(response.getRemovedCount()).isEqualTo(2);
+        // 학수번호 없는 레거시(PDF/AI 파싱) 과목은 공식 엑셀과 키가 겹칠 수 없으므로 비활성화하지 않는다.
+        assertThat(legacyUnkeyed.getActive()).isTrue();
+        assertThat(response.getRemovedCount()).isEqualTo(1);
         verify(subjectRepository).saveAll(anyList());
     }
 

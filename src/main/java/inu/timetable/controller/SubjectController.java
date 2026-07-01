@@ -29,6 +29,9 @@ import java.util.stream.IntStream;
 @Slf4j
 public class SubjectController {
 
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final int MIN_KEYWORD_LENGTH = 2;
+
     private final SubjectRepository subjectRepository;
     private final UserTimetableRepository userTimetableRepository;
 
@@ -36,7 +39,7 @@ public class SubjectController {
     public Page<Subject> getAllSubjects(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size));
         return subjectRepository.findByActiveTrue(pageable);
     }
 
@@ -79,6 +82,10 @@ public class SubjectController {
     public List<SubjectDto> searchSubjects(
             @RequestParam String keyword,
             @RequestParam(required = false) Integer grade) {
+        // 1글자 등 지나치게 광범위한 매칭으로 전체 결과가 반환되는 것을 막는다(미인증 접근 가능).
+        if (isTooShort(keyword)) {
+            return List.of();
+        }
         List<Subject> subjects;
         if (grade != null) {
             subjects = subjectRepository.findBySubjectNameContainingAndGradeAndActiveTrue(keyword, grade);
@@ -94,6 +101,9 @@ public class SubjectController {
     public List<SubjectDto> searchByProfessor(
             @RequestParam String keyword,
             @RequestParam(required = false) Integer grade) {
+        if (isTooShort(keyword)) {
+            return List.of();
+        }
         List<Subject> subjects;
         if (grade != null) {
             subjects = subjectRepository.findByProfessorContainingAndGradeAndActiveTrue(keyword, grade);
@@ -124,7 +134,7 @@ public class SubjectController {
 
         log.debug("Filtering subjects page={}, size={}", page, size);
 
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size));
         String normalizedDepartment = normalizeDepartment(department);
         List<String> normalizedDepartments = normalizeDepartments(departments);
         List<String> departmentListParam = normalizedDepartments.isEmpty()
@@ -167,6 +177,14 @@ public class SubjectController {
 
         // Page 객체는 유지하되, 내용물만 교체
         return new org.springframework.data.domain.PageImpl<>(subjectDtos, pageable, subjectIdPage.getTotalElements());
+    }
+
+    private int clampSize(int size) {
+        return Math.max(1, Math.min(size, MAX_PAGE_SIZE));
+    }
+
+    private boolean isTooShort(String keyword) {
+        return keyword == null || keyword.trim().length() < MIN_KEYWORD_LENGTH;
     }
 
     private String normalizeDepartment(String department) {

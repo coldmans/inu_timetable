@@ -28,7 +28,15 @@ public interface WishlistRepository extends JpaRepository<WishlistItem, Long> {
     List<WishlistItem> findByUserIdAndSemesterWithSubjectAndSchedules(@Param("userId") Long userId, @Param("semester") String semester);
     
     @Query("SELECT w FROM WishlistItem w JOIN FETCH w.subject s WHERE w.user.id = :userId AND s.id = :subjectId")
-    Optional<WishlistItem> findByUserIdAndSubjectId(@Param("userId") Long userId, @Param("subjectId") Long subjectId);
+    List<WishlistItem> findAllByUserIdAndSubjectId(@Param("userId") Long userId, @Param("subjectId") Long subjectId);
+
+    // 학기까지 포함한 중복 검사(semester null 도 정확히 구분). 다른 학기에 같은 과목을 담을 수 있게 한다.
+    @Query("SELECT COUNT(w) > 0 FROM WishlistItem w " +
+           "WHERE w.user.id = :userId AND w.subject.id = :subjectId " +
+           "AND ((:semester IS NULL AND w.semester IS NULL) OR w.semester = :semester)")
+    boolean existsByUserIdAndSubjectIdAndSemester(@Param("userId") Long userId,
+                                                  @Param("subjectId") Long subjectId,
+                                                  @Param("semester") String semester);
     
     @Modifying
     @Query("DELETE FROM WishlistItem w WHERE w.user.id = :userId AND w.subject.id = :subjectId")
