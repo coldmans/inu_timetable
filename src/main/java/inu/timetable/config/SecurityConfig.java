@@ -80,7 +80,8 @@ public class SecurityConfig {
                                 "/api/auth/csrf",
                                 "/api/dev/**",
                                 "/api/subjects",
-                                "/api/subjects/**"))
+                                "/api/subjects/**",
+                                "/api/events"))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/admin/**", "/admin/api/**").permitAll()
@@ -92,6 +93,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
                         .requestMatchers("/api/wishlist/**", "/api/timetable/**", "/api/timetable-combination/**").authenticated()
                         .requestMatchers("/api/subjects/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/events").permitAll()
                         .anyRequest().denyAll())
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) ->
