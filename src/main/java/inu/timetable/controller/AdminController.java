@@ -92,6 +92,17 @@ public class AdminController {
     }
 
     /**
+     * 분석 대시보드 페이지 (DAU/MAU·이벤트·인기 검색어)
+     */
+    @GetMapping("/dashboard")
+    public String dashboardPage(HttpSession session) {
+        if (!isAuthenticated(session)) {
+            return "redirect:/admin/login";
+        }
+        return "admin/dashboard";
+    }
+
+    /**
      * PDF 업로드 처리
      * 
      * @param mode "incremental" (기본값) 또는 "replace"

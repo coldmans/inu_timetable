@@ -1,4 +1,4 @@
-name: Deploy to GCP (via Docker Hub)
+name: Deploy to OCI (via Docker Hub)
 
 on:
   push:
@@ -36,17 +36,17 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest
 
-      - name: Copy deployment script to GCP
+      - name: Copy deployment script to OCI
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.GCP_HOST }}
-          username: ${{ secrets.GCP_USER }}
-          key: ${{ secrets.GCP_SSH_KEY }}
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
           source: scripts/deploy-blue-green.sh
           target: /tmp/inu-deploy
           strip_components: 1
 
-      - name: Deploy to GCP
+      - name: Deploy to OCI
         uses: appleboy/ssh-action@master
         env:
           IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/inutable:latest
@@ -58,9 +58,9 @@ jobs:
           ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         with:
-          host: ${{ secrets.GCP_HOST }}
-          username: ${{ secrets.GCP_USER }}
-          key: ${{ secrets.GCP_SSH_KEY }}
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
           envs: IMAGE,DB_URL,DB_USERNAME,DB_PASSWORD,GEMINI_API_KEY,ADMIN_USERNAME,ADMIN_PASSWORD_HASH,ADMIN_PASSWORD
           script: |
             chmod +x /tmp/inu-deploy/deploy-blue-green.sh

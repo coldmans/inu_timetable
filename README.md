@@ -197,6 +197,16 @@ Production deployments are handled by GitHub Actions in `.github/workflows/docke
 - Reverse proxy: nginx
 - App containers: `inu-backend-blue` on `127.0.0.1:8081` and `inu-backend-green` on `127.0.0.1:8082`
 
+Required GitHub Actions secrets:
+
+- `OCI_HOST`: OCI instance public IP
+- `OCI_USER`: SSH user, usually `ubuntu`
+- `OCI_SSH_KEY`: private key matching an authorized public key on the OCI instance
+- `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
+- `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`
+- `GEMINI_KEY`
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` or `ADMIN_PASSWORD`
+
 The deployment script starts the inactive color first, waits for `/actuator/health`, switches nginx to the healthy container, and then removes the previous container. The first migration from the old single-container deployment may require stopping the legacy `inu-backend` container once so nginx can bind port `8080`; subsequent deployments switch through nginx without stopping the active app first.
 
 Production schema changes are managed by Flyway. The prod profile uses Hibernate `ddl-auto=validate`, and the deployment script explicitly sets:

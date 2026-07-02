@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>분석 대시보드 · INU 시간표</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --bg:#f8fafc; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#2563eb; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink);
+      font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif; }
+    .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 64px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+    h1 { font-size:20px; font-weight:800; margin:0; }
+    .sub { color:var(--muted); font-size:13px; margin-top:2px; }
+    nav a { color:var(--muted); text-decoration:none; font-size:13px; font-weight:600; margin-left:12px; }
+    nav a:hover { color:var(--ink); }
+    .range { display:inline-flex; gap:4px; background:#eef2f7; border-radius:999px; padding:3px; }
+    .range button { border:0; background:transparent; color:var(--muted); font-weight:700; font-size:13px;
+      padding:6px 12px; border-radius:999px; cursor:pointer; }
+    .range button.active { background:var(--card); color:var(--brand); box-shadow:0 1px 2px rgba(15,23,42,.12); }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px 18px; }
+    .card .k { color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.02em; }
+    .card .v { font-size:30px; font-weight:800; margin-top:6px; font-variant-numeric:tabular-nums; }
+    .grid2 { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; }
+    @media (max-width:820px){ .grid2 { grid-template-columns:1fr; } }
+    .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; }
+    .panel h2 { font-size:14px; font-weight:800; margin:0 0 12px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:8px 4px; border-bottom:1px solid var(--line); }
+    th { color:var(--muted); font-size:12px; font-weight:700; }
+    td.n { text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
+    .muted { color:var(--muted); font-size:13px; }
+    .empty { color:var(--muted); font-size:13px; padding:20px 0; text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>분석 대시보드</h1>
+        <div class="sub">INU 시간표 · 실시간 사용자 지표</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <div class="range" id="range">
+          <button data-days="7">7일</button>
+          <button data-days="14" class="active">14일</button>
+          <button data-days="30">30일</button>
+        </div>
+        <nav><a href="/admin/upload">업로드</a><a href="/admin/login">로그아웃</a></nav>
+      </div>
+    </header>
+
+    <section class="cards">
+      <div class="card"><div class="k">DAU (오늘)</div><div class="v" id="dau">–</div></div>
+      <div class="card"><div class="k">MAU (30일)</div><div class="v" id="mau">–</div></div>
+      <div class="card"><div class="k">총 이벤트 (<span id="rangeLabel">14</span>일)</div><div class="v" id="total">–</div></div>
+    </section>
+
+    <div class="grid2">
+      <div class="panel">
+        <h2>일별 이벤트</h2>
+        <canvas id="dailyChart" height="160"></canvas>
+      </div>
+      <div class="panel">
+        <h2>이벤트 유형별</h2>
+        <canvas id="typeChart" height="160"></canvas>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>인기 검색어 Top 10</h2>
+      <table id="searchTable">
+        <thead><tr><th style="width:40px;">#</th><th>검색어</th><th class="n">횟수</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="searchEmpty" style="display:none;">아직 검색 이벤트가 없습니다.</div>
+    </div>
+  </div>
+
+  <script>
+    let dailyChart, typeChart;
+    let currentDays = 14;
+
+    async function load(days) {
+      currentDays = days;
+      document.getElementById('rangeLabel').textContent = days;
+      const res = await fetch(`/admin/api/analytics/summary?days=${days}`, { credentials: 'same-origin' });
+      if (res.status === 401 || res.status === 403) { location.href = '/admin/login'; return; }
+      const d = await res.json();
+
+      document.getElementById('dau').textContent = (d.dau ?? 0).toLocaleString();
+      document.getElementById('mau').textContent = (d.mau ?? 0).toLocaleString();
+      document.getElementById('total').textContent = (d.totalEvents ?? 0).toLocaleString();
+
+      renderDaily(d.daily || []);
+      renderType(d.byType || []);
+      renderSearches(d.topSearches || []);
+    }
+
+    function renderDaily(daily) {
+      const labels = daily.map(p => p.date.slice(5));
+      const data = daily.map(p => p.count);
+      const ctx = document.getElementById('dailyChart');
+      if (dailyChart) dailyChart.destroy();
+      dailyChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [{ data, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.12)',
+          fill: true, tension: .3, pointRadius: 2 }] },
+        options: { plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+      });
+    }
+
+    function renderType(byType) {
+      const labels = byType.map(t => t.type);
+      const data = byType.map(t => t.count);
+      const ctx = document.getElementById('typeChart');
+      if (typeChart) typeChart.destroy();
+      typeChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ data, backgroundColor: '#2563eb', borderRadius: 6 }] },
+        options: { indexAxis: 'y', plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
+      });
+    }
+
+    function renderSearches(rows) {
+      const tbody = document.querySelector('#searchTable tbody');
+      const empty = document.getElementById('searchEmpty');
+      const table = document.getElementById('searchTable');
+      tbody.innerHTML = '';
+      if (!rows.length) { table.style.display = 'none'; empty.style.display = 'block'; return; }
+      table.style.display = 'table'; empty.style.display = 'none';
+      rows.forEach((r, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${i + 1}</td><td>${escapeHtml(r.term)}</td><td class="n">${r.count.toLocaleString()}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    document.getElementById('range').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-days]');
+      if (!btn) return;
+      document.querySelectorAll('#range button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      load(Number(btn.dataset.days));
+    });
+
+    load(14).catch(() => { document.getElementById('dau').textContent = '오류'; });
+  </script>
+</body>
+</html>
