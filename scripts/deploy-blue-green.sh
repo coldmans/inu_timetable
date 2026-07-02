@@ -17,6 +17,8 @@ BLUE_PORT="8081"
 GREEN_PORT="8082"
 PUBLIC_PORT="8080"
 NGINX_CONFIG="/etc/nginx/conf.d/inu-backend.conf"
+HEALTH_CHECK_ATTEMPTS="${HEALTH_CHECK_ATTEMPTS:-150}"
+HEALTH_CHECK_INTERVAL_SECONDS="${HEALTH_CHECK_INTERVAL_SECONDS:-2}"
 
 docker_cmd() {
   sudo docker "$@"
@@ -56,12 +58,12 @@ health_check() {
   local label="$2"
   local i=1
 
-  while [ "$i" -le 45 ]; do
+  while [ "$i" -le "$HEALTH_CHECK_ATTEMPTS" ]; do
     if curl -fsS "http://127.0.0.1:${port}/actuator/health" >/dev/null; then
       echo "${label} health check passed on port ${port}."
       return 0
     fi
-    sleep 2
+    sleep "$HEALTH_CHECK_INTERVAL_SECONDS"
     i=$((i + 1))
   done
 
