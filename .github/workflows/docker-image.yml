@@ -89,14 +89,25 @@ jobs:
             "$SERVICE_URL/api/subjects/count")" = "2894"
 
           COOKIE_JAR="$(mktemp)"
+          CSRF_BODY="$(mktemp)"
           LOGIN_BODY="$(mktemp)"
-          trap 'rm -f "$COOKIE_JAR" "$LOGIN_BODY"' EXIT
+          trap 'rm -f "$COOKIE_JAR" "$CSRF_BODY" "$LOGIN_BODY"' EXIT
+
+          test "$(curl --show-error --silent \
+            --output "$CSRF_BODY" \
+            --write-out '%{http_code}' \
+            --cookie-jar "$COOKIE_JAR" \
+            "$SERVICE_URL/api/auth/csrf")" = "200"
+          CSRF_TOKEN="$(jq --raw-output '.token' "$CSRF_BODY")"
+          test -n "$CSRF_TOKEN"
 
           LOGIN_STATUS="$(curl --show-error --silent \
             --output "$LOGIN_BODY" \
             --write-out '%{http_code}' \
+            --cookie "$COOKIE_JAR" \
             --cookie-jar "$COOKIE_JAR" \
             --header 'Content-Type: application/json' \
+            --header "X-XSRF-TOKEN: $CSRF_TOKEN" \
             --data "$(jq --compact-output --null-input \
               --arg username admin \
               --arg password "$ADMIN_PASSWORD" \
