@@ -134,6 +134,10 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
         @Query("SELECT DISTINCT s.grade FROM Subject s WHERE s.active = true AND s.grade IS NOT NULL ORDER BY s.grade")
         List<Integer> findDistinctGrades();
 
+        // 관리자 학기 필터용. 비활성 과목 포함 전체 학기를 최신순으로 반환한다.
+        @Query("SELECT DISTINCT s.semester FROM Subject s WHERE s.semester IS NOT NULL ORDER BY s.semester DESC")
+        List<String> findDistinctSemesters();
+
         @Query("SELECT DISTINCT s FROM Subject s LEFT JOIN FETCH s.schedules")
         List<Subject> findAllWithSchedules();
 
