@@ -8,6 +8,9 @@ const resultFile = __ENV.RESULT_FILE || 'subject-read-benchmark-results.json';
 const profile = __ENV.PROFILE || 'portfolio';
 const peakVus = Number(__ENV.PEAK_VUS || 200);
 const warmupEnabled = (__ENV.WARMUP || 'true') !== 'false';
+const authorizationHeaders = __ENV.ID_TOKEN
+  ? { Authorization: `Bearer ${__ENV.ID_TOKEN}` }
+  : {};
 
 const errors = new Rate('subject_read_errors');
 const countDuration = new Trend('subject_read_count_duration');
@@ -90,25 +93,28 @@ export default function () {
 }
 
 function runCount() {
-  const response = http.get(`${baseUrl}/api/subjects/count`, {
-    tags: { endpoint: 'subject-count' },
-  });
+  const response = http.get(
+    `${baseUrl}/api/subjects/count`,
+    requestParams('subject-count'),
+  );
   countDuration.add(response.timings.duration);
   record('count status 200', response);
 }
 
 function runDepartments() {
-  const response = http.get(`${baseUrl}/api/subjects/departments`, {
-    tags: { endpoint: 'subject-departments' },
-  });
+  const response = http.get(
+    `${baseUrl}/api/subjects/departments`,
+    requestParams('subject-departments'),
+  );
   departmentsDuration.add(response.timings.duration);
   record('departments status 200', response);
 }
 
 function runGrades() {
-  const response = http.get(`${baseUrl}/api/subjects/grades`, {
-    tags: { endpoint: 'subject-grades' },
-  });
+  const response = http.get(
+    `${baseUrl}/api/subjects/grades`,
+    requestParams('subject-grades'),
+  );
   gradesDuration.add(response.timings.duration);
   record('grades status 200', response);
 }
@@ -116,7 +122,7 @@ function runGrades() {
 function runSubjectSearch(keyword) {
   const response = http.get(
     `${baseUrl}/api/subjects/search?keyword=${encodeURIComponent(keyword)}`,
-    { tags: { endpoint: 'subject-search' } },
+    requestParams('subject-search'),
   );
   searchDuration.add(response.timings.duration);
   record('subject search status 200', response);
@@ -125,16 +131,17 @@ function runSubjectSearch(keyword) {
 function runProfessorSearch(keyword) {
   const response = http.get(
     `${baseUrl}/api/subjects/search/professor?keyword=${encodeURIComponent(keyword)}`,
-    { tags: { endpoint: 'subject-professor-search' } },
+    requestParams('subject-professor-search'),
   );
   professorSearchDuration.add(response.timings.duration);
   record('professor search status 200', response);
 }
 
 function runFilter(query) {
-  const response = http.get(`${baseUrl}/api/subjects/filter?${query}`, {
-    tags: { endpoint: 'subject-filter' },
-  });
+  const response = http.get(
+    `${baseUrl}/api/subjects/filter?${query}`,
+    requestParams('subject-filter'),
+  );
   filterDuration.add(response.timings.duration);
   record('filter status 200', response);
 }
@@ -146,6 +153,13 @@ function record(name, response) {
 
 function randomItem(values) {
   return values[Math.floor(Math.random() * values.length)];
+}
+
+function requestParams(endpoint) {
+  return {
+    headers: authorizationHeaders,
+    tags: { endpoint },
+  };
 }
 
 export function handleSummary(data) {
