@@ -107,7 +107,7 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> unassignedTimeIds = subjectRepository.findIdsWithFilters(
-                null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
                 true, ClassMethod.ONLINE, PageRequest.of(0, 10));
 
@@ -129,13 +129,48 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
-                null, null, null, Arrays.asList("컴퓨터공학부", "임베디드시스템공학과"), 2, null,
+                null, null, null, null, Arrays.asList("컴퓨터공학부", "임베디드시스템공학과"), 2, null,
                 null, null, null, null, null, null,
                 null, ClassMethod.ONLINE, PageRequest.of(0, 10));
 
         assertThat(subjectIds.getContent())
                 .containsExactlyInAnyOrder(computer.getId(), embedded.getId())
                 .doesNotContain(math.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersCanFilterBySemester() {
+        Subject firstSemester = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        Subject secondSemester = persistSubject("AI01001002", "2026-2", true, "화", 1.0, 3.0);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> firstSemesterIds = subjectRepository.findIdsWithFilters(
+                "2026-1", null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+
+        assertThat(firstSemesterIds.getContent())
+                .containsExactly(firstSemester.getId())
+                .doesNotContain(secondSemester.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersWithoutSemesterReturnsAllSemesters() {
+        Subject firstSemester = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        Subject secondSemester = persistSubject("AI01001002", "2026-2", true, "화", 1.0, 3.0);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
+                null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+
+        assertThat(subjectIds.getContent())
+                .containsExactlyInAnyOrder(firstSemester.getId(), secondSemester.getId());
     }
 
     @Test
@@ -206,7 +241,7 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
-                null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
                 null, ClassMethod.ONLINE, PageRequest.of(0, 10));
 

@@ -117,6 +117,7 @@ public class SubjectController {
 
     @GetMapping("/filter")
     public Page<SubjectDto> filterSubjects(
+            @RequestParam(required = false) String semester,
             @RequestParam(required = false) String subjectName,
             @RequestParam(required = false) String professor,
             @RequestParam(required = false) String department,
@@ -143,6 +144,7 @@ public class SubjectController {
 
         // 1단계: 필터로 과목 ID 조회 (페이지네이션 적용)
         Page<Long> subjectIdPage = subjectRepository.findIdsWithFilters(
+                normalizeSemester(semester),
                 subjectName, professor, normalizedDepartment, departmentListParam, normalizedDepartments.size(), dayOfWeek,
                 startTime, endTime, subjectType, grade, isNight, credits,
                 unassignedTime, ClassMethod.ONLINE, pageable);
@@ -185,6 +187,13 @@ public class SubjectController {
 
     private boolean isTooShort(String keyword) {
         return keyword == null || keyword.trim().length() < MIN_KEYWORD_LENGTH;
+    }
+
+    private String normalizeSemester(String semester) {
+        if (semester == null || semester.isBlank()) {
+            return null;
+        }
+        return semester.trim();
     }
 
     private String normalizeDepartment(String department) {
