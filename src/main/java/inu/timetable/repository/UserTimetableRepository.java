@@ -38,6 +38,12 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
     @Query("SELECT DISTINCT ut FROM UserTimetable ut JOIN FETCH ut.subject s WHERE ut.user.id = :userId AND ut.semester = :semester")
     List<UserTimetable> findByUserIdAndSemesterWithSubjectAndSchedules(@Param("userId") Long userId, @Param("semester") String semester);
 
+    // 시간 변경 충돌 검사용: 특정 과목을 해당 학기 시간표에 담아둔 모든 유저 항목을 조회한다.
+    @Query("SELECT ut FROM UserTimetable ut JOIN FETCH ut.user u " +
+           "WHERE ut.subject.id = :subjectId AND ut.semester = :semester")
+    List<UserTimetable> findAllBySubjectIdAndSemesterWithUser(@Param("subjectId") Long subjectId,
+                                                              @Param("semester") String semester);
+
     @Query("SELECT ut.subject.id AS subjectId, COUNT(DISTINCT ut.user.id) AS timetableAddCount " +
            "FROM UserTimetable ut " +
            "WHERE ut.subject.id IN :subjectIds " +

@@ -47,6 +47,8 @@ public class OfficialSubjectImportService {
 
     private final SubjectRepository subjectRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final SubjectUpdateLogService subjectUpdateLogService;
+    private final TimetableConflictResolutionService timetableConflictResolutionService;
 
     @Transactional(readOnly = true)
     public OfficialSubjectImportResponse preview(MultipartFile file, String semester) throws IOException {
@@ -84,8 +86,30 @@ public class OfficialSubjectImportService {
             }
         }
 
+        // 시간표가 바뀐 과목은 이미 담아둔 유저 시간표와 겹칠 수 있으므로 같은 트랜잭션에서 충돌을 해소한다.
+        timetableConflictResolutionService.resolveScheduleConflicts(
+                timeChangedSubjects(diff, subjectsToSave), normalizedSemester);
+
+        subjectUpdateLogService.record(
+                normalizedSemester,
+                parsed.sourceFormat(),
+                diff.addedSubjects().size(),
+                diff.modifiedSubjects().size(),
+                deactivateMissing ? diff.removed().size() : 0);
+
         eventPublisher.publishEvent(new SubjectDataChangedEvent("official-subject-import"));
         return toResponse(true, normalizedSemester, parsed.sourceFormat(), records, diff, deactivateMissing);
+    }
+
+    // diff 에서 "시간표" 필드가 변경된 기존 과목만 추린다(스케줄은 applyRecord 로 이미 새 시간으로 갱신됨).
+    private List<Subject> timeChangedSubjects(ImportDiff diff, List<Subject> subjectsToSave) {
+        Set<Long> timeChangedSubjectIds = diff.modifiedSubjects().stream()
+                .filter(item -> item.getChangedFields().contains("시간표"))
+                .map(OfficialSubjectImportResponse.ModifiedSubjectImportItem::getId)
+                .collect(Collectors.toSet());
+        return subjectsToSave.stream()
+                .filter(subject -> subject.getId() != null && timeChangedSubjectIds.contains(subject.getId()))
+                .toList();
     }
 
     private ImportDiff diff(List<OfficialSubjectRecord> records, List<Subject> candidates) {
