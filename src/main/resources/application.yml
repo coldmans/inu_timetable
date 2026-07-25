@@ -16,8 +16,8 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 30
-      minimum-idle: 10
+      maximum-pool-size: ${DB_POOL_MAXIMUM_SIZE:30}
+      minimum-idle: ${DB_POOL_MINIMUM_IDLE:10}
       connection-timeout: 20000
       idle-timeout: 300000
       max-lifetime: 600000
@@ -63,6 +63,15 @@ user:
   login:
     max-failures: ${USER_LOGIN_MAX_FAILURES:5}
     lock-minutes: ${USER_LOGIN_LOCK_MINUTES:10}
+
+subject:
+  cache:
+    maximum-size: ${SUBJECT_CACHE_MAXIMUM_SIZE:1000}
+    expire-after-write: ${SUBJECT_CACHE_EXPIRE_AFTER_WRITE:10m}
+    warm-up:
+      enabled: ${SUBJECT_CACHE_WARM_UP_ENABLED:true}
+      concurrency: ${SUBJECT_CACHE_WARM_UP_CONCURRENCY:4}
+      page-size: ${SUBJECT_CACHE_WARM_UP_PAGE_SIZE:20}
 
 # Actuator 모니터링 설정
 management:

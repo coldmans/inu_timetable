@@ -3,11 +3,13 @@ package inu.timetable.service;
 import inu.timetable.entity.Subject;
 import inu.timetable.entity.User;
 import inu.timetable.entity.UserTimetable;
+import inu.timetable.event.SubjectPopularityChangedEvent;
 import inu.timetable.exception.ApiException;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.repository.UserRepository;
 import inu.timetable.repository.UserTimetableRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,14 +21,17 @@ public class TimetableService {
     private final UserTimetableRepository userTimetableRepository;
     private final UserRepository userRepository;
     private final SubjectRepository subjectRepository;
+    private final ApplicationEventPublisher eventPublisher;
     
     @Autowired
     public TimetableService(UserTimetableRepository userTimetableRepository, 
                            UserRepository userRepository,
-                           SubjectRepository subjectRepository) {
+                           SubjectRepository subjectRepository,
+                           ApplicationEventPublisher eventPublisher) {
         this.userTimetableRepository = userTimetableRepository;
         this.userRepository = userRepository;
         this.subjectRepository = subjectRepository;
+        this.eventPublisher = eventPublisher;
     }
     
     @Transactional
@@ -55,7 +60,9 @@ public class TimetableService {
             .memo(memo)
             .build();
             
-        return userTimetableRepository.save(userTimetable);
+        UserTimetable saved = userTimetableRepository.save(userTimetable);
+        publishPopularityChanged("timetable-subject-added");
+        return saved;
     }
     
     @Transactional
@@ -64,6 +71,7 @@ public class TimetableService {
         if (deleted == 0) {
             throw ApiException.notFound("시간표에서 해당 과목을 찾을 수 없습니다.");
         }
+        publishPopularityChanged("timetable-subject-removed");
     }
     
     public List<UserTimetable> getUserTimetable(Long userId, String semester) {
@@ -96,7 +104,12 @@ public class TimetableService {
         // 전체 비우기는 멱등 연산 — 이미 비어 있어도 오류가 아니라 0건 삭제로 정상 처리한다.
         if (!timetables.isEmpty()) {
             userTimetableRepository.deleteAll(timetables);
+            publishPopularityChanged("timetable-cleared");
         }
+    }
+
+    private void publishPopularityChanged(String reason) {
+        eventPublisher.publishEvent(new SubjectPopularityChangedEvent(reason));
     }
     
     private boolean hasTimeConflict(List<UserTimetable> currentTimetable, Subject newSubject) {

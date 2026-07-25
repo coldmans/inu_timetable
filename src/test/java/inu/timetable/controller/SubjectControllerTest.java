@@ -1,12 +1,9 @@
 package inu.timetable.controller;
 
 import inu.timetable.dto.SubjectDto;
-import inu.timetable.entity.Schedule;
-import inu.timetable.entity.Subject;
-import inu.timetable.enums.ClassMethod;
-import inu.timetable.enums.SubjectType;
+import inu.timetable.dto.SubjectFilterCriteria;
 import inu.timetable.repository.SubjectRepository;
-import inu.timetable.repository.UserTimetableRepository;
+import inu.timetable.service.SubjectQueryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,11 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,123 +24,24 @@ class SubjectControllerTest {
     private SubjectRepository subjectRepository;
 
     @org.mockito.Mock
-    private UserTimetableRepository userTimetableRepository;
+    private SubjectQueryService subjectQueryService;
 
     @Test
-    void filterSubjectsIncludesTimetableAddCount() {
-        Subject popularSubject = subject(101L, "운영체제");
-        Subject emptySubject = subject(102L, "자료구조");
-        PageRequest pageRequest = PageRequest.of(0, 20);
-        SubjectController controller = new SubjectController(subjectRepository, userTimetableRepository);
-
-        when(subjectRepository.findIdsWithFilters(
-                nullable(String.class),
-                nullable(String.class),
-                nullable(String.class),
-                nullable(String.class),
-                anyList(),
-                anyInt(),
-                nullable(String.class),
-                nullable(Double.class),
-                nullable(Double.class),
-                nullable(SubjectType.class),
-                nullable(Integer.class),
-                nullable(Boolean.class),
-                nullable(Integer.class),
-                nullable(Boolean.class),
-                eq(ClassMethod.ONLINE),
-                any()))
-                .thenReturn(new PageImpl<>(List.of(101L, 102L), pageRequest, 2));
-        when(subjectRepository.findWithSchedulesByIds(List.of(101L, 102L)))
-                .thenReturn(List.of(emptySubject, popularSubject));
-        when(userTimetableRepository.countAddedUsersBySubjectIds(List.of(101L, 102L)))
-                .thenReturn(List.of(count(101L, 7L)));
+    void filterSubjectsNormalizesRequestAndDelegatesToQueryService() {
+        SubjectController controller = new SubjectController(subjectRepository, subjectQueryService);
+        SubjectFilterCriteria criteria = SubjectFilterCriteria.of(
+                " 2026-1 ", " 자료구조 ", null, "전체",
+                List.of("컴퓨터공학부, 정보통신공학과", "전체"),
+                null, null, null, null, null, null, true, null, 0, 100);
+        Page<SubjectDto> expected = new PageImpl<>(List.of(), PageRequest.of(0, 100), 0);
+        when(subjectQueryService.filterSubjects(criteria)).thenReturn(expected);
 
         Page<SubjectDto> result = controller.filterSubjects(
-                null, null, null, null, null, null, null, null,
-                null, null, null, null, null, 0, 20);
+                " 2026-1 ", " 자료구조 ", null, "전체",
+                List.of("컴퓨터공학부, 정보통신공학과", "전체"),
+                null, null, null, null, null, null, true, null, -1, 500);
 
-        assertThat(result.getTotalElements()).isEqualTo(2);
-        assertThat(result.getContent())
-                .extracting(SubjectDto::getSubjectName, SubjectDto::getTimetableAddCount, SubjectDto::getWishlistCount)
-                .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("운영체제", 7L, 7L),
-                        org.assertj.core.groups.Tuple.tuple("자료구조", 0L, 0L));
-    }
-
-    @Test
-    void filterSubjectsPassesTrimmedSemesterToRepository() {
-        Subject targetSubject = subject(201L, "운영체제");
-        PageRequest pageRequest = PageRequest.of(0, 20);
-        SubjectController controller = new SubjectController(subjectRepository, userTimetableRepository);
-
-        when(subjectRepository.findIdsWithFilters(
-                eq("2026-1"),
-                nullable(String.class),
-                nullable(String.class),
-                nullable(String.class),
-                anyList(),
-                anyInt(),
-                nullable(String.class),
-                nullable(Double.class),
-                nullable(Double.class),
-                nullable(SubjectType.class),
-                nullable(Integer.class),
-                nullable(Boolean.class),
-                nullable(Integer.class),
-                nullable(Boolean.class),
-                eq(ClassMethod.ONLINE),
-                any()))
-                .thenReturn(new PageImpl<>(List.of(201L), pageRequest, 1));
-        when(subjectRepository.findWithSchedulesByIds(List.of(201L)))
-                .thenReturn(List.of(targetSubject));
-        when(userTimetableRepository.countAddedUsersBySubjectIds(List.of(201L)))
-                .thenReturn(List.of());
-
-        Page<SubjectDto> result = controller.filterSubjects(
-                " 2026-1 ", null, null, null, null, null, null, null,
-                null, null, null, null, null, 0, 20);
-
-        assertThat(result.getTotalElements()).isEqualTo(1);
-        assertThat(result.getContent())
-                .extracting(SubjectDto::getSubjectName)
-                .containsExactly("운영체제");
-    }
-
-    private Subject subject(Long id, String subjectName) {
-        Subject subject = Subject.builder()
-                .active(true)
-                .subjectName(subjectName)
-                .credits(3)
-                .professor("테스트교수")
-                .department("컴퓨터공학부")
-                .grade(2)
-                .subjectType(SubjectType.전심)
-                .classMethod(ClassMethod.OFFLINE)
-                .isNight(false)
-                .build();
-        subject.setId(id);
-        subject.getSchedules().add(Schedule.builder()
-                .id(id)
-                .subject(subject)
-                .dayOfWeek("월")
-                .startTime(1.0)
-                .endTime(2.0)
-                .build());
-        return subject;
-    }
-
-    private UserTimetableRepository.SubjectTimetableAddCount count(Long subjectId, Long timetableAddCount) {
-        return new UserTimetableRepository.SubjectTimetableAddCount() {
-            @Override
-            public Long getSubjectId() {
-                return subjectId;
-            }
-
-            @Override
-            public Long getTimetableAddCount() {
-                return timetableAddCount;
-            }
-        };
+        assertThat(result).isSameAs(expected);
+        verify(subjectQueryService).filterSubjects(criteria);
     }
 }

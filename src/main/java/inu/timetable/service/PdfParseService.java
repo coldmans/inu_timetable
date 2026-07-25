@@ -6,6 +6,7 @@ import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
+import inu.timetable.event.SubjectDataChangedEvent;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.repository.WishlistRepository;
 import java.io.IOException;
@@ -25,6 +26,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,7 @@ public class PdfParseService {
   private final SubjectRepository subjectRepository;
   private final WishlistRepository wishlistRepository;
   private final DepartmentMappingService departmentMappingService;
+  private final ApplicationEventPublisher eventPublisher;
   private final WebClient webClient = WebClient.builder().build();
   private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -46,10 +49,12 @@ public class PdfParseService {
   @Autowired
   public PdfParseService(SubjectRepository subjectRepository,
       WishlistRepository wishlistRepository,
-      DepartmentMappingService departmentMappingService) {
+      DepartmentMappingService departmentMappingService,
+      ApplicationEventPublisher eventPublisher) {
     this.subjectRepository = subjectRepository;
     this.wishlistRepository = wishlistRepository;
     this.departmentMappingService = departmentMappingService;
+    this.eventPublisher = eventPublisher;
   }
 
   /**
@@ -88,6 +93,7 @@ public class PdfParseService {
         if (!newSubjects.isEmpty()) {
           List<Subject> savedSubjects = subjectRepository.saveAll(newSubjects);
           System.out.println("성공적으로 저장된 과목 수: " + savedSubjects.size());
+          eventPublisher.publishEvent(new SubjectDataChangedEvent("pdf-incremental-import"));
         } else {
           System.out.println("저장할 새로운 과목이 없습니다.");
         }

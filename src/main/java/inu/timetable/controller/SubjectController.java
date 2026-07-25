@@ -1,11 +1,11 @@
 package inu.timetable.controller;
 
 import inu.timetable.dto.SubjectDto;
+import inu.timetable.dto.SubjectFilterCriteria;
 import inu.timetable.entity.Subject;
-import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.SubjectRepository;
-import inu.timetable.repository.UserTimetableRepository;
+import inu.timetable.service.SubjectQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -13,15 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @RestController
 @RequestMapping("/api/subjects")
@@ -33,7 +25,7 @@ public class SubjectController {
     private static final int MIN_KEYWORD_LENGTH = 2;
 
     private final SubjectRepository subjectRepository;
-    private final UserTimetableRepository userTimetableRepository;
+    private final SubjectQueryService subjectQueryService;
 
     @GetMapping
     public Page<Subject> getAllSubjects(
@@ -45,7 +37,7 @@ public class SubjectController {
 
     @GetMapping("/count")
     public long getCount() {
-        return subjectRepository.countByActiveTrue();
+        return subjectQueryService.countActiveSubjects();
     }
 
     @GetMapping("/type/{type}")
@@ -60,12 +52,12 @@ public class SubjectController {
 
     @GetMapping("/departments")
     public List<String> getAllDepartments() {
-        return subjectRepository.findDistinctDepartments();
+        return subjectQueryService.findDistinctDepartments();
     }
 
     @GetMapping("/grades")
     public List<Integer> getAllGrades() {
-        return subjectRepository.findDistinctGrades();
+        return subjectQueryService.findDistinctGrades();
     }
 
     @GetMapping("/grade/{grade}")
@@ -86,15 +78,7 @@ public class SubjectController {
         if (isTooShort(keyword)) {
             return List.of();
         }
-        List<Subject> subjects;
-        if (grade != null) {
-            subjects = subjectRepository.findBySubjectNameContainingAndGradeAndActiveTrue(keyword, grade);
-        } else {
-            subjects = subjectRepository.findBySubjectNameContainingAndActiveTrue(keyword);
-        }
-        return subjects.stream()
-                .map(SubjectDto::from)
-                .collect(Collectors.toList());
+        return subjectQueryService.searchBySubjectName(keyword, grade);
     }
 
     @GetMapping("/search/professor")
@@ -104,15 +88,7 @@ public class SubjectController {
         if (isTooShort(keyword)) {
             return List.of();
         }
-        List<Subject> subjects;
-        if (grade != null) {
-            subjects = subjectRepository.findByProfessorContainingAndGradeAndActiveTrue(keyword, grade);
-        } else {
-            subjects = subjectRepository.findByProfessorContainingAndActiveTrue(keyword);
-        }
-        return subjects.stream()
-                .map(SubjectDto::from)
-                .collect(Collectors.toList());
+        return subjectQueryService.searchByProfessor(keyword, grade);
     }
 
     @GetMapping("/filter")
@@ -132,53 +108,10 @@ public class SubjectController {
             @RequestParam(required = false) Integer credits,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-
-        log.debug("Filtering subjects page={}, size={}", page, size);
-
-        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size));
-        String normalizedDepartment = normalizeDepartment(department);
-        List<String> normalizedDepartments = normalizeDepartments(departments);
-        List<String> departmentListParam = normalizedDepartments.isEmpty()
-                ? Collections.singletonList("__unused_department__")
-                : normalizedDepartments;
-
-        // 1단계: 필터로 과목 ID 조회 (페이지네이션 적용)
-        Page<Long> subjectIdPage = subjectRepository.findIdsWithFilters(
-                normalizeSemester(semester),
-                subjectName, professor, normalizedDepartment, departmentListParam, normalizedDepartments.size(), dayOfWeek,
-                startTime, endTime, subjectType, grade, isNight, credits,
-                unassignedTime, ClassMethod.ONLINE, pageable);
-
-        // 2단계: 조회된 ID로 과목 상세 정보와 시간표를 함께 조회
-        List<Long> subjectIds = subjectIdPage.getContent();
-        log.debug("Subject filter matched {} subject ids for current page", subjectIds.size());
-
-        if (subjectIds.isEmpty()) {
-            log.debug("Subject filter returned an empty page");
-            return new org.springframework.data.domain.PageImpl<>(new java.util.ArrayList<>(), pageable,
-                    subjectIdPage.getTotalElements());
-        }
-
-        List<Subject> subjectsWithSchedules = new ArrayList<>(subjectRepository.findWithSchedulesByIds(subjectIds));
-        Map<Long, Integer> subjectOrder = IntStream.range(0, subjectIds.size())
-                .boxed()
-                .collect(Collectors.toMap(subjectIds::get, index -> index));
-        subjectsWithSchedules.sort(Comparator.comparingInt(
-                subject -> subjectOrder.getOrDefault(subject.getId(), Integer.MAX_VALUE)));
-        log.debug("Subject filter returning {} subjects", subjectsWithSchedules.size());
-
-        Map<Long, Long> timetableAddCounts = userTimetableRepository.countAddedUsersBySubjectIds(subjectIds).stream()
-                .collect(Collectors.toMap(
-                        UserTimetableRepository.SubjectTimetableAddCount::getSubjectId,
-                        UserTimetableRepository.SubjectTimetableAddCount::getTimetableAddCount));
-
-        // DTO로 변환
-        List<SubjectDto> subjectDtos = subjectsWithSchedules.stream()
-                .map(subject -> SubjectDto.from(subject, timetableAddCounts.getOrDefault(subject.getId(), 0L)))
-                .collect(Collectors.toList());
-
-        // Page 객체는 유지하되, 내용물만 교체
-        return new org.springframework.data.domain.PageImpl<>(subjectDtos, pageable, subjectIdPage.getTotalElements());
+        return subjectQueryService.filterSubjects(SubjectFilterCriteria.of(
+                semester, subjectName, professor, department, departments, dayOfWeek,
+                startTime, endTime, subjectType, grade, isNight, unassignedTime, credits,
+                Math.max(0, page), clampSize(size)));
     }
 
     private int clampSize(int size) {
@@ -188,34 +121,4 @@ public class SubjectController {
     private boolean isTooShort(String keyword) {
         return keyword == null || keyword.trim().length() < MIN_KEYWORD_LENGTH;
     }
-
-    private String normalizeSemester(String semester) {
-        if (semester == null || semester.isBlank()) {
-            return null;
-        }
-        return semester.trim();
-    }
-
-    private String normalizeDepartment(String department) {
-        if (department == null || department.isBlank() || "전체".equals(department)) {
-            return null;
-        }
-
-        return department.trim();
-    }
-
-    private List<String> normalizeDepartments(List<String> departments) {
-        if (departments == null) {
-            return Collections.emptyList();
-        }
-
-        return departments.stream()
-                .filter(Objects::nonNull)
-                .flatMap(value -> Arrays.stream(value.split(",")))
-                .map(String::trim)
-                .filter(value -> !value.isBlank() && !"전체".equals(value))
-                .distinct()
-                .collect(Collectors.toList());
-    }
-
 }
