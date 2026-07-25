@@ -44,6 +44,7 @@ class SubjectControllerTest {
                 nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),
+                nullable(String.class),
                 anyList(),
                 anyInt(),
                 nullable(String.class),
@@ -63,7 +64,7 @@ class SubjectControllerTest {
                 .thenReturn(List.of(count(101L, 7L)));
 
         Page<SubjectDto> result = controller.filterSubjects(
-                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
                 null, null, null, null, null, 0, 20);
 
         assertThat(result.getTotalElements()).isEqualTo(2);
@@ -72,6 +73,45 @@ class SubjectControllerTest {
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("운영체제", 7L, 7L),
                         org.assertj.core.groups.Tuple.tuple("자료구조", 0L, 0L));
+    }
+
+    @Test
+    void filterSubjectsPassesTrimmedSemesterToRepository() {
+        Subject targetSubject = subject(201L, "운영체제");
+        PageRequest pageRequest = PageRequest.of(0, 20);
+        SubjectController controller = new SubjectController(subjectRepository, userTimetableRepository);
+
+        when(subjectRepository.findIdsWithFilters(
+                eq("2026-1"),
+                nullable(String.class),
+                nullable(String.class),
+                nullable(String.class),
+                anyList(),
+                anyInt(),
+                nullable(String.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(SubjectType.class),
+                nullable(Integer.class),
+                nullable(Boolean.class),
+                nullable(Integer.class),
+                nullable(Boolean.class),
+                eq(ClassMethod.ONLINE),
+                any()))
+                .thenReturn(new PageImpl<>(List.of(201L), pageRequest, 1));
+        when(subjectRepository.findWithSchedulesByIds(List.of(201L)))
+                .thenReturn(List.of(targetSubject));
+        when(userTimetableRepository.countAddedUsersBySubjectIds(List.of(201L)))
+                .thenReturn(List.of());
+
+        Page<SubjectDto> result = controller.filterSubjects(
+                " 2026-1 ", null, null, null, null, null, null, null,
+                null, null, null, null, null, 0, 20);
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent())
+                .extracting(SubjectDto::getSubjectName)
+                .containsExactly("운영체제");
     }
 
     private Subject subject(Long id, String subjectName) {
