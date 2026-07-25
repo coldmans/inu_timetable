@@ -142,6 +142,7 @@ class SubjectRepositoryIntegrationTest {
     void findIdsWithFiltersCanFilterBySemester() {
         Subject firstSemester = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
         Subject secondSemester = persistSubject("AI01001002", "2026-2", true, "화", 1.0, 3.0);
+        Subject legacySemester = persistSubject("AI01001003", null, true, "수", 1.0, 3.0);
 
         entityManager.flush();
         entityManager.clear();
@@ -152,7 +153,7 @@ class SubjectRepositoryIntegrationTest {
                 null, ClassMethod.ONLINE, PageRequest.of(0, 10));
 
         assertThat(firstSemesterIds.getContent())
-                .containsExactly(firstSemester.getId())
+                .containsExactlyInAnyOrder(firstSemester.getId(), legacySemester.getId())
                 .doesNotContain(secondSemester.getId());
     }
 
