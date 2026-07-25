@@ -29,6 +29,7 @@ import static java.util.Map.entry;
 import static inu.timetable.controller.CsrfTestSupport.fetchCsrfProof;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -231,6 +232,45 @@ class AdminSubjectControllerTest {
                 tuple("월", 5.5, 7.0),
                 tuple("목", 8.5, 10.0));
         assertSchedules(savedSubjects, "0011255002", tuple("목", 10.0, 14.0));
+    }
+
+    @Test
+    @DisplayName("학기 목록 API는 관리자 인증 없이는 거부한다")
+    void getSemestersRequiresAdminSession() throws Exception {
+        mockMvc.perform(get("/admin/api/subjects/semesters"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("학기 목록 API는 등록된 학기를 최신순으로 반환한다")
+    void getSemestersReturnsDistinctSemestersDescending() throws Exception {
+        subjectRepository.save(Subject.builder()
+                .semester("2025-2")
+                .subjectName("학기목록테스트A")
+                .credits(3)
+                .professor("교수A")
+                .subjectType(SubjectType.전심)
+                .classMethod(ClassMethod.OFFLINE)
+                .isNight(false)
+                .build());
+        subjectRepository.save(Subject.builder()
+                .semester("2026-1")
+                .subjectName("학기목록테스트B")
+                .credits(3)
+                .professor("교수B")
+                .subjectType(SubjectType.전심)
+                .classMethod(ClassMethod.OFFLINE)
+                .isNight(false)
+                .build());
+
+        String body = mockMvc.perform(get("/admin/api/subjects/semesters").session(adminSession()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        List<String> semesters = objectMapper.readValue(body, objectMapper.getTypeFactory()
+                .constructCollectionType(List.class, String.class));
+        assertThat(semesters).contains("2026-1", "2025-2");
+        assertThat(semesters).isSortedAccordingTo(java.util.Comparator.reverseOrder());
     }
 
     private MockHttpSession adminSession() {

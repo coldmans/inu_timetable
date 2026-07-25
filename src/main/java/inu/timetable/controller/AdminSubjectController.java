@@ -66,6 +66,13 @@ public class AdminSubjectController {
         return subjectAdminService.getSubject(id);
     }
 
+    // 관리자 화면의 학기 필터 옵션. 비활성 과목의 학기도 포함해 최신순으로 반환한다.
+    @GetMapping("/semesters")
+    public List<String> getSemesters(HttpServletRequest servletRequest) {
+        adminAccessGuard.requireAuthenticated(servletRequest);
+        return subjectRepository.findDistinctSemesters();
+    }
+
     @PutMapping("/{id}")
     public SubjectManagementResponse updateSubject(
             HttpServletRequest servletRequest,
