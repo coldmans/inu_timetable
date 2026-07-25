@@ -1,0 +1,7 @@
+# Cloud Run source deploy only needs the prebuilt application image inputs.
+*
+!.gcloudignore
+!Dockerfile
+!build/
+!build/libs/
+!build/libs/*.jar
