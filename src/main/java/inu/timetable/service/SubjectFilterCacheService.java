@@ -43,6 +43,7 @@ public class SubjectFilterCacheService {
         List<String> departmentListParam = departments.isEmpty()
                 ? List.of("__unused_department__")
                 : departments;
+        SubjectFilterCriteria.TimeBlockParams timeBlockParams = criteria.toTimeBlockParams();
         Page<Long> subjectIdPage = subjectRepository.findIdsWithFilters(
                 criteria.semester(),
                 criteria.subjectName(),
@@ -60,6 +61,19 @@ public class SubjectFilterCacheService {
                 criteria.credits(),
                 criteria.unassignedTime(),
                 ClassMethod.ONLINE,
+                timeBlockParams.active(),
+                timeBlockParams.monStart(),
+                timeBlockParams.monEnd(),
+                timeBlockParams.tueStart(),
+                timeBlockParams.tueEnd(),
+                timeBlockParams.wedStart(),
+                timeBlockParams.wedEnd(),
+                timeBlockParams.thuStart(),
+                timeBlockParams.thuEnd(),
+                timeBlockParams.friStart(),
+                timeBlockParams.friEnd(),
+                timeBlockParams.satStart(),
+                timeBlockParams.satEnd(),
                 pageable);
 
         List<Long> subjectIds = subjectIdPage.getContent();

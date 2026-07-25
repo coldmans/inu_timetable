@@ -31,13 +31,13 @@ class SubjectCacheWarmupServiceTest {
         verify(subjectQueryService).findDistinctDepartments();
         verify(subjectQueryService).filterSubjects(SubjectFilterCriteria.of(
                 null, null, null, null, null, List.of(),
-                null, null, null, null, null, null, null, null, 0, 20));
+                null, null, null, null, null, null, null, null, null, 0, 20));
         verify(subjectQueryService).filterSubjects(SubjectFilterCriteria.of(
                 null, null, null, null, null, List.of(),
-                null, null, null, null, 1, null, null, null, 0, 20));
+                null, null, null, null, 1, null, null, null, null, 0, 20));
         verify(subjectQueryService).filterSubjects(SubjectFilterCriteria.of(
                 null, null, null, null, null, List.of(),
-                null, null, null, null, 2, null, null, null, 0, 20));
+                null, null, null, null, 2, null, null, null, null, 0, 20));
     }
 
     @Test
@@ -64,7 +64,7 @@ class SubjectCacheWarmupServiceTest {
         assertThat(result.succeeded()).isEqualTo(3);
         verify(subjectQueryService).filterSubjects(SubjectFilterCriteria.of(
                 null, null, null, null, null, List.of(),
-                null, null, null, null, null, null, null, null, 0,
+                null, null, null, null, null, null, null, null, null, 0,
                 SubjectFilterCacheService.MAX_CACHEABLE_PAGE_SIZE));
     }
 }

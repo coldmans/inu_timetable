@@ -16,6 +16,19 @@ import java.util.Optional;
 @Repository
 public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
+        // 시간 블록 완전 포함 필터.
+        // 과목의 모든 스케줄이 요일별 선택 구간 안에 완전히 포함되어야 한다(위반 스케줄이 하나도 없어야 함).
+        // 스케줄이 없는 과목(온라인 등)은 NOT EXISTS 가 자동으로 만족되어 포함된다.
+        String TIME_BLOCK_CONTAINMENT_CLAUSE = " AND (:timeBlocksActive = false OR NOT EXISTS (" +
+                        "SELECT 1 FROM Schedule vs WHERE vs.subject = s AND NOT (" +
+                        "(vs.dayOfWeek = '월' AND :monStart IS NOT NULL AND vs.startTime >= :monStart AND vs.endTime <= :monEnd) " +
+                        "OR (vs.dayOfWeek = '화' AND :tueStart IS NOT NULL AND vs.startTime >= :tueStart AND vs.endTime <= :tueEnd) " +
+                        "OR (vs.dayOfWeek = '수' AND :wedStart IS NOT NULL AND vs.startTime >= :wedStart AND vs.endTime <= :wedEnd) " +
+                        "OR (vs.dayOfWeek = '목' AND :thuStart IS NOT NULL AND vs.startTime >= :thuStart AND vs.endTime <= :thuEnd) " +
+                        "OR (vs.dayOfWeek = '금' AND :friStart IS NOT NULL AND vs.startTime >= :friStart AND vs.endTime <= :friEnd) " +
+                        "OR (vs.dayOfWeek = '토' AND :satStart IS NOT NULL AND vs.startTime >= :satStart AND vs.endTime <= :satEnd)" +
+                        "))) ";
+
         List<Subject> findBySubjectType(SubjectType subjectType);
 
         List<Subject> findBySubjectTypeAndActiveTrue(SubjectType subjectType);
@@ -87,6 +100,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "AND (:dayOfWeek IS NULL OR sch.dayOfWeek = :dayOfWeek) " +
                         "AND (:startTime IS NULL OR sch.startTime >= :startTime) " +
                         "AND (:endTime IS NULL OR sch.endTime <= :endTime) " +
+                        TIME_BLOCK_CONTAINMENT_CLAUSE +
                         "GROUP BY s.id " +
                         "ORDER BY COUNT(DISTINCT ut.user.id) DESC, s.id ASC", countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch "
                                         +
@@ -105,7 +119,8 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                                         "(:unassignedTime = true AND (s.classMethod = :onlineClassMethod OR sch.id IS NULL))) " +
                                         "AND (:dayOfWeek IS NULL OR sch.dayOfWeek = :dayOfWeek) " +
                                         "AND (:startTime IS NULL OR sch.startTime >= :startTime) " +
-                                        "AND (:endTime IS NULL OR sch.endTime <= :endTime)")
+                                        "AND (:endTime IS NULL OR sch.endTime <= :endTime)" +
+                                        TIME_BLOCK_CONTAINMENT_CLAUSE)
         Page<Long> findIdsWithFilters(
                         @Param("semester") String semester,
                         @Param("subjectName") String subjectName,
@@ -123,6 +138,19 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         @Param("credits") Integer credits,
                         @Param("unassignedTime") Boolean unassignedTime,
                         @Param("onlineClassMethod") ClassMethod onlineClassMethod,
+                        @Param("timeBlocksActive") boolean timeBlocksActive,
+                        @Param("monStart") Double monStart,
+                        @Param("monEnd") Double monEnd,
+                        @Param("tueStart") Double tueStart,
+                        @Param("tueEnd") Double tueEnd,
+                        @Param("wedStart") Double wedStart,
+                        @Param("wedEnd") Double wedEnd,
+                        @Param("thuStart") Double thuStart,
+                        @Param("thuEnd") Double thuEnd,
+                        @Param("friStart") Double friStart,
+                        @Param("friEnd") Double friEnd,
+                        @Param("satStart") Double satStart,
+                        @Param("satEnd") Double satEnd,
                         Pageable pageable);
 
         @Query("SELECT DISTINCT s FROM Subject s LEFT JOIN FETCH s.schedules WHERE s.active = true AND s.id IN :subjectIds")

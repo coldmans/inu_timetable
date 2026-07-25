@@ -107,12 +107,13 @@ public class SubjectController {
             @RequestParam(required = false) Boolean isNight,
             @RequestParam(required = false) Boolean unassignedTime,
             @RequestParam(required = false) Integer credits,
+            @RequestParam(required = false) List<String> timeBlocks,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return subjectQueryService.filterSubjects(SubjectFilterCriteria.of(
                 semester, subjectName, professor, courseCode, department, departments, dayOfWeek,
                 startTime, endTime, subjectType, grade, isNight, unassignedTime, credits,
-                Math.max(0, page), clampSize(size)));
+                timeBlocks, Math.max(0, page), clampSize(size)));
     }
 
     private int clampSize(int size) {
