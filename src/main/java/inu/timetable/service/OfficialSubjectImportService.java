@@ -177,6 +177,9 @@ public class OfficialSubjectImportService {
             Sheet sheet = workbook.getSheetAt(0);
             DataFormatter formatter = new DataFormatter();
             HeaderInfo headerInfo = findHeader(sheet, formatter);
+            // 공식 종합강의시간표는 "시간표(교시)", 강의계획서 조회는 "시간표" 헤더를 쓴다.
+            Integer timetableColumn = headerInfo.column("시간표(교시)", "시간표");
+            validateFileSemester(sheet, headerInfo, semester, formatter);
             List<OfficialSubjectRecord> records = new ArrayList<>();
             Set<String> courseCodes = new LinkedHashSet<>();
             Set<String> duplicateCourseCodes = new LinkedHashSet<>();
@@ -211,8 +214,8 @@ public class OfficialSubjectImportService {
                         parseGrade(cellValue(row, headerInfo.column("학년"), formatter)),
                         parseSubjectType(cellValue(row, headerInfo.column("이수구분"), formatter)),
                         parseClassMethod(cellValue(row, headerInfo.optionalColumn("수업유형", "수업구분", "수업방법"), formatter)),
-                        hasNightSchedule(cellValue(row, headerInfo.column("시간표(교시)"), formatter)),
-                        parseSchedules(cellValue(row, headerInfo.column("시간표(교시)"), formatter))));
+                        hasNightSchedule(cellValue(row, timetableColumn, formatter)),
+                        parseSchedules(cellValue(row, timetableColumn, formatter))));
             }
 
             if (!duplicateCourseCodes.isEmpty()) {
@@ -220,6 +223,31 @@ public class OfficialSubjectImportService {
                         "중복 학수번호가 있습니다: " + String.join(", ", duplicateCourseCodes));
             }
             return records;
+        }
+    }
+
+    // 강의계획서 조회 파일에는 년도/학기 컬럼이 있으므로, 업로드 시 선택한 학기와
+    // 파일 데이터의 학기가 다르면 잘못된 학기로 반영되는 사고를 막기 위해 거부한다.
+    private void validateFileSemester(Sheet sheet, HeaderInfo headerInfo, String semester, DataFormatter formatter) {
+        Integer yearColumn = headerInfo.optionalColumn("년도");
+        Integer termColumn = headerInfo.optionalColumn("학기");
+        if (yearColumn == null || termColumn == null) {
+            return;
+        }
+
+        for (int rowIndex = headerInfo.rowIndex() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            String year = cellValue(row, yearColumn, formatter).replaceAll("[^0-9]", "");
+            String term = cellValue(row, termColumn, formatter).replaceAll("[^0-9]", "");
+            if (!hasText(year) || !hasText(term)) {
+                continue;
+            }
+            String fileSemester = year + "-" + term;
+            if (!fileSemester.equals(semester)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "파일의 학기(" + fileSemester + ")와 업로드 학기(" + semester + ")가 다릅니다.");
+            }
+            return;
         }
     }
 
@@ -518,6 +546,7 @@ public class OfficialSubjectImportService {
         }
         if (normalized.contains("ONLINE")
                 || normalized.contains("E-LEARNING")
+                || normalized.contains("MOOC")
                 || normalized.contains("온라인")
                 || normalized.contains("비대면")) {
             return ClassMethod.ONLINE;
@@ -541,8 +570,16 @@ public class OfficialSubjectImportService {
         if (!hasText(credits)) {
             return 0;
         }
-        String numeric = credits.replaceAll("[^0-9]", "");
-        return hasText(numeric) ? Integer.parseInt(numeric) : 0;
+        // 강의계획서 조회 파일은 "3.0"처럼 소수점으로 표기된다. 소수점을 버리면 30이 되므로 실수로 파싱한다.
+        String numeric = credits.replaceAll("[^0-9.]", "");
+        if (!hasText(numeric)) {
+            return 0;
+        }
+        try {
+            return (int) Math.round(Double.parseDouble(numeric));
+        } catch (NumberFormatException exception) {
+            return 0;
+        }
     }
 
     private boolean hasNightSchedule(String timeSchedule) {
@@ -577,12 +614,15 @@ public class OfficialSubjectImportService {
     }
 
     private record HeaderInfo(int rowIndex, Map<String, Integer> columns) {
-        Integer column(String name) {
-            Integer index = columns.get(name);
-            if (index == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "필수 컬럼이 없습니다: " + name);
+        // 이름 후보를 순서대로 조회한다(파일 형식별 헤더 표기 차이 흡수).
+        Integer column(String... names) {
+            for (String name : names) {
+                Integer index = columns.get(name);
+                if (index != null) {
+                    return index;
+                }
             }
-            return index;
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "필수 컬럼이 없습니다: " + String.join("/", names));
         }
 
         Integer optionalColumn(String... names) {
