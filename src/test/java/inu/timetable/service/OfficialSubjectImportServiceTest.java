@@ -29,7 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,11 +43,18 @@ class OfficialSubjectImportServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private SubjectUpdateLogService subjectUpdateLogService;
+
+    @Mock
+    private TimetableConflictResolutionService timetableConflictResolutionService;
+
     private OfficialSubjectImportService officialSubjectImportService;
 
     @BeforeEach
     void setUp() {
-        officialSubjectImportService = new OfficialSubjectImportService(subjectRepository, eventPublisher);
+        officialSubjectImportService = new OfficialSubjectImportService(
+                subjectRepository, eventPublisher, subjectUpdateLogService, timetableConflictResolutionService);
     }
 
     @Test
@@ -64,6 +73,44 @@ class OfficialSubjectImportServiceTest {
         assertThat(response.getRemovedCount()).isEqualTo(1);
         assertThat(response.getUnchangedCount()).isZero();
         assertThat(response.getModifiedSubjects().get(0).getChangedFields()).contains("담당교수");
+        // preview 는 반영이 아니므로 일지 기록/충돌 해소를 수행하지 않는다.
+        verifyNoInteractions(subjectUpdateLogService, timetableConflictResolutionService);
+    }
+
+    @Test
+    void applyRecordsSubjectUpdateLogOnce() throws Exception {
+        Subject existing = subject("AI01001001", "기존교수", true);
+        Subject removed = subject("OLD0000001", "이전교수", true);
+        when(subjectRepository.findImportCandidatesBySemester("2026-1"))
+                .thenReturn(List.of(existing, removed));
+
+        officialSubjectImportService.apply(sampleWorkbook(), "2026-1", true);
+
+        // added=새과목 1, modified=기존과목 1, removed=엑셀에서 빠진 과목 1
+        verify(subjectUpdateLogService).record("2026-1", "OFFICIAL_TIMETABLE", 1, 1, 1);
+    }
+
+    @Test
+    void applyResolvesConflictsOnlyForScheduleChangedSubjects() throws Exception {
+        // 기존 월4-7 → 엑셀 금5-9 이므로 시간표가 변경되는 과목.
+        Subject timeChanged = subject("AI01001001", "신규교수", true);
+        // 엑셀 레코드와 완전히 동일해 아무 것도 변경되지 않는 과목.
+        Subject unchanged = unchangedSecondRowSubject();
+        when(subjectRepository.findImportCandidatesBySemester("2026-1"))
+                .thenReturn(List.of(timeChanged, unchanged));
+
+        officialSubjectImportService.apply(sampleWorkbook(), "2026-1", true);
+
+        ArgumentCaptor<List<Subject>> captor = ArgumentCaptor.forClass(List.class);
+        verify(timetableConflictResolutionService).resolveScheduleConflicts(captor.capture(), eq("2026-1"));
+        assertThat(captor.getValue())
+                .extracting(Subject::getCourseCode)
+                .containsExactly("AI01001001");
+        // 충돌 검사 대상 과목의 스케줄은 이미 '새' 시간으로 갱신되어 있어야 한다.
+        Subject passed = captor.getValue().get(0);
+        assertThat(passed.getSchedules())
+                .extracting(Schedule::getDayOfWeek)
+                .containsExactly("금");
     }
 
     @Test
@@ -262,6 +309,32 @@ class OfficialSubjectImportServiceTest {
         row.createCell(11).setCellValue(time);
         row.createCell(14).setCellValue(credits);
         row.createCell(16).setCellValue(classMethod);
+    }
+
+    // sampleWorkbook 의 2번째 행(AI01001002)과 완전히 동일한 기존 과목(변경 없음 케이스용).
+    private Subject unchangedSecondRowSubject() {
+        Subject subject = Subject.builder()
+                .id(2L)
+                .courseCode("AI01001002")
+                .semester("2026-1")
+                .active(true)
+                .subjectName("새과목")
+                .credits(3)
+                .professor("새교수")
+                .department("컴퓨터공학부")
+                .grade(2)
+                .subjectType(SubjectType.전심)
+                .classMethod(ClassMethod.OFFLINE)
+                .isNight(false)
+                .schedules(new ArrayList<>())
+                .build();
+        subject.getSchedules().add(Schedule.builder()
+                .subject(subject)
+                .dayOfWeek("화")
+                .startTime(7.0)
+                .endTime(8.0)
+                .build());
+        return subject;
     }
 
     private Subject subject(String courseCode, String professor, boolean active) {

@@ -92,6 +92,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/dev/**").permitAll()
                         .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
                         .requestMatchers("/api/wishlist/**", "/api/timetable/**", "/api/timetable-combination/**").authenticated()
+                        .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/subjects/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/settings/current-semester").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/events").permitAll()
