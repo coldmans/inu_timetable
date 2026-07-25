@@ -107,13 +107,29 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> unassignedTimeIds = subjectRepository.findIdsWithFilters(
-                null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
                 true, ClassMethod.ONLINE, PageRequest.of(0, 10));
 
         assertThat(unassignedTimeIds.getContent())
                 .containsExactlyInAnyOrder(unscheduledOffline.getId(), scheduledOnline.getId())
                 .doesNotContain(scheduledOffline.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersCanSearchByCourseCode() {
+        Subject matched = persistSubject("AIA6086001", "2026-1", true, "월", 4.0, 7.0);
+        persistSubject("XYZ0000001", "2026-1", true, "화", 1.0, 3.0);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
+                null, null, null, "AIA6086", null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+
+        assertThat(subjectIds.getContent()).containsExactly(matched.getId());
     }
 
     @Test
@@ -129,7 +145,7 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
-                null, null, null, null, Arrays.asList("컴퓨터공학부", "임베디드시스템공학과"), 2, null,
+                null, null, null, null, null, Arrays.asList("컴퓨터공학부", "임베디드시스템공학과"), 2, null,
                 null, null, null, null, null, null,
                 null, ClassMethod.ONLINE, PageRequest.of(0, 10));
 
@@ -148,7 +164,7 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> firstSemesterIds = subjectRepository.findIdsWithFilters(
-                "2026-1", null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                "2026-1", null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
                 null, ClassMethod.ONLINE, PageRequest.of(0, 10));
 
@@ -166,7 +182,7 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
-                null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
                 null, ClassMethod.ONLINE, PageRequest.of(0, 10));
 
@@ -242,7 +258,7 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
-                null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
                 null, ClassMethod.ONLINE, PageRequest.of(0, 10));
 
