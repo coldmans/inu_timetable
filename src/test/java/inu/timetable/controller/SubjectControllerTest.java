@@ -30,14 +30,14 @@ class SubjectControllerTest {
     void filterSubjectsNormalizesRequestAndDelegatesToQueryService() {
         SubjectController controller = new SubjectController(subjectRepository, subjectQueryService);
         SubjectFilterCriteria criteria = SubjectFilterCriteria.of(
-                " 2026-1 ", " 자료구조 ", null, "전체",
+                " 2026-1 ", " 자료구조 ", null, null, "전체",
                 List.of("컴퓨터공학부, 정보통신공학과", "전체"),
                 null, null, null, null, null, null, true, null, 0, 100);
         Page<SubjectDto> expected = new PageImpl<>(List.of(), PageRequest.of(0, 100), 0);
         when(subjectQueryService.filterSubjects(criteria)).thenReturn(expected);
 
         Page<SubjectDto> result = controller.filterSubjects(
-                " 2026-1 ", " 자료구조 ", null, "전체",
+                " 2026-1 ", " 자료구조 ", null, null, "전체",
                 List.of("컴퓨터공학부, 정보통신공학과", "전체"),
                 null, null, null, null, null, null, true, null, -1, 500);
 

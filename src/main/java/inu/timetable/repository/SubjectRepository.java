@@ -75,6 +75,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "AND (:semester IS NULL OR s.semester = :semester OR s.semester IS NULL) " +
                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
+					"AND (:courseCode IS NULL OR s.courseCode LIKE %:courseCode%) " +
                         "AND (:department IS NULL OR s.department LIKE %:department%) " +
                         "AND (:departmentCount = 0 OR s.department IN :departments) " +
                         "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
@@ -93,6 +94,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                                         "AND (:semester IS NULL OR s.semester = :semester OR s.semester IS NULL) " +
                                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
+					"AND (:courseCode IS NULL OR s.courseCode LIKE %:courseCode%) " +
                                         "AND (:department IS NULL OR s.department LIKE %:department%) " +
                                         "AND (:departmentCount = 0 OR s.department IN :departments) " +
                                         "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
@@ -108,6 +110,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         @Param("semester") String semester,
                         @Param("subjectName") String subjectName,
                         @Param("professor") String professor,
+                        @Param("courseCode") String courseCode,
                         @Param("department") String department,
                         @Param("departments") List<String> departments,
                         @Param("departmentCount") int departmentCount,

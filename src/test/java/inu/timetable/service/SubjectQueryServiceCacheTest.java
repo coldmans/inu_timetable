@@ -108,10 +108,11 @@ class SubjectQueryServiceCacheTest {
     void filterSubjectsCachesSameCriteriaUntilRelevantDataChanges() {
         Pageable pageable = PageRequest.of(0, 20);
         SubjectFilterCriteria criteria = SubjectFilterCriteria.of(
-                "2026-1", "자료", null, "컴퓨터공학부", List.of(),
+                "2026-1", "자료", null, null, "컴퓨터공학부", List.of(),
                 null, null, null, SubjectType.전심, 2, null, null, null, 0, 20);
         when(subjectRepository.findIdsWithFilters(
                 eq("2026-1"),
+                nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),
@@ -135,13 +136,14 @@ class SubjectQueryServiceCacheTest {
 
         Page<SubjectDto> first = subjectQueryService.filterSubjects(criteria);
         Page<SubjectDto> second = subjectQueryService.filterSubjects(SubjectFilterCriteria.of(
-                "2026-1", "자료", null, "컴퓨터공학부", List.of(),
+                "2026-1", "자료", null, null, "컴퓨터공학부", List.of(),
                 null, null, null, SubjectType.전심, 2, null, null, null, 0, 20));
 
         assertThat(first.getContent()).extracting(SubjectDto::getTimetableAddCount).containsExactly(7L);
         assertThat(second.getContent()).extracting(SubjectDto::getTimetableAddCount).containsExactly(7L);
         verify(subjectRepository, times(1)).findIdsWithFilters(
                 eq("2026-1"),
+                nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),
@@ -169,6 +171,7 @@ class SubjectQueryServiceCacheTest {
                 nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),
+                nullable(String.class),
                 anyList(),
                 anyInt(),
                 nullable(String.class),
@@ -189,9 +192,10 @@ class SubjectQueryServiceCacheTest {
     void filterSubjectsClampsAndCachesOversizedPages() {
         Pageable pageable = PageRequest.of(0, SubjectFilterCacheService.MAX_CACHEABLE_PAGE_SIZE);
         SubjectFilterCriteria criteria = SubjectFilterCriteria.of(
-                null, null, null, null, List.of(),
+                null, null, null, null, null, List.of(),
                 null, null, null, null, null, null, null, null, 0, 101);
         when(subjectRepository.findIdsWithFilters(
+                nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),
@@ -215,6 +219,7 @@ class SubjectQueryServiceCacheTest {
 
         assertThat(criteria.size()).isEqualTo(SubjectFilterCacheService.MAX_CACHEABLE_PAGE_SIZE);
         verify(subjectRepository, times(1)).findIdsWithFilters(
+                nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),
                 nullable(String.class),

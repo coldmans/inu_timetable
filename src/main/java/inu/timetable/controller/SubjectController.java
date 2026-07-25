@@ -96,6 +96,7 @@ public class SubjectController {
             @RequestParam(required = false) String semester,
             @RequestParam(required = false) String subjectName,
             @RequestParam(required = false) String professor,
+            @RequestParam(required = false) String courseCode,
             @RequestParam(required = false) String department,
             @RequestParam(required = false) List<String> departments,
             @RequestParam(required = false) String dayOfWeek,
@@ -109,7 +110,7 @@ public class SubjectController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return subjectQueryService.filterSubjects(SubjectFilterCriteria.of(
-                semester, subjectName, professor, department, departments, dayOfWeek,
+                semester, subjectName, professor, courseCode, department, departments, dayOfWeek,
                 startTime, endTime, subjectType, grade, isNight, unassignedTime, credits,
                 Math.max(0, page), clampSize(size)));
     }

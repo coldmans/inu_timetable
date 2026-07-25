@@ -47,6 +47,7 @@ public class SubjectFilterCacheService {
                 criteria.semester(),
                 criteria.subjectName(),
                 criteria.professor(),
+                criteria.courseCode(),
                 criteria.department(),
                 departmentListParam,
                 departments.size(),
