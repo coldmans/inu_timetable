@@ -109,7 +109,9 @@ class SubjectRepositoryIntegrationTest {
         Page<Long> unassignedTimeIds = subjectRepository.findIdsWithFilters(
                 null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
-                true, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                true, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(unassignedTimeIds.getContent())
                 .containsExactlyInAnyOrder(unscheduledOffline.getId(), scheduledOnline.getId())
@@ -127,7 +129,9 @@ class SubjectRepositoryIntegrationTest {
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
                 null, null, null, "AIA6086", null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
-                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(subjectIds.getContent()).containsExactly(matched.getId());
     }
@@ -147,7 +151,9 @@ class SubjectRepositoryIntegrationTest {
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
                 null, null, null, null, null, Arrays.asList("컴퓨터공학부", "임베디드시스템공학과"), 2, null,
                 null, null, null, null, null, null,
-                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(subjectIds.getContent())
                 .containsExactlyInAnyOrder(computer.getId(), embedded.getId())
@@ -166,7 +172,9 @@ class SubjectRepositoryIntegrationTest {
         Page<Long> firstSemesterIds = subjectRepository.findIdsWithFilters(
                 "2026-1", null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
-                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(firstSemesterIds.getContent())
                 .containsExactlyInAnyOrder(firstSemester.getId(), legacySemester.getId())
@@ -184,10 +192,67 @@ class SubjectRepositoryIntegrationTest {
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
                 null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
-                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(subjectIds.getContent())
                 .containsExactlyInAnyOrder(firstSemester.getId(), secondSemester.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersKeepsOnlySubjectsFullyContainedInTimeBlocks() {
+        // 사용자 시나리오: 수 12~18시(4~10교시), 금 12~17시(4~9교시) 선택
+        Subject fridayContained = persistSubject("AI01001001", "2026-1", true, "금", 7.0, 9.0);
+        Subject tuesdayOnly = persistSubject("AI01001002", "2026-1", true, "화", 1.0, 2.0);
+        Subject fridayOverflow = persistSubject("AI01001003", "2026-1", true, "수", 5.0, 7.0);
+        persistSchedule(fridayOverflow, "금", 8.0, 10.0);
+        Subject unscheduled = persistSubject("AI01001004", "2026-1", true, null, null, null);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = findIdsWithWedFriTimeBlocks(4.0, 10.0, 4.0, 9.0);
+
+        assertThat(subjectIds.getContent())
+                .containsExactlyInAnyOrder(fridayContained.getId(), unscheduled.getId())
+                .doesNotContain(tuesdayOnly.getId(), fridayOverflow.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersWithoutTimeBlocksReturnsAllActiveSubjects() {
+        Subject monday = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        Subject tuesday = persistSubject("AI01001002", "2026-1", true, "화", 1.0, 2.0);
+        Subject unscheduled = persistSubject("AI01001003", "2026-1", true, null, null, null);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
+
+        assertThat(subjectIds.getContent())
+                .containsExactlyInAnyOrder(monday.getId(), tuesday.getId(), unscheduled.getId());
+    }
+
+    private Page<Long> findIdsWithWedFriTimeBlocks(
+            Double wedStart, Double wedEnd, Double friStart, Double friEnd) {
+        return subjectRepository.findIdsWithFilters(
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE,
+                true,
+                null, null,
+                null, null,
+                wedStart, wedEnd,
+                null, null,
+                friStart, friEnd,
+                null, null,
+                PageRequest.of(0, 10));
     }
 
     @Test
@@ -260,7 +325,9 @@ class SubjectRepositoryIntegrationTest {
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
                 null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
-                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(subjectIds.getContent())
                 .containsExactly(popular.getId(), multiSchedule.getId(), quiet.getId());

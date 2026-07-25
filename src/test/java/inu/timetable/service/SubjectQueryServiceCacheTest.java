@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -109,7 +110,7 @@ class SubjectQueryServiceCacheTest {
         Pageable pageable = PageRequest.of(0, 20);
         SubjectFilterCriteria criteria = SubjectFilterCriteria.of(
                 "2026-1", "자료", null, null, "컴퓨터공학부", List.of(),
-                null, null, null, SubjectType.전심, 2, null, null, null, 0, 20);
+                null, null, null, SubjectType.전심, 2, null, null, null, null, 0, 20);
         when(subjectRepository.findIdsWithFilters(
                 eq("2026-1"),
                 nullable(String.class),
@@ -127,6 +128,19 @@ class SubjectQueryServiceCacheTest {
                 nullable(Integer.class),
                 nullable(Boolean.class),
                 nullable(ClassMethod.class),
+                anyBoolean(),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
                 any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(1L), pageable, 1));
         when(subjectRepository.findWithSchedulesByIds(List.of(1L)))
@@ -137,7 +151,7 @@ class SubjectQueryServiceCacheTest {
         Page<SubjectDto> first = subjectQueryService.filterSubjects(criteria);
         Page<SubjectDto> second = subjectQueryService.filterSubjects(SubjectFilterCriteria.of(
                 "2026-1", "자료", null, null, "컴퓨터공학부", List.of(),
-                null, null, null, SubjectType.전심, 2, null, null, null, 0, 20));
+                null, null, null, SubjectType.전심, 2, null, null, null, null, 0, 20));
 
         assertThat(first.getContent()).extracting(SubjectDto::getTimetableAddCount).containsExactly(7L);
         assertThat(second.getContent()).extracting(SubjectDto::getTimetableAddCount).containsExactly(7L);
@@ -158,6 +172,19 @@ class SubjectQueryServiceCacheTest {
                 nullable(Integer.class),
                 nullable(Boolean.class),
                 nullable(ClassMethod.class),
+                anyBoolean(),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
                 any(Pageable.class));
         verify(subjectRepository, times(1)).findWithSchedulesByIds(List.of(1L));
         verify(userTimetableRepository, times(1)).countAddedUsersBySubjectIds(List.of(1L));
@@ -183,6 +210,19 @@ class SubjectQueryServiceCacheTest {
                 nullable(Integer.class),
                 nullable(Boolean.class),
                 nullable(ClassMethod.class),
+                anyBoolean(),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
                 any(Pageable.class));
         verify(subjectRepository, times(2)).findWithSchedulesByIds(List.of(1L));
         verify(userTimetableRepository, times(2)).countAddedUsersBySubjectIds(List.of(1L));
@@ -193,7 +233,7 @@ class SubjectQueryServiceCacheTest {
         Pageable pageable = PageRequest.of(0, SubjectFilterCacheService.MAX_CACHEABLE_PAGE_SIZE);
         SubjectFilterCriteria criteria = SubjectFilterCriteria.of(
                 null, null, null, null, null, List.of(),
-                null, null, null, null, null, null, null, null, 0, 101);
+                null, null, null, null, null, null, null, null, null, 0, 101);
         when(subjectRepository.findIdsWithFilters(
                 nullable(String.class),
                 nullable(String.class),
@@ -211,6 +251,19 @@ class SubjectQueryServiceCacheTest {
                 nullable(Integer.class),
                 nullable(Boolean.class),
                 nullable(ClassMethod.class),
+                anyBoolean(),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
                 any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
@@ -235,6 +288,19 @@ class SubjectQueryServiceCacheTest {
                 nullable(Integer.class),
                 nullable(Boolean.class),
                 nullable(ClassMethod.class),
+                anyBoolean(),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
+                nullable(Double.class),
                 any(Pageable.class));
     }
 

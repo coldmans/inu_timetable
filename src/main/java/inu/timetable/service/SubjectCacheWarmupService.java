@@ -91,7 +91,7 @@ public class SubjectCacheWarmupService {
         tasks.add(new WarmupTask("default-filter", () -> {
             subjectQueryService.filterSubjects(SubjectFilterCriteria.of(
                     null, null, null, null, null, List.of(), null,
-                    null, null, null, null, null, null, null, 0, pageSize));
+                    null, null, null, null, null, null, null, null, 0, pageSize));
             return "default-filter";
         }));
 
@@ -99,7 +99,7 @@ public class SubjectCacheWarmupService {
             tasks.add(new WarmupTask("grade-filter-" + grade, () -> {
                 subjectQueryService.filterSubjects(SubjectFilterCriteria.of(
                         null, null, null, null, null, List.of(), null,
-                        null, null, null, grade, null, null, null, 0, pageSize));
+                        null, null, null, grade, null, null, null, null, 0, pageSize));
                 return "grade-filter-" + grade;
             }));
         }
