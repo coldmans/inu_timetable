@@ -72,7 +72,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "LEFT JOIN s.schedules sch " +
                         "LEFT JOIN UserTimetable ut ON ut.subject = s " +
                         "WHERE s.active = true " +
-                        "AND (:semester IS NULL OR s.semester = :semester) " +
+                        "AND (:semester IS NULL OR s.semester = :semester OR s.semester IS NULL) " +
                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
                         "AND (:department IS NULL OR s.department LIKE %:department%) " +
@@ -90,7 +90,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "ORDER BY COUNT(DISTINCT ut.user.id) DESC, s.id ASC", countQuery = "SELECT count(DISTINCT s.id) FROM Subject s LEFT JOIN s.schedules sch "
                                         +
                                         "WHERE s.active = true " +
-                                        "AND (:semester IS NULL OR s.semester = :semester) " +
+                                        "AND (:semester IS NULL OR s.semester = :semester OR s.semester IS NULL) " +
                                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
                                         "AND (:department IS NULL OR s.department LIKE %:department%) " +
