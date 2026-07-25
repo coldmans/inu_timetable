@@ -223,7 +223,7 @@ k6가 `exit 99`로 종료된 실험은 기능 실패를 뜻하지 않는다. 이
 ## 검증
 
 - `./gradlew clean test bootJar`
-- 129 tests, 0 failures, 0 errors, 2 skipped
+- 141 tests, 0 failures, 0 errors, 2 skipped
 - 싱가포르/서울 10개 테이블 행 수 및 전체 행 해시 일치
 - 9개 시퀀스 값, Flyway 이력, 제약조건 상태 일치
 - 비인증 벤치마크 서비스 요청: HTTP 403
