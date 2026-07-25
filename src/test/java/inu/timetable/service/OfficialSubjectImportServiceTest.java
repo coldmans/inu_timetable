@@ -23,7 +23,10 @@ import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.web.server.ResponseStatusException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.verify;
@@ -106,6 +109,105 @@ class OfficialSubjectImportServiceTest {
         assertThat(schedule.getDayOfWeek()).isEqualTo("금");
         assertThat(schedule.getStartTime()).isEqualTo(5.0);
         assertThat(schedule.getEndTime()).isEqualTo(9.0);
+    }
+
+    @Test
+    void previewParsesSyllabusFormatWorkbook() throws Exception {
+        when(subjectRepository.findImportCandidatesBySemester("2026-1")).thenReturn(List.of());
+
+        OfficialSubjectImportResponse response = officialSubjectImportService.preview(syllabusWorkbook(), "2026-1");
+
+        assertThat(response.getTotalRows()).isEqualTo(2);
+        assertThat(response.getAddedCount()).isEqualTo(2);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void applyParsesSyllabusFormatValues() throws Exception {
+        when(subjectRepository.findImportCandidatesBySemester("2026-1")).thenReturn(List.of());
+
+        officialSubjectImportService.apply(syllabusWorkbook(), "2026-1", true);
+
+        ArgumentCaptor<List<Subject>> captor = ArgumentCaptor.forClass(List.class);
+        verify(subjectRepository).saveAll(captor.capture());
+        List<Subject> saved = captor.getValue();
+
+        Subject offline = saved.stream()
+                .filter(subject -> "HS90001001".equals(subject.getCourseCode()))
+                .findFirst().orElseThrow();
+        // 강의계획서 학점 표기 "3.0" 은 30이 아니라 3으로 파싱되어야 한다.
+        assertThat(offline.getCredits()).isEqualTo(3);
+        assertThat(offline.getSubjectType()).isEqualTo(SubjectType.전심);
+        assertThat(offline.getClassMethod()).isEqualTo(ClassMethod.OFFLINE);
+        assertThat(offline.getSchedules()).hasSize(1);
+        Schedule schedule = offline.getSchedules().get(0);
+        assertThat(schedule.getDayOfWeek()).isEqualTo("목");
+        assertThat(schedule.getStartTime()).isEqualTo(2.0);
+        assertThat(schedule.getEndTime()).isEqualTo(5.0);
+
+        Subject mooc = saved.stream()
+                .filter(subject -> "HS90002001".equals(subject.getCourseCode()))
+                .findFirst().orElseThrow();
+        assertThat(mooc.getCredits()).isEqualTo(2);
+        assertThat(mooc.getClassMethod()).isEqualTo(ClassMethod.ONLINE);
+        assertThat(mooc.getIsNight()).isTrue();
+    }
+
+    @Test
+    void previewRejectsSemesterMismatchAgainstSyllabusFile() {
+        assertThatThrownBy(() -> officialSubjectImportService.preview(syllabusWorkbook(), "2026-2"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("2026-1");
+    }
+
+    private MockMultipartFile syllabusWorkbook() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("sheet1");
+            // 강의계획서 조회 파일은 1행이 곧 헤더이고 시간표 컬럼명이 "시간표" 다.
+            Row header = sheet.createRow(0);
+            List<String> headers = List.of(
+                    "0", "순번", "년도", "학기", "소속분류", "학과(부)", "이수구분", "학년", "학수번호", "교과목명",
+                    "수업방법", "담당교수", "강의계획서입력여부", "시간표", "학점", "총시수", "이론", "실습",
+                    "과정", "이수영역", "수업구분", "수업유형");
+            for (int index = 0; index < headers.size(); index++) {
+                header.createCell(index).setCellValue(headers.get(index));
+            }
+
+            createSyllabusRow(sheet, 1, "HS90001001", "포용의문화", "전공심화", "1",
+                    " [ZZ-200:목(2)(3)(4)]", "3.0", "강의(이론)");
+            createSyllabusRow(sheet, 2, "HS90002001", "야간무크과목", "기초교양", "2",
+                    " [ZZ-200:금(야1)(야2)]", "2.0", "K-MOOC");
+
+            workbook.write(outputStream);
+            return new MockMultipartFile(
+                    "file",
+                    "syllabus.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    outputStream.toByteArray());
+        }
+    }
+
+    private void createSyllabusRow(
+            Sheet sheet, int rowIndex, String courseCode, String subjectName,
+            String subjectType, String grade, String timetable, String credits, String classType) {
+        Row row = sheet.createRow(rowIndex);
+        row.createCell(0).setCellValue("0");
+        row.createCell(1).setCellValue(String.valueOf(rowIndex));
+        row.createCell(2).setCellValue("2026");
+        row.createCell(3).setCellValue("1학기");
+        row.createCell(4).setCellValue("기타");
+        row.createCell(5).setCellValue("HUSS(타대학)");
+        row.createCell(6).setCellValue(subjectType);
+        row.createCell(7).setCellValue(grade);
+        row.createCell(8).setCellValue(courseCode);
+        row.createCell(9).setCellValue(subjectName);
+        row.createCell(10).setCellValue("-");
+        row.createCell(11).setCellValue("테스트교수");
+        row.createCell(12).setCellValue("입력");
+        row.createCell(13).setCellValue(timetable);
+        row.createCell(14).setCellValue(credits);
+        row.createCell(21).setCellValue(classType);
     }
 
     private MockMultipartFile sampleWorkbook() throws Exception {
