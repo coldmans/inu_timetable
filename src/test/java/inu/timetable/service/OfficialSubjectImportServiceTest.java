@@ -57,6 +57,7 @@ class OfficialSubjectImportServiceTest {
 
         OfficialSubjectImportResponse response = officialSubjectImportService.preview(sampleWorkbook(), "2026-1");
 
+        assertThat(response.getSourceFormat()).isEqualTo("OFFICIAL_TIMETABLE");
         assertThat(response.getTotalRows()).isEqualTo(2);
         assertThat(response.getAddedCount()).isEqualTo(1);
         assertThat(response.getModifiedCount()).isEqualTo(1);
@@ -119,6 +120,7 @@ class OfficialSubjectImportServiceTest {
 
         assertThat(response.getTotalRows()).isEqualTo(2);
         assertThat(response.getAddedCount()).isEqualTo(2);
+        assertThat(response.getSourceFormat()).isEqualTo("SYLLABUS");
     }
 
     @Test

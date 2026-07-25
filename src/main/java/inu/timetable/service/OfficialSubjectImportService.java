@@ -51,16 +51,17 @@ public class OfficialSubjectImportService {
     @Transactional(readOnly = true)
     public OfficialSubjectImportResponse preview(MultipartFile file, String semester) throws IOException {
         String normalizedSemester = normalizeSemester(semester);
-        List<OfficialSubjectRecord> records = parseOfficialExcel(file, normalizedSemester);
-        ImportDiff diff = diff(records, loadImportCandidates(normalizedSemester));
-        return toResponse(false, normalizedSemester, records, diff, true);
+        ParsedWorkbook parsed = parseOfficialExcel(file, normalizedSemester);
+        ImportDiff diff = diff(parsed.records(), loadImportCandidates(normalizedSemester));
+        return toResponse(false, normalizedSemester, parsed.sourceFormat(), parsed.records(), diff, true);
     }
 
     @Transactional
     public OfficialSubjectImportResponse apply(MultipartFile file, String semester, boolean deactivateMissing)
             throws IOException {
         String normalizedSemester = normalizeSemester(semester);
-        List<OfficialSubjectRecord> records = parseOfficialExcel(file, normalizedSemester);
+        ParsedWorkbook parsed = parseOfficialExcel(file, normalizedSemester);
+        List<OfficialSubjectRecord> records = parsed.records();
         List<Subject> candidates = loadImportCandidates(normalizedSemester);
         ImportDiff diff = diff(records, candidates);
 
@@ -84,7 +85,7 @@ public class OfficialSubjectImportService {
         }
 
         eventPublisher.publishEvent(new SubjectDataChangedEvent("official-subject-import"));
-        return toResponse(true, normalizedSemester, records, diff, deactivateMissing);
+        return toResponse(true, normalizedSemester, parsed.sourceFormat(), records, diff, deactivateMissing);
     }
 
     private ImportDiff diff(List<OfficialSubjectRecord> records, List<Subject> candidates) {
@@ -130,6 +131,7 @@ public class OfficialSubjectImportService {
     private OfficialSubjectImportResponse toResponse(
             boolean applied,
             String semester,
+            String sourceFormat,
             List<OfficialSubjectRecord> records,
             ImportDiff diff,
             boolean includeRemoved) {
@@ -151,6 +153,7 @@ public class OfficialSubjectImportService {
         return OfficialSubjectImportResponse.builder()
                 .applied(applied)
                 .semester(semester)
+                .sourceFormat(sourceFormat)
                 .totalRows(records.size())
                 .addedCount(diff.addedSubjects().size())
                 .modifiedCount(diff.modifiedSubjects().size())
@@ -167,7 +170,7 @@ public class OfficialSubjectImportService {
         return subjectRepository.findImportCandidatesBySemester(semester);
     }
 
-    private List<OfficialSubjectRecord> parseOfficialExcel(MultipartFile file, String semester) throws IOException {
+    private ParsedWorkbook parseOfficialExcel(MultipartFile file, String semester) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Excel file is required");
         }
@@ -179,6 +182,9 @@ public class OfficialSubjectImportService {
             HeaderInfo headerInfo = findHeader(sheet, formatter);
             // 공식 종합강의시간표는 "시간표(교시)", 강의계획서 조회는 "시간표" 헤더를 쓴다.
             Integer timetableColumn = headerInfo.column("시간표(교시)", "시간표");
+            String sourceFormat = headerInfo.optionalColumn("시간표(교시)") != null
+                    ? "OFFICIAL_TIMETABLE"
+                    : "SYLLABUS";
             validateFileSemester(sheet, headerInfo, semester, formatter);
             List<OfficialSubjectRecord> records = new ArrayList<>();
             Set<String> courseCodes = new LinkedHashSet<>();
@@ -222,8 +228,11 @@ public class OfficialSubjectImportService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "중복 학수번호가 있습니다: " + String.join(", ", duplicateCourseCodes));
             }
-            return records;
+            return new ParsedWorkbook(records, sourceFormat);
         }
+    }
+
+    private record ParsedWorkbook(List<OfficialSubjectRecord> records, String sourceFormat) {
     }
 
     // 강의계획서 조회 파일에는 년도/학기 컬럼이 있으므로, 업로드 시 선택한 학기와
