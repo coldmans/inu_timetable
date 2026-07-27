@@ -160,8 +160,10 @@ best effort이므로 정합성의 근거로 사용하지 않는다.
 
 | 단계 | 리비전 | 트래픽 | health | 세션 검증 | 시각 |
 |---|---|---:|---|---|---|
-| 1단계 issue | 배포 후 기록 | 100% | 배포 후 기록 | 브리지 쿠키 발급 | 배포 후 기록 |
+| 1단계 issue | `inu-timetable-backend-00023-fam` | 100% | `UP` | 관리자 로그인/`me` 200, `INU_SESSION_BRIDGE` 발급 | 2026-07-27 14:48 KST |
 | 2단계 consume | 배포 후 기록 | 100% | 배포 후 기록 | 기존 브리지 쿠키로 JDBC 세션 생성 | 배포 후 기록 |
 
-이 표는 실제 운영 전환 후 Cloud Run 리비전, UTC/KST 시각, 세션 연속성 결과로
-갱신한다.
+1단계는 GitHub Actions run
+[`30240575690`](https://github.com/coldmans/inu_timetable/actions/runs/30240575690)에서
+후보 리비전을 0% 트래픽으로 검증한 뒤 원자 전환했다. 2단계 행은 실제 운영
+전환 후 Cloud Run 리비전과 세션 연속성 결과로 갱신한다.
