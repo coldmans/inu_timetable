@@ -30,6 +30,17 @@ public class SubjectQueryService {
         return subjectRepository.findDistinctDepartments();
     }
 
+    @Cacheable(
+            cacheNames = SubjectCacheNames.SUBJECT_DEPARTMENTS,
+            key = "#semester == null || #semester.isBlank() ? 'all' : #semester.trim()",
+            sync = true)
+    public List<String> findDistinctDepartments(String semester) {
+        if (semester == null || semester.isBlank()) {
+            return subjectRepository.findDistinctDepartments();
+        }
+        return subjectRepository.findDistinctDepartmentsBySemester(semester.trim());
+    }
+
     @Cacheable(cacheNames = SubjectCacheNames.SUBJECT_GRADES, key = "'all'", sync = true)
     public List<Integer> findDistinctGrades() {
         return subjectRepository.findDistinctGrades();

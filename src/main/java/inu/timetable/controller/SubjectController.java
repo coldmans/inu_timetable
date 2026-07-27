@@ -51,8 +51,8 @@ public class SubjectController {
     }
 
     @GetMapping("/departments")
-    public List<String> getAllDepartments() {
-        return subjectQueryService.findDistinctDepartments();
+    public List<String> getAllDepartments(@RequestParam(required = false) String semester) {
+        return subjectQueryService.findDistinctDepartments(semester);
     }
 
     @GetMapping("/grades")

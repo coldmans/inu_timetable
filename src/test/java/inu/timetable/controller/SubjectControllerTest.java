@@ -30,6 +30,16 @@ class SubjectControllerTest {
     private SubjectQueryService subjectQueryService;
 
     @Test
+    void getAllDepartmentsDelegatesSemesterToQueryService() {
+        SubjectController controller = new SubjectController(subjectRepository, subjectQueryService);
+        List<String> expected = List.of("경제학과(야)", "지능형로봇시스템연계전공");
+        when(subjectQueryService.findDistinctDepartments("2026-2")).thenReturn(expected);
+
+        assertThat(controller.getAllDepartments("2026-2")).isSameAs(expected);
+        verify(subjectQueryService).findDistinctDepartments("2026-2");
+    }
+
+    @Test
     void filterSubjectsNormalizesRequestAndDelegatesToQueryService() {
         SubjectController controller = new SubjectController(subjectRepository, subjectQueryService);
         SubjectFilterCriteria criteria = SubjectFilterCriteria.of(

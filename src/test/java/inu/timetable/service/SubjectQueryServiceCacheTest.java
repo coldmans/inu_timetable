@@ -106,6 +106,24 @@ class SubjectQueryServiceCacheTest {
     }
 
     @Test
+    void distinctDepartmentsAreCachedSeparatelyBySemester() {
+        when(subjectRepository.findDistinctDepartmentsBySemester("2026-1"))
+                .thenReturn(List.of("컴퓨터공학부"));
+        when(subjectRepository.findDistinctDepartmentsBySemester("2026-2"))
+                .thenReturn(List.of("경제학과(야)"));
+
+        assertThat(subjectQueryService.findDistinctDepartments(" 2026-1 "))
+                .containsExactly("컴퓨터공학부");
+        assertThat(subjectQueryService.findDistinctDepartments("2026-1"))
+                .containsExactly("컴퓨터공학부");
+        assertThat(subjectQueryService.findDistinctDepartments("2026-2"))
+                .containsExactly("경제학과(야)");
+
+        verify(subjectRepository, times(1)).findDistinctDepartmentsBySemester("2026-1");
+        verify(subjectRepository, times(1)).findDistinctDepartmentsBySemester("2026-2");
+    }
+
+    @Test
     void filterSubjectsCachesSameCriteriaUntilRelevantDataChanges() {
         Pageable pageable = PageRequest.of(0, 20);
         SubjectFilterCriteria criteria = SubjectFilterCriteria.of(

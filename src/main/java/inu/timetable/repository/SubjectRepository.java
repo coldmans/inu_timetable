@@ -89,7 +89,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
 					"AND (:courseCode IS NULL OR s.courseCode LIKE %:courseCode%) " +
-                        "AND (:department IS NULL OR s.department LIKE %:department%) " +
+                        "AND (:department IS NULL OR s.department = :department) " +
                         "AND (:departmentCount = 0 OR s.department IN :departments) " +
                         "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
                         "AND (:grade IS NULL OR s.grade = :grade) " +
@@ -109,7 +109,7 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                                         "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
                                         "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
 					"AND (:courseCode IS NULL OR s.courseCode LIKE %:courseCode%) " +
-                                        "AND (:department IS NULL OR s.department LIKE %:department%) " +
+                                        "AND (:department IS NULL OR s.department = :department) " +
                                         "AND (:departmentCount = 0 OR s.department IN :departments) " +
                                         "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
                                         "AND (:grade IS NULL OR s.grade = :grade) " +
@@ -161,6 +161,13 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
         @Query("SELECT DISTINCT s.department FROM Subject s WHERE s.active = true AND s.department IS NOT NULL ORDER BY s.department")
         List<String> findDistinctDepartments();
+
+        @Query("SELECT DISTINCT s.department FROM Subject s " +
+                        "WHERE s.active = true " +
+                        "AND (s.semester = :semester OR s.semester IS NULL) " +
+                        "AND s.department IS NOT NULL " +
+                        "ORDER BY s.department")
+        List<String> findDistinctDepartmentsBySemester(@Param("semester") String semester);
 
         @Query("SELECT DISTINCT s.grade FROM Subject s WHERE s.active = true AND s.grade IS NOT NULL ORDER BY s.grade")
         List<Integer> findDistinctGrades();
