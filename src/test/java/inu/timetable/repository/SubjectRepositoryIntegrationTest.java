@@ -97,6 +97,21 @@ class SubjectRepositoryIntegrationTest {
     }
 
     @Test
+    void findDistinctDepartmentsBySemesterExcludesOtherSemestersAndIncludesLegacySubjects() {
+        Subject firstSemester = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        firstSemester.setDepartment("컴퓨터공학부");
+        Subject secondSemester = persistSubject("AI01001002", "2026-2", true, "화", 1.0, 3.0);
+        secondSemester.setDepartment("경제학과(야)");
+        Subject legacySemester = persistSubject("AI01001003", null, true, "수", 1.0, 3.0);
+        legacySemester.setDepartment("지능형로봇시스템연계전공");
+
+        entityManager.flush();
+
+        assertThat(subjectRepository.findDistinctDepartmentsBySemester("2026-2"))
+                .containsExactly("경제학과(야)", "지능형로봇시스템연계전공");
+    }
+
+    @Test
     void findIdsWithFiltersCanFindOnlineAndUnscheduledSubjects() {
         Subject scheduledOffline = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
         Subject unscheduledOffline = persistSubject("AI01001002", "2026-1", true, null, null, null);
@@ -158,6 +173,29 @@ class SubjectRepositoryIntegrationTest {
         assertThat(subjectIds.getContent())
                 .containsExactlyInAnyOrder(computer.getId(), embedded.getId())
                 .doesNotContain(math.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersMatchesSingleDepartmentExactly() {
+        Subject economics = persistSubject("AI01001001", "2026-2", true, "월", 4.0, 7.0);
+        economics.setDepartment("경제학과");
+        Subject nightEconomics = persistSubject("AI01001002", "2026-2", true, "화", 1.0, 3.0);
+        nightEconomics.setDepartment("경제학과(야)");
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
+                "2026-2", null, null, null, "경제학과",
+                Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
+
+        assertThat(subjectIds.getContent())
+                .containsExactly(economics.getId())
+                .doesNotContain(nightEconomics.getId());
     }
 
     @Test
