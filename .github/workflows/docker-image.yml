@@ -3,6 +3,9 @@ name: Deploy to GCP Cloud Run
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+      - "reports/**"
+      - "**/*.md"
   workflow_dispatch:
 
 permissions:
