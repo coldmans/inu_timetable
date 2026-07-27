@@ -9,7 +9,9 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,7 +31,7 @@ public class SubjectSearchCacheService {
                 : subjectRepository.findBySubjectNameContainingAndGradeAndActiveTrue(criteria.keyword(), criteria.grade());
         return subjects.stream()
                 .map(SubjectDto::from)
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     @Cacheable(
@@ -43,6 +45,6 @@ public class SubjectSearchCacheService {
                 : subjectRepository.findByProfessorContainingAndGradeAndActiveTrue(criteria.keyword(), criteria.grade());
         return subjects.stream()
                 .map(SubjectDto::from)
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 }

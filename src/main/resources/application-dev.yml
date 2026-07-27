@@ -22,6 +22,10 @@ management:
     health:
       show-details: always
       show-components: always
+  health:
+    # Local development uses Caffeine and does not require a local Redis process.
+    redis:
+      enabled: false
 
 logging:
   level:
