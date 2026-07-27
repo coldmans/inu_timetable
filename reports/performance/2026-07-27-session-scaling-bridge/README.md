@@ -161,9 +161,16 @@ best effort이므로 정합성의 근거로 사용하지 않는다.
 | 단계 | 리비전 | 트래픽 | health | 세션 검증 | 시각 |
 |---|---|---:|---|---|---|
 | 1단계 issue | `inu-timetable-backend-00023-fam` | 100% | `UP` | 관리자 로그인/`me` 200, `INU_SESSION_BRIDGE` 발급 | 2026-07-27 14:48 KST |
-| 2단계 consume | 배포 후 기록 | 100% | 배포 후 기록 | 기존 브리지 쿠키로 JDBC 세션 생성 | 배포 후 기록 |
+| 2단계 consume | `inu-timetable-backend-00025-caf` | 100% | `UP` | 1단계 쿠키로 첫/두 번째 `me` 모두 200, bridge 제거 후 `SESSION` 생성 | 2026-07-27 14:55 KST |
 
 1단계는 GitHub Actions run
 [`30240575690`](https://github.com/coldmans/inu_timetable/actions/runs/30240575690)에서
-후보 리비전을 0% 트래픽으로 검증한 뒤 원자 전환했다. 2단계 행은 실제 운영
-전환 후 Cloud Run 리비전과 세션 연속성 결과로 갱신한다.
+후보 리비전을 0% 트래픽으로 검증한 뒤 원자 전환했다. 2단계도 run
+[`30240959271`](https://github.com/coldmans/inu_timetable/actions/runs/30240959271)에서
+같은 절차를 통과했다.
+
+전환 직후 Cloud Run 설정은 `maxScale=3`, `containerConcurrency=40`,
+인스턴스당 DB pool `max=10/min=2`였고 과목 수 API는 `5,280`을 반환했다.
+1단계에서 따로 보존한 관리자 쿠키로 2단계 운영 URL을 호출했을 때 브리지
+토큰이 1회 소비되고 JDBC `SESSION`으로 교체됐으며, 재로그인 없이 이어진 다음
+요청도 200이었다. 검증에 사용한 임시 인증 쿠키 파일은 결과 확인 직후 삭제했다.
