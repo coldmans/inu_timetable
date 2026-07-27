@@ -20,7 +20,7 @@ class AdminAuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        adminAuthService = new AdminAuthService(passwordEncoder);
+        adminAuthService = new AdminAuthService(passwordEncoder, new InMemoryLoginAttemptStore());
         ReflectionTestUtils.setField(adminAuthService, "adminUsername", "admin");
         ReflectionTestUtils.setField(adminAuthService, "adminPasswordHash", passwordEncoder.encode("secret"));
         ReflectionTestUtils.setField(adminAuthService, "legacyAdminPassword", "");

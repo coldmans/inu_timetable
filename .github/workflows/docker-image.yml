@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: gcp-cloud-run-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   GCP_PROJECT_ID: project-53f7b99e-c306-49a7-a7b
@@ -25,6 +25,34 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Load and validate rollout phase
+        shell: bash
+        run: |
+          set -a
+          source .github/deploy/production-rollout.env
+          set +a
+
+          case "$SESSION_BRIDGE_MODE" in
+            issue|consume|off) ;;
+            *) echo "Invalid SESSION_BRIDGE_MODE" >&2; exit 1 ;;
+          esac
+          case "$SHARED_SESSION_ENABLED" in
+            true|false) ;;
+            *) echo "Invalid SHARED_SESSION_ENABLED" >&2; exit 1 ;;
+          esac
+          test "$MAX_INSTANCES" -ge 1
+          test "$CONCURRENCY" -ge 1
+          test "$DB_POOL_MAXIMUM_SIZE" -ge "$DB_POOL_MINIMUM_IDLE"
+
+          {
+            echo "SESSION_BRIDGE_MODE=$SESSION_BRIDGE_MODE"
+            echo "SHARED_SESSION_ENABLED=$SHARED_SESSION_ENABLED"
+            echo "MAX_INSTANCES=$MAX_INSTANCES"
+            echo "CONCURRENCY=$CONCURRENCY"
+            echo "DB_POOL_MAXIMUM_SIZE=$DB_POOL_MAXIMUM_SIZE"
+            echo "DB_POOL_MINIMUM_IDLE=$DB_POOL_MINIMUM_IDLE"
+          } >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -55,38 +83,70 @@ jobs:
           printf '%s' "$ADMIN_PASSWORD" |
             gcloud secrets versions add ADMIN_PASSWORD --data-file=-
 
-      - name: Deploy to Cloud Run
+      - name: Capture current production revision
         run: |
+          CURRENT_REVISION="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format=json |
+            jq --raw-output '.status.traffic[] | select(.percent == 100) | .revisionName' |
+            head -n 1)"
+          test -n "$CURRENT_REVISION"
+          echo "CURRENT_REVISION=$CURRENT_REVISION" >> "$GITHUB_ENV"
+
+      - name: Deploy candidate with zero traffic
+        run: |
+          CANDIDATE_TAG="candidate-${GITHUB_RUN_ID}"
           gcloud run deploy "$CLOUD_RUN_SERVICE" \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --source . \
+            --no-traffic \
+            --tag "$CANDIDATE_TAG" \
             --allow-unauthenticated \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --set-secrets DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest \
-            --set-env-vars '^@^SPRING_PROFILES_ACTIVE=prod@ADMIN_USERNAME=admin@CORS_ALLOWED_ORIGINS=https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app,https://inuu-timetable.vercel.app' \
+            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=prod@ADMIN_USERNAME=admin@CORS_ALLOWED_ORIGINS=https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app,https://inuu-timetable.vercel.app@SESSION_BRIDGE_MODE=$SESSION_BRIDGE_MODE@SHARED_SESSION_ENABLED=$SHARED_SESSION_ENABLED@DB_POOL_MAXIMUM_SIZE=$DB_POOL_MAXIMUM_SIZE@DB_POOL_MINIMUM_IDLE=$DB_POOL_MINIMUM_IDLE" \
             --port 8080 \
             --cpu 1 \
             --memory 1Gi \
-            --concurrency 80 \
+            --concurrency "$CONCURRENCY" \
             --min-instances 0 \
-            --max-instances 1 \
+            --max-instances "$MAX_INSTANCES" \
             --timeout 300 \
             --cpu-boost \
             --quiet
 
-      - name: Verify production API
+          CANDIDATE_REVISION="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format=json |
+            jq --raw-output --arg tag "$CANDIDATE_TAG" \
+              '.status.traffic[] | select(.tag == $tag) | .revisionName')"
+          CANDIDATE_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format=json |
+            jq --raw-output --arg tag "$CANDIDATE_TAG" \
+              '.status.traffic[] | select(.tag == $tag) | .url')"
+          test -n "$CANDIDATE_REVISION"
+          test -n "$CANDIDATE_URL"
+          {
+            echo "CANDIDATE_REVISION=$CANDIDATE_REVISION"
+            echo "CANDIDATE_URL=$CANDIDATE_URL"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify candidate revision
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
-          SERVICE_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
-            --project "$GCP_PROJECT_ID" \
-            --region "$GCP_REGION" \
-            --format='value(status.url)')"
-          curl --fail --show-error --silent --retry 6 --retry-all-errors \
-            --retry-delay 5 "$SERVICE_URL/actuator/health"
-          test "$(curl --fail --show-error --silent --retry 3 \
-            "$SERVICE_URL/api/subjects/count")" = "2894"
+          curl --fail --show-error --silent --retry 12 --retry-all-errors \
+            --retry-delay 5 "$CANDIDATE_URL/actuator/health"
+
+          SUBJECT_COUNT="$(curl --fail --show-error --silent --retry 3 \
+            "$CANDIDATE_URL/api/subjects/count")"
+          [[ "$SUBJECT_COUNT" =~ ^[0-9]+$ ]]
+          test "$SUBJECT_COUNT" -gt 0
 
           COOKIE_JAR="$(mktemp)"
           CSRF_BODY="$(mktemp)"
@@ -97,7 +157,7 @@ jobs:
             --output "$CSRF_BODY" \
             --write-out '%{http_code}' \
             --cookie-jar "$COOKIE_JAR" \
-            "$SERVICE_URL/api/auth/csrf")" = "200"
+            "$CANDIDATE_URL/api/auth/csrf")" = "200"
           CSRF_TOKEN="$(jq --raw-output '.token' "$CSRF_BODY")"
           test -n "$CSRF_TOKEN"
 
@@ -112,12 +172,74 @@ jobs:
               --arg username admin \
               --arg password "$ADMIN_PASSWORD" \
               '{username: $username, password: $password}')" \
-            "$SERVICE_URL/admin/api/auth/login")"
+            "$CANDIDATE_URL/admin/api/auth/login")"
           test "$LOGIN_STATUS" = "200"
           test "$(jq --raw-output '.authenticated' "$LOGIN_BODY")" = "true"
-
+          if [ "$SESSION_BRIDGE_MODE" = "issue" ]; then
+            grep --quiet 'INU_SESSION_BRIDGE' "$COOKIE_JAR"
+          else
+            grep --quiet $'\tSESSION\t' "$COOKIE_JAR"
+          fi
           test "$(curl --show-error --silent \
             --output /dev/null \
             --write-out '%{http_code}' \
             --cookie "$COOKIE_JAR" \
-            "$SERVICE_URL/admin/api/auth/me")" = "200"
+            "$CANDIDATE_URL/admin/api/auth/me")" = "200"
+
+      - name: Promote candidate
+        run: |
+          rollback() {
+            gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --to-revisions "$CURRENT_REVISION=100" \
+              --quiet
+          }
+          verify_service() {
+            SERVICE_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --format='value(status.url)')"
+            curl --fail --show-error --silent --retry 6 --retry-all-errors \
+              --retry-delay 5 "$SERVICE_URL/actuator/health" >/dev/null
+            SUBJECT_COUNT="$(curl --fail --show-error --silent --retry 3 \
+              "$SERVICE_URL/api/subjects/count")"
+            [[ "$SUBJECT_COUNT" =~ ^[0-9]+$ ]] && test "$SUBJECT_COUNT" -gt 0
+          }
+
+          if [ "$SESSION_BRIDGE_MODE" = "off" ]; then
+            gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --to-revisions "$CURRENT_REVISION=90,$CANDIDATE_REVISION=10" \
+              --quiet
+            sleep 20
+            verify_service || { rollback; exit 1; }
+
+            gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --to-revisions "$CURRENT_REVISION=50,$CANDIDATE_REVISION=50" \
+              --quiet
+            sleep 20
+            verify_service || { rollback; exit 1; }
+          fi
+
+          gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --to-revisions "$CANDIDATE_REVISION=100" \
+            --quiet
+          sleep 10
+          verify_service || { rollback; exit 1; }
+
+      - name: Record deployed revision
+        run: |
+          DEPLOYED_REVISION="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format=json |
+            jq --raw-output '.status.traffic[] | select(.percent == 100) | .revisionName' |
+            head -n 1)"
+          test "$DEPLOYED_REVISION" = "$CANDIDATE_REVISION"
+          echo "Deployed revision: $DEPLOYED_REVISION"

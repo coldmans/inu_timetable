@@ -3,7 +3,9 @@ package inu.timetable.controller;
 import inu.timetable.dto.AdminAuthResponse;
 import inu.timetable.dto.AdminLoginRequest;
 import inu.timetable.service.AdminAuthService;
+import inu.timetable.service.SessionMigrationBridgeService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,12 +22,18 @@ import java.util.Map;
 public class AdminAuthController {
 
     private final AdminAuthService adminAuthService;
+    private final SessionMigrationBridgeService sessionMigrationBridgeService;
 
     @PostMapping("/login")
     public AdminAuthResponse login(
             @Valid @RequestBody AdminLoginRequest request,
-            HttpServletRequest servletRequest) {
-        return adminAuthService.login(request.username(), request.password(), servletRequest);
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse) {
+        AdminAuthResponse response = adminAuthService.login(
+                request.username(), request.password(), servletRequest);
+        sessionMigrationBridgeService.rotateAdmin(
+                response.username(), servletRequest, servletResponse);
+        return response;
     }
 
     @GetMapping("/me")
@@ -34,7 +42,10 @@ public class AdminAuthController {
     }
 
     @PostMapping("/logout")
-    public Map<String, Object> logout(HttpServletRequest request) {
+    public Map<String, Object> logout(
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        sessionMigrationBridgeService.revoke(request, response);
         adminAuthService.logout(request);
         return Map.of("loggedOut", true);
     }
