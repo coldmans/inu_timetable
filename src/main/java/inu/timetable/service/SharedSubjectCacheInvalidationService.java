@@ -2,8 +2,8 @@ package inu.timetable.service;
 
 import inu.timetable.event.SubjectDataChangedEvent;
 import inu.timetable.event.SubjectPopularityChangedEvent;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,7 +16,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class SharedSubjectCacheInvalidationService {
 
@@ -25,7 +24,20 @@ public class SharedSubjectCacheInvalidationService {
 
     private final JdbcTemplate jdbcTemplate;
     private final CacheManager cacheManager;
+    private final boolean pollEnabled;
+    private final boolean publishEnabled;
     private final Map<String, Long> observedVersions = new ConcurrentHashMap<>();
+
+    public SharedSubjectCacheInvalidationService(
+            JdbcTemplate jdbcTemplate,
+            CacheManager cacheManager,
+            @Value("${subject.cache.compatibility.poll-enabled:true}") boolean pollEnabled,
+            @Value("${subject.cache.compatibility.publish-enabled:true}") boolean publishEnabled) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.cacheManager = cacheManager;
+        this.pollEnabled = pollEnabled;
+        this.publishEnabled = publishEnabled;
+    }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void publishSubjectDataChanged(SubjectDataChangedEvent event) {
@@ -39,6 +51,9 @@ public class SharedSubjectCacheInvalidationService {
 
     @Scheduled(fixedDelayString = "${subject.cache.invalidation.poll-interval-ms:1000}")
     public void synchronizeLocalCaches() {
+        if (!pollEnabled) {
+            return;
+        }
         jdbcTemplate.query("""
                         SELECT cache_scope, version
                         FROM shared_cache_versions
@@ -58,6 +73,9 @@ public class SharedSubjectCacheInvalidationService {
     }
 
     private void incrementVersion(String scope) {
+        if (!publishEnabled) {
+            return;
+        }
         jdbcTemplate.update("""
                         UPDATE shared_cache_versions
                         SET version = version + 1,

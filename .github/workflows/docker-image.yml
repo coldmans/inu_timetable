@@ -44,9 +44,30 @@ jobs:
             true|false) ;;
             *) echo "Invalid SHARED_SESSION_ENABLED" >&2; exit 1 ;;
           esac
+          case "$SUBJECT_CACHE_PROVIDER" in
+            caffeine|redis|two-level) ;;
+            *) echo "Invalid SUBJECT_CACHE_PROVIDER" >&2; exit 1 ;;
+          esac
+          case "$SUBJECT_CACHE_DB_VERSION_POLL_ENABLED" in
+            true|false) ;;
+            *) echo "Invalid SUBJECT_CACHE_DB_VERSION_POLL_ENABLED" >&2; exit 1 ;;
+          esac
+          case "$SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED" in
+            true|false) ;;
+            *) echo "Invalid SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED" >&2; exit 1 ;;
+          esac
+          case "$REDIS_HEALTH_ENABLED" in
+            true|false) ;;
+            *) echo "Invalid REDIS_HEALTH_ENABLED" >&2; exit 1 ;;
+          esac
           test "$MAX_INSTANCES" -ge 1
           test "$CONCURRENCY" -ge 1
           test "$DB_POOL_MAXIMUM_SIZE" -ge "$DB_POOL_MINIMUM_IDLE"
+          if [ "$SUBJECT_CACHE_PROVIDER" != "caffeine" ]; then
+            test -n "$REDIS_HOST"
+            test "$REDIS_PORT" -ge 1
+            test "$REDIS_HEALTH_ENABLED" = "true"
+          fi
 
           {
             echo "SESSION_BRIDGE_MODE=$SESSION_BRIDGE_MODE"
@@ -55,6 +76,13 @@ jobs:
             echo "CONCURRENCY=$CONCURRENCY"
             echo "DB_POOL_MAXIMUM_SIZE=$DB_POOL_MAXIMUM_SIZE"
             echo "DB_POOL_MINIMUM_IDLE=$DB_POOL_MINIMUM_IDLE"
+            echo "SUBJECT_CACHE_PROVIDER=$SUBJECT_CACHE_PROVIDER"
+            echo "SUBJECT_CACHE_REDIS_KEY_PREFIX=$SUBJECT_CACHE_REDIS_KEY_PREFIX"
+            echo "SUBJECT_CACHE_DB_VERSION_POLL_ENABLED=$SUBJECT_CACHE_DB_VERSION_POLL_ENABLED"
+            echo "SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED=$SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED"
+            echo "REDIS_HEALTH_ENABLED=$REDIS_HEALTH_ENABLED"
+            echo "REDIS_HOST=$REDIS_HOST"
+            echo "REDIS_PORT=$REDIS_PORT"
           } >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
@@ -108,8 +136,11 @@ jobs:
             --tag "$CANDIDATE_TAG" \
             --allow-unauthenticated \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
-            --set-secrets DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest \
-            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=prod@ADMIN_USERNAME=admin@CORS_ALLOWED_ORIGINS=https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app,https://inuu-timetable.vercel.app@SESSION_BRIDGE_MODE=$SESSION_BRIDGE_MODE@SHARED_SESSION_ENABLED=$SHARED_SESSION_ENABLED@DB_POOL_MAXIMUM_SIZE=$DB_POOL_MAXIMUM_SIZE@DB_POOL_MINIMUM_IDLE=$DB_POOL_MINIMUM_IDLE" \
+            --set-secrets DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest,REDIS_PASSWORD=REDIS_PASSWORD:latest \
+            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=prod@ADMIN_USERNAME=admin@CORS_ALLOWED_ORIGINS=https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app,https://inuu-timetable.vercel.app@SESSION_BRIDGE_MODE=$SESSION_BRIDGE_MODE@SHARED_SESSION_ENABLED=$SHARED_SESSION_ENABLED@DB_POOL_MAXIMUM_SIZE=$DB_POOL_MAXIMUM_SIZE@DB_POOL_MINIMUM_IDLE=$DB_POOL_MINIMUM_IDLE@SUBJECT_CACHE_PROVIDER=$SUBJECT_CACHE_PROVIDER@SUBJECT_CACHE_REDIS_KEY_PREFIX=$SUBJECT_CACHE_REDIS_KEY_PREFIX@SUBJECT_CACHE_DB_VERSION_POLL_ENABLED=$SUBJECT_CACHE_DB_VERSION_POLL_ENABLED@SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED=$SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED@REDIS_HEALTH_ENABLED=$REDIS_HEALTH_ENABLED@REDIS_HOST=$REDIS_HOST@REDIS_PORT=$REDIS_PORT" \
+            --network default \
+            --subnet default \
+            --vpc-egress private-ranges-only \
             --port 8080 \
             --cpu 1 \
             --memory 1Gi \
@@ -150,6 +181,19 @@ jobs:
             "$CANDIDATE_URL/api/subjects/count")"
           [[ "$SUBJECT_COUNT" =~ ^[0-9]+$ ]]
           test "$SUBJECT_COUNT" -gt 0
+
+          for attempt in 1 2; do
+            curl --fail --show-error --silent \
+              "$CANDIDATE_URL/api/subjects/departments?semester=2026-2" >/dev/null
+            curl --fail --show-error --silent \
+              "$CANDIDATE_URL/api/subjects/filter?semester=2026-2&page=0&size=20" >/dev/null
+          done
+          curl --fail --show-error --silent "$CANDIDATE_URL/actuator/prometheus" |
+            grep --quiet 'subject_cache_requests_total'
+          if [ "$SUBJECT_CACHE_PROVIDER" = "two-level" ]; then
+            curl --fail --show-error --silent "$CANDIDATE_URL/actuator/prometheus" |
+              grep --quiet 'subject_cache_l1_requests_total'
+          fi
 
           COOKIE_JAR="$(mktemp)"
           CSRF_BODY="$(mktemp)"

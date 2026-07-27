@@ -55,6 +55,6 @@ public class SubjectQueryService {
     }
 
     public Page<SubjectDto> filterSubjects(SubjectFilterCriteria criteria) {
-        return subjectFilterCacheService.filterSubjects(criteria);
+        return subjectFilterCacheService.filterSubjects(criteria).toPage();
     }
 }

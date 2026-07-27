@@ -1,6 +1,9 @@
 spring:
   application:
     name: timeTable
+  autoconfigure:
+    # Redis backs Spring Cache only; no Redis entity repositories exist.
+    exclude: org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   profiles:
     # 배포 스크립트(deploy-blue-green.sh)와 동일한 표준 변수명으로 통일.
     # 운영 배포 시 SPRING_PROFILES_ACTIVE=prod 가 주입되며, 미설정 시 로컬 개발용 dev 로 동작한다.
@@ -34,6 +37,15 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:2s}
+      repositories:
+        enabled: false
 
 server:
   servlet:
@@ -76,8 +88,19 @@ user:
 
 subject:
   cache:
+    # Local development/tests use Caffeine. Cloud Run uses Caffeine L1 + Redis L2.
+    provider: ${SUBJECT_CACHE_PROVIDER:caffeine}
     maximum-size: ${SUBJECT_CACHE_MAXIMUM_SIZE:1000}
     expire-after-write: ${SUBJECT_CACHE_EXPIRE_AFTER_WRITE:10m}
+    redis:
+      key-prefix: ${SUBJECT_CACHE_REDIS_KEY_PREFIX:inu:timetable:dev}
+      # After a Redis error, bypass it briefly, then flush stale values before reuse.
+      retry-after: ${SUBJECT_CACHE_REDIS_RETRY_AFTER:5s}
+    compatibility:
+      # Keep both true while Caffeine L1 is used. A future Redis Pub/Sub invalidation
+      # rollout may replace this DB version bridge after mixed revisions have drained.
+      poll-enabled: ${SUBJECT_CACHE_DB_VERSION_POLL_ENABLED:true}
+      publish-enabled: ${SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED:true}
     warm-up:
       enabled: ${SUBJECT_CACHE_WARM_UP_ENABLED:true}
       concurrency: ${SUBJECT_CACHE_WARM_UP_CONCURRENCY:4}

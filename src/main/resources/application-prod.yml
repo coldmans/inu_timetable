@@ -23,6 +23,10 @@ management:
     health:
       show-details: never
       show-components: never
+  health:
+    # Enabled only in revisions that explicitly select the Redis cache provider.
+    redis:
+      enabled: ${REDIS_HEALTH_ENABLED:false}
   # /actuator/info 가 환경변수/프로퍼티를 노출하지 않도록 비활성화.
   info:
     env:

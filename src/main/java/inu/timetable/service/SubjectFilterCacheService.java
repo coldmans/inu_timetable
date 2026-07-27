@@ -2,6 +2,7 @@ package inu.timetable.service;
 
 import inu.timetable.dto.SubjectDto;
 import inu.timetable.dto.SubjectFilterCriteria;
+import inu.timetable.dto.SubjectPageCacheValue;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.repository.SubjectRepository;
@@ -9,7 +10,6 @@ import inu.timetable.repository.UserTimetableRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -37,7 +37,7 @@ public class SubjectFilterCacheService {
             key = "#criteria",
             condition = "#criteria.size() <= " + MAX_CACHEABLE_PAGE_SIZE,
             sync = true)
-    public Page<SubjectDto> filterSubjects(SubjectFilterCriteria criteria) {
+    public SubjectPageCacheValue filterSubjects(SubjectFilterCriteria criteria) {
         Pageable pageable = PageRequest.of(criteria.page(), criteria.size());
         List<String> departments = criteria.departments();
         List<String> departmentListParam = departments.isEmpty()
@@ -78,7 +78,11 @@ public class SubjectFilterCacheService {
 
         List<Long> subjectIds = subjectIdPage.getContent();
         if (subjectIds.isEmpty()) {
-            return new PageImpl<>(List.of(), pageable, subjectIdPage.getTotalElements());
+            return new SubjectPageCacheValue(
+                    List.of(),
+                    criteria.page(),
+                    criteria.size(),
+                    subjectIdPage.getTotalElements());
         }
 
         List<Subject> subjects = new ArrayList<>(subjectRepository.findWithSchedulesByIds(subjectIds));
@@ -95,7 +99,11 @@ public class SubjectFilterCacheService {
 
         List<SubjectDto> subjectDtos = subjects.stream()
                 .map(subject -> SubjectDto.from(subject, timetableAddCounts.getOrDefault(subject.getId(), 0L)))
-                .toList();
-        return new PageImpl<>(subjectDtos, pageable, subjectIdPage.getTotalElements());
+                .collect(Collectors.toCollection(ArrayList::new));
+        return new SubjectPageCacheValue(
+                subjectDtos,
+                criteria.page(),
+                criteria.size(),
+                subjectIdPage.getTotalElements());
     }
 }
