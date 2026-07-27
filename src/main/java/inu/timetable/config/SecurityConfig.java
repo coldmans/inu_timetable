@@ -1,6 +1,7 @@
 package inu.timetable.config;
 
 import inu.timetable.security.LegacySha256DelegatingPasswordEncoder;
+import inu.timetable.security.SessionMigrationBridgeFilter;
 import inu.timetable.security.UserDetailsJpaService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -22,6 +23,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
@@ -62,7 +64,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            SecurityContextRepository securityContextRepository) throws Exception {
+            SecurityContextRepository securityContextRepository,
+            SessionMigrationBridgeFilter sessionMigrationBridgeFilter) throws Exception {
         http
                 .cors(Customizer.withDefaults())
                 .securityContext(context -> context.securityContextRepository(securityContextRepository))
@@ -102,7 +105,8 @@ public class SecurityConfig {
                                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Login required")))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-                .logout(AbstractHttpConfigurer::disable);
+                .logout(AbstractHttpConfigurer::disable)
+                .addFilterAfter(sessionMigrationBridgeFilter, SecurityContextHolderFilter.class);
 
         return http.build();
     }

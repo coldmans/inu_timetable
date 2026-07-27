@@ -45,6 +45,16 @@ server:
         secure: ${SESSION_COOKIE_SECURE:false}
         same-site: ${SESSION_COOKIE_SAME_SITE:lax}
 
+session:
+  # Boot 3.5는 store-type 스위치를 제거했으므로 명시적인 조건부 설정으로 켠다.
+  # 1단계는 false, 2단계는 SHARED_SESSION_ENABLED=true.
+  shared:
+    enabled: ${SHARED_SESSION_ENABLED:false}
+  bridge:
+    mode: ${SESSION_BRIDGE_MODE:off}
+    cookie-name: ${SESSION_BRIDGE_COOKIE_NAME:INU_SESSION_BRIDGE}
+    ttl: ${SESSION_BRIDGE_TTL:30m}
+
 gemini:
   api:
     key: ${GEMINI_API_KEY}
@@ -72,6 +82,8 @@ subject:
       enabled: ${SUBJECT_CACHE_WARM_UP_ENABLED:true}
       concurrency: ${SUBJECT_CACHE_WARM_UP_CONCURRENCY:4}
       page-size: ${SUBJECT_CACHE_WARM_UP_PAGE_SIZE:20}
+    invalidation:
+      poll-interval-ms: ${SUBJECT_CACHE_INVALIDATION_POLL_INTERVAL_MS:1000}
 
 # Actuator 모니터링 설정
 management:

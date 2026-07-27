@@ -12,6 +12,13 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: false
+  sql:
+    init:
+      mode: always
+
+session:
+  shared:
+    enabled: false
 
 gemini:
   api:
@@ -21,3 +28,7 @@ subject:
   cache:
     warm-up:
       enabled: false
+
+admin:
+  operation-lock:
+    provider: local

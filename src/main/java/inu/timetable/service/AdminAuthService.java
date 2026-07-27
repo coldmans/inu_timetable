@@ -14,19 +14,16 @@ import org.springframework.web.server.ResponseStatusException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 @Service
 @RequiredArgsConstructor
 public class AdminAuthService {
 
     public static final String SESSION_AUTHENTICATED = "admin_authenticated";
     public static final String SESSION_USERNAME = "admin_username";
+    private static final String RATE_LIMIT_NAMESPACE = "ADMIN";
 
     private final BCryptPasswordEncoder passwordEncoder;
-    private final Map<String, LoginAttempt> loginAttempts = new ConcurrentHashMap<>();
+    private final LoginAttemptStore loginAttemptStore;
 
     @Value("${admin.username:}")
     private String adminUsername;
@@ -52,7 +49,7 @@ public class AdminAuthService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid admin credentials");
         }
 
-        loginAttempts.remove(attemptKey);
+        loginAttemptStore.clear(RATE_LIMIT_NAMESPACE, attemptKey);
         HttpSession previousSession = request.getSession(false);
         if (previousSession != null) {
             previousSession.invalidate();
@@ -108,26 +105,18 @@ public class AdminAuthService {
     }
 
     private void rejectIfLocked(String attemptKey) {
-        LoginAttempt attempt = loginAttempts.get(attemptKey);
-        if (attempt == null || attempt.blockedUntil == null) {
-            return;
-        }
-        if (Instant.now().isBefore(attempt.blockedUntil)) {
+        if (loginAttemptStore.isBlocked(RATE_LIMIT_NAMESPACE, attemptKey)) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                     "Too many failed admin login attempts. Try again later.");
         }
-        loginAttempts.remove(attemptKey);
     }
 
     private void recordFailure(String attemptKey) {
-        loginAttempts.compute(attemptKey, (key, current) -> {
-            LoginAttempt attempt = current == null ? new LoginAttempt() : current;
-            attempt.failedCount++;
-            if (attempt.failedCount >= maxFailures) {
-                attempt.blockedUntil = Instant.now().plus(Duration.ofMinutes(lockMinutes));
-            }
-            return attempt;
-        });
+        loginAttemptStore.recordFailure(
+                RATE_LIMIT_NAMESPACE,
+                attemptKey,
+                maxFailures,
+                Duration.ofMinutes(lockMinutes));
     }
 
     private String attemptKey(String username, HttpServletRequest request) {
@@ -137,10 +126,5 @@ public class AdminAuthService {
 
     private String clientIp(HttpServletRequest request) {
         return request.getRemoteAddr();
-    }
-
-    private static class LoginAttempt {
-        private int failedCount;
-        private Instant blockedUntil;
     }
 }

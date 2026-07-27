@@ -17,7 +17,9 @@ class AdminAccessGuardTest {
 
     @BeforeEach
     void setUp() {
-        adminAuthService = new AdminAuthService(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4));
+        adminAuthService = new AdminAuthService(
+                new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4),
+                new InMemoryLoginAttemptStore());
         adminAccessGuard = new AdminAccessGuard(adminAuthService);
     }
 
