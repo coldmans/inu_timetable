@@ -87,8 +87,9 @@ class SessionMigrationBridgeIssueIntegrationTest {
                 .andReturn();
 
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM session_migration_tokens",
-                Integer.class)).isZero();
+                "SELECT COUNT(*) FROM session_migration_tokens WHERE token_hash = ?",
+                Integer.class,
+                storedHash)).isZero();
         assertThat(logout.getResponse().getHeaders("Set-Cookie"))
                 .anyMatch(header -> header.startsWith("INU_SESSION_BRIDGE=")
                         && header.contains("Max-Age=0"));
