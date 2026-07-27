@@ -93,6 +93,11 @@ jobs:
           cache: gradle
 
       - name: Run tests and build
+        env:
+          # Rollout variables are already in GITHUB_ENV, but unit tests must verify
+          # the local/default cache path without requiring a Redis connection.
+          SUBJECT_CACHE_PROVIDER: caffeine
+          REDIS_HEALTH_ENABLED: "false"
         run: ./gradlew clean test bootJar
 
       - name: Authenticate to Google Cloud
