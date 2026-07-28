@@ -2,6 +2,7 @@ package inu.timetable.service;
 
 import inu.timetable.dto.OfficialSubjectImportResponse;
 import inu.timetable.entity.Schedule;
+import inu.timetable.entity.ScheduleRoomSegment;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
@@ -39,7 +40,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OfficialSubjectImportService {
 
-    private static final Pattern BRACKET_TIME_PATTERN = Pattern.compile("\\[[^:\\]]+:([^\\]]+)\\]");
+    private static final Pattern BRACKET_SCHEDULE_PATTERN = Pattern.compile("\\[([^:\\]]+):([^\\]]+)\\]");
     private static final Pattern DAY_PATTERN = Pattern.compile("^([월화수목금토일])\\s*(.*)$");
     private static final Pattern PERIOD_PATTERN = Pattern.compile("\\(([^)]+)\\)");
     private static final Pattern BARE_PERIOD_PATTERN = Pattern.compile("(?:야)?\\d{1,2}[AB]?(?:\\s*-\\s*(?:야)?\\d{1,2}[AB]?)?");
@@ -320,14 +321,97 @@ public class OfficialSubjectImportService {
         subject.setClassMethod(record.classMethod());
         subject.setIsNight(record.isNight());
 
-        subject.getSchedules().clear();
-        for (ScheduleValue scheduleValue : record.schedules()) {
-            subject.getSchedules().add(Schedule.builder()
-                    .subject(subject)
-                    .dayOfWeek(scheduleValue.dayOfWeek())
-                    .startTime(scheduleValue.startTime())
-                    .endTime(scheduleValue.endTime())
-                    .build());
+        synchronizeSchedules(subject, record.schedules());
+    }
+
+    private void synchronizeSchedules(Subject subject, List<ScheduleValue> scheduleValues) {
+        Map<String, Schedule> existingByKey = subject.getSchedules().stream()
+                .collect(Collectors.toMap(
+                        schedule -> scheduleKey(
+                                schedule.getDayOfWeek(),
+                                schedule.getStartTime(),
+                                schedule.getEndTime()),
+                        schedule -> schedule,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        Set<String> incomingKeys = scheduleValues.stream()
+                .map(schedule -> scheduleKey(schedule.dayOfWeek(), schedule.startTime(), schedule.endTime()))
+                .collect(Collectors.toSet());
+
+        subject.getSchedules().removeIf(schedule -> !incomingKeys.contains(scheduleKey(
+                schedule.getDayOfWeek(),
+                schedule.getStartTime(),
+                schedule.getEndTime())));
+
+        for (ScheduleValue scheduleValue : scheduleValues) {
+            String key = scheduleKey(
+                    scheduleValue.dayOfWeek(),
+                    scheduleValue.startTime(),
+                    scheduleValue.endTime());
+            Schedule schedule = existingByKey.get(key);
+            if (schedule == null) {
+                schedule = Schedule.builder()
+                        .subject(subject)
+                        .dayOfWeek(scheduleValue.dayOfWeek())
+                        .startTime(scheduleValue.startTime())
+                        .endTime(scheduleValue.endTime())
+                        .build();
+                subject.getSchedules().add(schedule);
+                existingByKey.put(key, schedule);
+            } else {
+                schedule.setSubject(subject);
+                schedule.setDayOfWeek(scheduleValue.dayOfWeek());
+                schedule.setStartTime(scheduleValue.startTime());
+                schedule.setEndTime(scheduleValue.endTime());
+            }
+            synchronizeRoomSegments(schedule, scheduleValue.roomSegments());
+        }
+
+        subject.getSchedules().sort((left, right) -> {
+            int dayCompare = Integer.compare(
+                    DAYS.indexOf(left.getDayOfWeek()),
+                    DAYS.indexOf(right.getDayOfWeek()));
+            return dayCompare != 0 ? dayCompare : Double.compare(left.getStartTime(), right.getStartTime());
+        });
+    }
+
+    private void synchronizeRoomSegments(Schedule schedule, List<RoomSegmentValue> roomSegmentValues) {
+        Map<String, ScheduleRoomSegment> existingByKey = schedule.getRoomSegments().stream()
+                .collect(Collectors.toMap(
+                        segment -> roomSegmentKey(
+                                segment.getRoom(),
+                                segment.getStartTime(),
+                                segment.getEndTime()),
+                        segment -> segment,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        Set<String> incomingKeys = roomSegmentValues.stream()
+                .map(segment -> roomSegmentKey(segment.room(), segment.startTime(), segment.endTime()))
+                .collect(Collectors.toSet());
+
+        schedule.getRoomSegments().removeIf(segment -> !incomingKeys.contains(roomSegmentKey(
+                segment.getRoom(),
+                segment.getStartTime(),
+                segment.getEndTime())));
+
+        for (RoomSegmentValue roomSegmentValue : roomSegmentValues) {
+            String key = roomSegmentKey(
+                    roomSegmentValue.room(),
+                    roomSegmentValue.startTime(),
+                    roomSegmentValue.endTime());
+            ScheduleRoomSegment roomSegment = existingByKey.get(key);
+            if (roomSegment == null) {
+                roomSegment = ScheduleRoomSegment.builder()
+                        .schedule(schedule)
+                        .room(roomSegmentValue.room())
+                        .startTime(roomSegmentValue.startTime())
+                        .endTime(roomSegmentValue.endTime())
+                        .build();
+                schedule.getRoomSegments().add(roomSegment);
+                existingByKey.put(key, roomSegment);
+            } else {
+                roomSegment.setSchedule(schedule);
+            }
         }
     }
 
@@ -341,8 +425,11 @@ public class OfficialSubjectImportService {
         addIfChanged(fields, "이수구분", subject.getSubjectType(), record.subjectType());
         addIfChanged(fields, "수업유형", subject.getClassMethod(), record.classMethod());
         addIfChanged(fields, "야간여부", subject.getIsNight(), record.isNight());
-        if (!sameSchedules(subject.getSchedules(), record.schedules())) {
+        boolean schedulesChanged = !sameSchedules(subject.getSchedules(), record.schedules());
+        if (schedulesChanged) {
             fields.add("시간표");
+        } else if (!sameRoomSegments(subject.getSchedules(), record.schedules())) {
+            fields.add("강의실");
         }
         if (!Boolean.TRUE.equals(subject.getActive())) {
             fields.add("비활성화 상태");
@@ -363,6 +450,28 @@ public class OfficialSubjectImportService {
                 .toList();
         List<String> right = scheduleValues.stream()
                 .map(schedule -> scheduleKey(schedule.dayOfWeek(), schedule.startTime(), schedule.endTime()))
+                .sorted()
+                .toList();
+        return left.equals(right);
+    }
+
+    private boolean sameRoomSegments(List<Schedule> schedules, List<ScheduleValue> scheduleValues) {
+        List<String> left = schedules.stream()
+                .flatMap(schedule -> schedule.getRoomSegments().stream()
+                        .map(segment -> scheduleRoomSegmentKey(
+                                schedule.getDayOfWeek(),
+                                segment.getRoom(),
+                                segment.getStartTime(),
+                                segment.getEndTime())))
+                .sorted()
+                .toList();
+        List<String> right = scheduleValues.stream()
+                .flatMap(schedule -> schedule.roomSegments().stream()
+                        .map(segment -> scheduleRoomSegmentKey(
+                                schedule.dayOfWeek(),
+                                segment.room(),
+                                segment.startTime(),
+                                segment.endTime())))
                 .sorted()
                 .toList();
         return left.equals(right);
@@ -415,24 +524,29 @@ public class OfficialSubjectImportService {
             return List.of();
         }
 
-        List<String> timeSegments = new ArrayList<>();
-        Matcher bracketMatcher = BRACKET_TIME_PATTERN.matcher(timeSchedule);
-        while (bracketMatcher.find()) {
-            timeSegments.add(bracketMatcher.group(1));
-        }
-        if (timeSegments.isEmpty()) {
-            timeSegments.add(timeSchedule);
-        }
-
-        List<ScheduleValue> schedules = new ArrayList<>();
+        List<RawScheduleValue> schedules = new ArrayList<>();
+        Matcher bracketMatcher = BRACKET_SCHEDULE_PATTERN.matcher(timeSchedule);
         String currentDay = null;
-        for (String segment : timeSegments) {
-            currentDay = parseSegment(segment, schedules, currentDay);
+        boolean foundBracket = false;
+        while (bracketMatcher.find()) {
+            foundBracket = true;
+            currentDay = parseSegment(
+                    bracketMatcher.group(2),
+                    trimToNull(bracketMatcher.group(1)),
+                    schedules,
+                    currentDay);
+        }
+        if (!foundBracket) {
+            parseSegment(timeSchedule, null, schedules, currentDay);
         }
         return mergeSchedules(schedules);
     }
 
-    private String parseSegment(String segment, List<ScheduleValue> schedules, String currentDay) {
+    private String parseSegment(
+            String segment,
+            String room,
+            List<RawScheduleValue> schedules,
+            String currentDay) {
         for (String rawPart : segment.split(",")) {
             String part = rawPart.trim();
             if (!hasText(part)) {
@@ -451,24 +565,28 @@ public class OfficialSubjectImportService {
             boolean foundPeriod = false;
             Matcher periodMatcher = PERIOD_PATTERN.matcher(part);
             while (periodMatcher.find()) {
-                addPeriod(schedules, currentDay, periodMatcher.group(1));
+                addPeriod(schedules, currentDay, room, periodMatcher.group(1));
                 foundPeriod = true;
             }
 
             if (!foundPeriod) {
                 Matcher bareMatcher = BARE_PERIOD_PATTERN.matcher(part);
                 while (bareMatcher.find()) {
-                    addPeriod(schedules, currentDay, bareMatcher.group());
+                    addPeriod(schedules, currentDay, room, bareMatcher.group());
                 }
             }
         }
         return currentDay;
     }
 
-    private void addPeriod(List<ScheduleValue> schedules, String dayOfWeek, String period) {
+    private void addPeriod(
+            List<RawScheduleValue> schedules,
+            String dayOfWeek,
+            String room,
+            String period) {
         double[] range = parsePeriod(period);
         if (range != null) {
-            schedules.add(new ScheduleValue(dayOfWeek, range[0], range[1]));
+            schedules.add(new RawScheduleValue(dayOfWeek, range[0], range[1], room));
         }
     }
 
@@ -513,17 +631,17 @@ public class OfficialSubjectImportService {
         return Double.parseDouble(normalized);
     }
 
-    private List<ScheduleValue> mergeSchedules(List<ScheduleValue> schedules) {
+    private List<ScheduleValue> mergeSchedules(List<RawScheduleValue> schedules) {
         if (schedules.isEmpty()) {
             return List.of();
         }
 
-        Map<String, ScheduleValue> deduplicated = new LinkedHashMap<>();
-        for (ScheduleValue schedule : schedules) {
+        Map<String, RawScheduleValue> deduplicated = new LinkedHashMap<>();
+        for (RawScheduleValue schedule : schedules) {
             deduplicated.put(scheduleKey(schedule.dayOfWeek(), schedule.startTime(), schedule.endTime()), schedule);
         }
 
-        List<ScheduleValue> sorted = new ArrayList<>(deduplicated.values());
+        List<RawScheduleValue> sorted = new ArrayList<>(deduplicated.values());
         sorted.sort((left, right) -> {
             int dayCompare = Integer.compare(DAYS.indexOf(left.dayOfWeek()), DAYS.indexOf(right.dayOfWeek()));
             if (dayCompare != 0) {
@@ -533,23 +651,115 @@ public class OfficialSubjectImportService {
         });
 
         List<ScheduleValue> merged = new ArrayList<>();
-        ScheduleValue current = sorted.get(0);
+        ScheduleValue current = new ScheduleValue(
+                sorted.get(0).dayOfWeek(),
+                sorted.get(0).startTime(),
+                sorted.get(0).endTime(),
+                List.of());
         for (int index = 1; index < sorted.size(); index++) {
-            ScheduleValue next = sorted.get(index);
+            RawScheduleValue next = sorted.get(index);
             if (current.dayOfWeek().equals(next.dayOfWeek())
                     && Math.abs(current.endTime() - next.startTime()) < 0.001) {
-                current = new ScheduleValue(current.dayOfWeek(), current.startTime(), next.endTime());
+                current = new ScheduleValue(
+                        current.dayOfWeek(),
+                        current.startTime(),
+                        next.endTime(),
+                        List.of());
             } else {
                 merged.add(current);
-                current = next;
+                current = new ScheduleValue(
+                        next.dayOfWeek(),
+                        next.startTime(),
+                        next.endTime(),
+                        List.of());
             }
         }
         merged.add(current);
+
+        List<RoomSegmentValue> roomSegments = mergeRoomSegments(schedules);
+        return merged.stream()
+                .map(schedule -> new ScheduleValue(
+                        schedule.dayOfWeek(),
+                        schedule.startTime(),
+                        schedule.endTime(),
+                        roomSegments.stream()
+                                .filter(segment -> segment.dayOfWeek().equals(schedule.dayOfWeek()))
+                                .filter(segment -> segment.startTime() >= schedule.startTime() - 0.001)
+                                .filter(segment -> segment.endTime() <= schedule.endTime() + 0.001)
+                                .toList()))
+                .toList();
+    }
+
+    private List<RoomSegmentValue> mergeRoomSegments(List<RawScheduleValue> schedules) {
+        Map<String, RoomSegmentValue> deduplicated = new LinkedHashMap<>();
+        schedules.stream()
+                .filter(schedule -> hasText(schedule.room()))
+                .forEach(schedule -> {
+                    RoomSegmentValue segment = new RoomSegmentValue(
+                            schedule.room(),
+                            schedule.dayOfWeek(),
+                            schedule.startTime(),
+                            schedule.endTime());
+                    deduplicated.put(
+                            scheduleRoomSegmentKey(
+                                    segment.dayOfWeek(),
+                                    segment.room(),
+                                    segment.startTime(),
+                                    segment.endTime()),
+                            segment);
+                });
+
+        List<RoomSegmentValue> sorted = new ArrayList<>(deduplicated.values());
+        sorted.sort((left, right) -> {
+            int dayCompare = Integer.compare(
+                    DAYS.indexOf(left.dayOfWeek()),
+                    DAYS.indexOf(right.dayOfWeek()));
+            if (dayCompare != 0) {
+                return dayCompare;
+            }
+            int timeCompare = Double.compare(left.startTime(), right.startTime());
+            if (timeCompare != 0) {
+                return timeCompare;
+            }
+            return left.room().compareTo(right.room());
+        });
+
+        List<RoomSegmentValue> merged = new ArrayList<>();
+        for (RoomSegmentValue next : sorted) {
+            if (merged.isEmpty()) {
+                merged.add(next);
+                continue;
+            }
+            RoomSegmentValue current = merged.get(merged.size() - 1);
+            if (current.dayOfWeek().equals(next.dayOfWeek())
+                    && current.room().equals(next.room())
+                    && Math.abs(current.endTime() - next.startTime()) < 0.001) {
+                merged.set(merged.size() - 1, new RoomSegmentValue(
+                        current.room(),
+                        current.dayOfWeek(),
+                        current.startTime(),
+                        next.endTime()));
+            } else {
+                merged.add(next);
+            }
+        }
         return merged;
     }
 
     private String scheduleKey(String dayOfWeek, Double startTime, Double endTime) {
         return dayOfWeek + ":" + startTime + "-" + endTime;
+    }
+
+    private String roomSegmentKey(String room, Double startTime, Double endTime) {
+        return room + ":" + startTime + "-" + endTime;
+    }
+
+    private String scheduleRoomSegmentKey(
+            String dayOfWeek,
+            String room,
+            Double startTime,
+            Double endTime) {
+        return dayOfWeek + ":" + roomSegmentKey(room, startTime, endTime);
     }
 
     private SubjectType parseSubjectType(String type) {
@@ -683,7 +893,25 @@ public class OfficialSubjectImportService {
             List<ScheduleValue> schedules) {
     }
 
-    private record ScheduleValue(String dayOfWeek, Double startTime, Double endTime) {
+    private record ScheduleValue(
+            String dayOfWeek,
+            Double startTime,
+            Double endTime,
+            List<RoomSegmentValue> roomSegments) {
+    }
+
+    private record RawScheduleValue(
+            String dayOfWeek,
+            Double startTime,
+            Double endTime,
+            String room) {
+    }
+
+    private record RoomSegmentValue(
+            String room,
+            String dayOfWeek,
+            Double startTime,
+            Double endTime) {
     }
 
     private record ImportDiff(

@@ -3,6 +3,7 @@ package inu.timetable.service;
 import inu.timetable.dto.SubjectManagementRequest;
 import inu.timetable.dto.SubjectManagementResponse;
 import inu.timetable.entity.Schedule;
+import inu.timetable.entity.ScheduleRoomSegment;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
@@ -102,6 +103,32 @@ class SubjectAdminServiceTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
                         .isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void updateSubjectPreservesMatchingScheduleTupleAndRoomSegments() {
+        Subject subject = sampleSubject();
+        Schedule existingSchedule = subject.getSchedules().get(0);
+        existingSchedule.getRoomSegments().add(ScheduleRoomSegment.builder()
+                .id(20L)
+                .schedule(existingSchedule)
+                .room("05-432")
+                .startTime(1.0)
+                .endTime(2.0)
+                .build());
+        when(subjectRepository.findWithSchedulesById(1L)).thenReturn(Optional.of(subject));
+
+        SubjectManagementRequest request = sampleRequest();
+        request.setSchedules(List.of(
+                new SubjectManagementRequest.ScheduleRequest("월", 1.0, 2.0)));
+
+        SubjectManagementResponse response = subjectAdminService.updateSubject(1L, request);
+
+        assertThat(subject.getSchedules()).containsExactly(existingSchedule);
+        assertThat(subject.getSchedules().get(0).getId()).isEqualTo(10L);
+        assertThat(response.getSchedules().get(0).getRoomSegments())
+                .extracting(SubjectManagementResponse.RoomSegmentResponse::getRoom)
+                .containsExactly("05-432");
     }
 
     @Test

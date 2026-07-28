@@ -47,6 +47,7 @@ public class WishlistItemDto {
         private String dayOfWeek;
         private String startTime;  // "09:00" 형태
         private String endTime;    // "10:30" 형태
+        private List<ScheduleRoomSegmentDto> roomSegments;
         
         public static ScheduleDto fromEntity(Schedule schedule) {
             return ScheduleDto.builder()
@@ -54,6 +55,9 @@ public class WishlistItemDto {
                 .dayOfWeek(schedule.getDayOfWeek())
                 .startTime(TimeConverter.convertToClockTime(schedule.getStartTime()))
                 .endTime(TimeConverter.convertToClockTime(schedule.getEndTime()))
+                .roomSegments(schedule.getRoomSegments().stream()
+                    .map(ScheduleRoomSegmentDto::fromEntity)
+                    .toList())
                 .build();
         }
     }
