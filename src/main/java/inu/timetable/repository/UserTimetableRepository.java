@@ -35,7 +35,10 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
     @Query("DELETE FROM UserTimetable ut WHERE ut.user.id = :userId AND ut.subject.id = :subjectId")
     int deleteAllByUserIdAndSubjectId(@Param("userId") Long userId, @Param("subjectId") Long subjectId);
     
-    @Query("SELECT DISTINCT ut FROM UserTimetable ut JOIN FETCH ut.subject s WHERE ut.user.id = :userId AND ut.semester = :semester")
+    @Query("SELECT DISTINCT ut FROM UserTimetable ut " +
+           "JOIN FETCH ut.subject s " +
+           "LEFT JOIN FETCH s.schedules " +
+           "WHERE ut.user.id = :userId AND ut.semester = :semester")
     List<UserTimetable> findByUserIdAndSemesterWithSubjectAndSchedules(@Param("userId") Long userId, @Param("semester") String semester);
 
     // 시간 변경 충돌 검사용: 특정 과목을 해당 학기 시간표에 담아둔 모든 유저 항목을 조회한다.
@@ -43,6 +46,17 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
            "WHERE ut.subject.id = :subjectId AND ut.semester = :semester")
     List<UserTimetable> findAllBySubjectIdAndSemesterWithUser(@Param("subjectId") Long subjectId,
                                                               @Param("semester") String semester);
+
+    @Query("SELECT DISTINCT ut.user.id FROM UserTimetable ut " +
+           "WHERE ut.subject.id IN :subjectIds AND ut.semester = :semester")
+    List<Long> findDistinctUserIdsBySubjectIdsAndSemester(@Param("subjectIds") List<Long> subjectIds,
+                                                          @Param("semester") String semester);
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM UserTimetable ut " +
+           "WHERE ut.subject.id IN :subjectIds AND ut.semester = :semester")
+    int deleteAllBySubjectIdsAndSemester(@Param("subjectIds") List<Long> subjectIds,
+                                         @Param("semester") String semester);
 
     @Query("SELECT ut.subject.id AS subjectId, COUNT(DISTINCT ut.user.id) AS timetableAddCount " +
            "FROM UserTimetable ut " +

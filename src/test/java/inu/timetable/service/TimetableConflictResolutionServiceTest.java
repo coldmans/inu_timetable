@@ -5,10 +5,12 @@ import inu.timetable.entity.Subject;
 import inu.timetable.entity.User;
 import inu.timetable.entity.UserNotification;
 import inu.timetable.entity.UserTimetable;
+import inu.timetable.entity.WishlistItem;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
 import inu.timetable.repository.UserNotificationRepository;
 import inu.timetable.repository.UserTimetableRepository;
+import inu.timetable.repository.WishlistRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,6 +64,9 @@ class TimetableConflictResolutionServiceTest {
     private UserNotificationRepository userNotificationRepository;
 
     @Autowired
+    private WishlistRepository wishlistRepository;
+
+    @Autowired
     private TestEntityManager entityManager;
 
     private Subject changedSubject;
@@ -92,13 +97,14 @@ class TimetableConflictResolutionServiceTest {
         List<UserNotification> notifications = userNotificationRepository
                 .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(conflictUser.getId());
         assertThat(notifications).hasSize(1);
-        assertThat(notifications.get(0).getMessage()).contains("'자료구조'");
+        assertThat(notifications.get(0).getMessage())
+                .isEqualTo(TimetableConflictResolutionService.SUBJECT_CHANGE_NOTICE);
         assertThat(notifications.get(0).getReadAt()).isNull();
     }
 
     @Test
-    @DisplayName("새 시간이 겹치지 않는 유저는 시간표가 유지되고 알림도 생성되지 않는다")
-    void keepsNonConflictingEntryWithoutNotification() {
+    @DisplayName("새 시간이 겹치지 않는 유저는 시간표가 유지되고 변경 알림을 받는다")
+    void keepsNonConflictingEntryAndCreatesNotification() {
         User safeUser = persistUser();
         persistTimetableEntry(safeUser, changedSubject);
         persistTimetableEntry(safeUser, persistSubject("다른요일과목", "화", 5.0, 7.0));
@@ -114,11 +120,11 @@ class TimetableConflictResolutionServiceTest {
         assertThat(removedCount).isZero();
         assertThat(userTimetableRepository.findByUserIdAndSemester(safeUser.getId(), SEMESTER)).hasSize(3);
         assertThat(userNotificationRepository
-                .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(safeUser.getId())).isEmpty();
+                .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(safeUser.getId())).hasSize(1);
     }
 
     @Test
-    @DisplayName("여러 유저가 담아둔 경우 겹치는 유저만 제거되고 각자 알림을 받는다")
+    @DisplayName("여러 유저가 담아둔 경우 겹치는 유저만 제거되고 두 유저 모두 알림을 받는다")
     void resolvesPerUserIndependently() {
         User conflictUser = persistUser();
         persistTimetableEntry(conflictUser, changedSubject);
@@ -140,7 +146,147 @@ class TimetableConflictResolutionServiceTest {
         assertThat(userNotificationRepository
                 .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(conflictUser.getId())).hasSize(1);
         assertThat(userNotificationRepository
-                .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(safeUser.getId())).isEmpty();
+                .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(safeUser.getId())).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("시간이 변경된 두 과목이 서로 겹치면 처리 순서와 무관하게 둘 다 제거된다")
+    void removesBothChangedSubjectsWhenTheyConflictWithEachOther() {
+        User user = persistUser();
+        Subject anotherChangedSubject = persistSubject("운영체제", "월", 6.0, 8.0);
+        persistTimetableEntry(user, changedSubject);
+        persistTimetableEntry(user, anotherChangedSubject);
+        entityManager.flush();
+
+        TimetableConflictResolutionService.ReconciliationResult result =
+                timetableConflictResolutionService.reconcileImportChanges(
+                        List.of(changedSubject, anotherChangedSubject),
+                        List.of(changedSubject, anotherChangedSubject),
+                        List.of(),
+                        SEMESTER);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(result.conflictRemovedCount()).isEqualTo(2);
+        assertThat(userTimetableRepository.findByUserIdAndSemester(user.getId(), SEMESTER)).isEmpty();
+        assertThat(userNotificationRepository
+                .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(user.getId())).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("변경 과목을 위시리스트에만 담은 유저도 알림을 받고 항목은 유지된다")
+    void notifiesWishlistOnlyUserAndKeepsWishlistItem() {
+        User user = persistUser();
+        persistWishlistEntry(user, changedSubject);
+        entityManager.flush();
+
+        TimetableConflictResolutionService.ReconciliationResult result =
+                timetableConflictResolutionService.reconcileImportChanges(
+                        List.of(changedSubject),
+                        List.of(changedSubject),
+                        List.of(),
+                        SEMESTER);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(result.conflictRemovedCount()).isZero();
+        assertThat(result.notifiedUserCount()).isEqualTo(1);
+        assertThat(wishlistRepository.findByUserIdAndSemester(user.getId(), SEMESTER)).hasSize(1);
+        assertThat(userNotificationRepository
+                .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(user.getId())).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("미개설 과목은 시간표에서 제거하고 위시리스트 기록은 보존하되 조회에서는 숨긴다")
+    void removesDeactivatedSubjectFromTimetableAndHidesPreservedWishlistItem() {
+        User user = persistUser();
+        changedSubject.setActive(false);
+        persistTimetableEntry(user, changedSubject);
+        persistWishlistEntry(user, changedSubject);
+        entityManager.flush();
+
+        TimetableConflictResolutionService.ReconciliationResult result =
+                timetableConflictResolutionService.reconcileImportChanges(
+                        List.of(),
+                        List.of(),
+                        List.of(changedSubject),
+                        SEMESTER);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(result.deactivatedRemovedCount()).isEqualTo(1);
+        assertThat(userTimetableRepository.findByUserIdAndSemester(user.getId(), SEMESTER)).isEmpty();
+        assertThat(wishlistRepository.findByUserIdAndSemester(user.getId(), SEMESTER)).hasSize(1);
+        assertThat(wishlistRepository
+                .findByUserIdAndSemesterWithSubjectAndSchedules(user.getId(), SEMESTER)).isEmpty();
+        assertThat(userNotificationRepository
+                .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(user.getId())).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("변경 과목이 미개설 과목과만 겹치면 미개설 과목만 제거하고 변경 과목은 유지한다")
+    void keepsChangedSubjectWhenOnlyConflictIsDeactivatedSubject() {
+        User user = persistUser();
+        Subject deactivatedSubject = persistSubject("폐강과목", "월", 6.0, 8.0);
+        deactivatedSubject.setActive(false);
+        persistTimetableEntry(user, changedSubject);
+        persistTimetableEntry(user, deactivatedSubject);
+        entityManager.flush();
+
+        TimetableConflictResolutionService.ReconciliationResult result =
+                timetableConflictResolutionService.reconcileImportChanges(
+                        List.of(changedSubject),
+                        List.of(changedSubject),
+                        List.of(deactivatedSubject),
+                        SEMESTER);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(result.deactivatedRemovedCount()).isEqualTo(1);
+        assertThat(result.conflictRemovedCount()).isZero();
+        assertThat(userTimetableRepository.findByUserIdAndSemester(user.getId(), SEMESTER))
+                .extracting(entry -> entry.getSubject().getSubjectName())
+                .containsExactly("자료구조");
+    }
+
+    @Test
+    @DisplayName("동일한 변경 알림이 아직 읽히지 않았다면 중복 생성하지 않는다")
+    void doesNotDuplicateUnreadNotification() {
+        User user = persistUser();
+        persistTimetableEntry(user, changedSubject);
+        entityManager.flush();
+
+        timetableConflictResolutionService.reconcileImportChanges(
+                List.of(changedSubject), List.of(), List.of(), SEMESTER);
+        timetableConflictResolutionService.reconcileImportChanges(
+                List.of(changedSubject), List.of(), List.of(), SEMESTER);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(userNotificationRepository
+                .findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(user.getId())).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("시간 정보가 비어 있는 스케줄은 충돌 판정에서 제외한다")
+    void ignoresScheduleWithMissingTime() {
+        User user = persistUser();
+        Subject noTimeSubject = persistSubject("비동기수업", null, null, null);
+        persistTimetableEntry(user, changedSubject);
+        persistTimetableEntry(user, noTimeSubject);
+        entityManager.flush();
+
+        TimetableConflictResolutionService.ReconciliationResult result =
+                timetableConflictResolutionService.reconcileImportChanges(
+                        List.of(changedSubject),
+                        List.of(changedSubject),
+                        List.of(),
+                        SEMESTER);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(result.conflictRemovedCount()).isZero();
+        assertThat(userTimetableRepository.findByUserIdAndSemester(user.getId(), SEMESTER)).hasSize(2);
     }
 
     private User persistUser() {
@@ -152,7 +298,7 @@ class TimetableConflictResolutionServiceTest {
                 .build());
     }
 
-    private Subject persistSubject(String subjectName, String dayOfWeek, double startTime, double endTime) {
+    private Subject persistSubject(String subjectName, String dayOfWeek, Double startTime, Double endTime) {
         Subject subject = Subject.builder()
                 .courseCode("CC" + UUID.randomUUID().toString().substring(0, 8))
                 .semester(SEMESTER)
@@ -180,6 +326,16 @@ class TimetableConflictResolutionServiceTest {
                 .user(user)
                 .subject(subject)
                 .semester(SEMESTER)
+                .build());
+    }
+
+    private void persistWishlistEntry(User user, Subject subject) {
+        entityManager.persist(WishlistItem.builder()
+                .user(user)
+                .subject(subject)
+                .semester(SEMESTER)
+                .priority(3)
+                .isRequired(false)
                 .build());
     }
 }

@@ -102,13 +102,23 @@ class OfficialSubjectImportServiceTest {
 
         officialSubjectImportService.apply(sampleWorkbook(), "2026-1", true);
 
-        ArgumentCaptor<List<Subject>> captor = ArgumentCaptor.forClass(List.class);
-        verify(timetableConflictResolutionService).resolveScheduleConflicts(captor.capture(), eq("2026-1"));
-        assertThat(captor.getValue())
+        ArgumentCaptor<List<Subject>> modifiedCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<Subject>> timeChangedCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<Subject>> deactivatedCaptor = ArgumentCaptor.forClass(List.class);
+        verify(timetableConflictResolutionService).reconcileImportChanges(
+                modifiedCaptor.capture(),
+                timeChangedCaptor.capture(),
+                deactivatedCaptor.capture(),
+                eq("2026-1"));
+        assertThat(modifiedCaptor.getValue())
                 .extracting(Subject::getCourseCode)
                 .containsExactly("AI01001001");
+        assertThat(timeChangedCaptor.getValue())
+                .extracting(Subject::getCourseCode)
+                .containsExactly("AI01001001");
+        assertThat(deactivatedCaptor.getValue()).isEmpty();
         // 충돌 검사 대상 과목의 스케줄은 이미 '새' 시간으로 갱신되어 있어야 한다.
-        Subject passed = captor.getValue().get(0);
+        Subject passed = timeChangedCaptor.getValue().get(0);
         assertThat(passed.getSchedules())
                 .extracting(Schedule::getDayOfWeek)
                 .containsExactly("금");
@@ -129,6 +139,10 @@ class OfficialSubjectImportServiceTest {
         assertThat(response.getRemovedCount()).isEqualTo(1);
         verify(subjectRepository).saveAll(anyList());
         verify(eventPublisher).publishEvent(any(SubjectDataChangedEvent.class));
+        ArgumentCaptor<List<Subject>> deactivatedCaptor = ArgumentCaptor.forClass(List.class);
+        verify(timetableConflictResolutionService).reconcileImportChanges(
+                anyList(), anyList(), deactivatedCaptor.capture(), eq("2026-1"));
+        assertThat(deactivatedCaptor.getValue()).containsExactly(removed);
     }
 
     @Test

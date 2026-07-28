@@ -87,9 +87,13 @@ public class OfficialSubjectImportService {
             }
         }
 
-        // 시간표가 바뀐 과목은 이미 담아둔 유저 시간표와 겹칠 수 있으므로 같은 트랜잭션에서 충돌을 해소한다.
-        timetableConflictResolutionService.resolveScheduleConflicts(
-                timeChangedSubjects(diff, subjectsToSave), normalizedSemester);
+        // 변경 영향을 받은 유저에게 알리고, 새 시간과 충돌하는 항목 및 미개설 과목을
+        // 같은 트랜잭션에서 시간표로부터 제거한다.
+        timetableConflictResolutionService.reconcileImportChanges(
+                modifiedSubjects(diff, subjectsToSave),
+                timeChangedSubjects(diff, subjectsToSave),
+                deactivateMissing ? diff.removed() : List.of(),
+                normalizedSemester);
 
         subjectUpdateLogService.record(
                 normalizedSemester,
@@ -108,8 +112,19 @@ public class OfficialSubjectImportService {
                 .filter(item -> item.getChangedFields().contains("시간표"))
                 .map(OfficialSubjectImportResponse.ModifiedSubjectImportItem::getId)
                 .collect(Collectors.toSet());
-        return subjectsToSave.stream()
-                .filter(subject -> subject.getId() != null && timeChangedSubjectIds.contains(subject.getId()))
+        return subjectsWithIds(subjectsToSave, timeChangedSubjectIds);
+    }
+
+    private List<Subject> modifiedSubjects(ImportDiff diff, List<Subject> subjectsToSave) {
+        Set<Long> modifiedSubjectIds = diff.modifiedSubjects().stream()
+                .map(OfficialSubjectImportResponse.ModifiedSubjectImportItem::getId)
+                .collect(Collectors.toSet());
+        return subjectsWithIds(subjectsToSave, modifiedSubjectIds);
+    }
+
+    private List<Subject> subjectsWithIds(List<Subject> subjects, Set<Long> subjectIds) {
+        return subjects.stream()
+                .filter(subject -> subject.getId() != null && subjectIds.contains(subject.getId()))
                 .toList();
     }
 

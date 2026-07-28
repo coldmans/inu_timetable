@@ -41,6 +41,10 @@ public class WishlistService {
             
         Subject subject = subjectRepository.findById(subjectId)
             .orElseThrow(() -> ApiException.notFound("과목을 찾을 수 없습니다."));
+
+        if (!Boolean.TRUE.equals(subject.getActive())) {
+            throw ApiException.conflict("현재 학기에 개설되지 않은 과목입니다.");
+        }
         
         // 같은 학기에 이미 담겨 있는지 확인(다른 학기에는 같은 과목을 담을 수 있다)
         if (wishlistRepository.existsByUserIdAndSubjectIdAndSemester(userId, subjectId, semester)) {
