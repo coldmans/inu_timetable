@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:," />
   <title>사용자 분석 · INU 시간표</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
@@ -194,6 +195,17 @@
       border-radius: 12px;
       color: var(--red);
       background: var(--red-soft);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .success {
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      border: 1px solid #abefc6;
+      border-radius: 12px;
+      color: var(--green);
+      background: var(--green-soft);
       font-size: 13px;
       font-weight: 700;
     }
@@ -486,6 +498,7 @@
       <nav aria-label="관리자 메뉴">
         <a href="/admin/inquiries">문의</a>
         <a href="/admin/upload">업로드</a>
+        <a href="/admin/account">계정</a>
         <form action="/admin/logout" th:action="@{/admin/logout}" method="post">
           <button type="submit">로그아웃</button>
         </form>
@@ -518,6 +531,7 @@
       </div>
     </div>
 
+    <div th:if="${success}" class="success" th:text="${success}"></div>
     <div class="error" id="error" role="alert"></div>
 
     <section class="cards" aria-label="핵심 사용자 지표">

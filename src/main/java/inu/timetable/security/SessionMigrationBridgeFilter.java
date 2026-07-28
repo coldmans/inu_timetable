@@ -30,6 +30,7 @@ import java.util.Optional;
 public class SessionMigrationBridgeFilter extends OncePerRequestFilter {
 
     private final SessionMigrationBridgeService bridgeService;
+    private final AdminAuthService adminAuthService;
     private final AuthService authService;
     private final SecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
@@ -55,7 +56,10 @@ public class SessionMigrationBridgeFilter extends OncePerRequestFilter {
                         || "/api/auth/register".equals(path)
                         || "/api/auth/logout".equals(path)
                         || "/admin/api/auth/login".equals(path)
-                        || "/admin/api/auth/logout".equals(path)))
+                        || "/admin/api/auth/logout".equals(path)
+                        || "/admin/login".equals(path)
+                        || "/admin/logout".equals(path)
+                        || "/admin/account".equals(path)))
                 || ("DELETE".equals(method) && "/api/auth/me".equals(path));
     }
 
@@ -82,7 +86,10 @@ public class SessionMigrationBridgeFilter extends OncePerRequestFilter {
             if (principal.type() == SessionMigrationPrincipal.PrincipalType.USER) {
                 recoverUser(principal.userId(), request, response);
             } else {
-                recoverAdmin(principal.adminUsername(), request);
+                recoverAdmin(
+                        principal.adminUsername(),
+                        principal.adminCredentialVersion(),
+                        request);
             }
             bridgeService.clearCookie(response);
         } catch (RuntimeException exception) {
@@ -107,10 +114,16 @@ public class SessionMigrationBridgeFilter extends OncePerRequestFilter {
         securityContextRepository.saveContext(context, request, response);
     }
 
-    private void recoverAdmin(String username, HttpServletRequest request) {
-        HttpSession session = request.getSession(true);
-        session.setAttribute(AdminAuthService.SESSION_AUTHENTICATED, true);
-        session.setAttribute(AdminAuthService.SESSION_USERNAME, username);
+    private void recoverAdmin(
+            String username,
+            Long credentialVersion,
+            HttpServletRequest request) {
+        if (!adminAuthService.restoreMigratedSession(
+                username,
+                credentialVersion,
+                request)) {
+            throw new IllegalStateException("Admin migration credential is stale");
+        }
     }
 
     private boolean alreadyAuthenticated(HttpServletRequest request) {
