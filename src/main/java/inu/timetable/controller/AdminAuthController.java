@@ -31,8 +31,9 @@ public class AdminAuthController {
             HttpServletResponse servletResponse) {
         AdminAuthResponse response = adminAuthService.login(
                 request.username(), request.password(), servletRequest);
-        sessionMigrationBridgeService.rotateAdmin(
-                response.username(), servletRequest, servletResponse);
+        if (!response.passwordChangeRequired()) {
+            sessionMigrationBridgeService.rotateAdmin(servletRequest, servletResponse);
+        }
         return response;
     }
 

@@ -108,7 +108,7 @@ class SessionMigrationBridgeIntegrationTest {
     @Test
     void bridgeAlsoMigratesAdminSession() throws Exception {
         String token = tokenService.issue(
-                SessionMigrationPrincipal.admin("admin"),
+                SessionMigrationPrincipal.admin("admin", 0L),
                 Duration.ofMinutes(30));
 
         var migrated = mockMvc.perform(get("/admin/api/auth/me")

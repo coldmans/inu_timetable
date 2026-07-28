@@ -56,13 +56,15 @@ public class SessionMigrationTokenService {
                                     principal_type,
                                     user_id,
                                     admin_username,
+                                    admin_credential_version,
                                     expires_at
-                                ) VALUES (?, ?, ?, ?, ?)
+                                ) VALUES (?, ?, ?, ?, ?, ?)
                                 """,
                         hash(rawToken),
                         principal.type().name(),
                         principal.userId(),
                         principal.adminUsername(),
+                        principal.adminCredentialVersion(),
                         expiresAt);
                 return rawToken;
             } catch (org.springframework.dao.DuplicateKeyException collision) {
@@ -83,7 +85,10 @@ public class SessionMigrationTokenService {
 
         Optional<SessionMigrationPrincipal> result = transactionTemplate.execute(status -> {
             List<SessionMigrationPrincipal> principals = jdbcTemplate.query("""
-                            SELECT principal_type, user_id, admin_username
+                            SELECT principal_type,
+                                   user_id,
+                                   admin_username,
+                                   admin_credential_version
                             FROM session_migration_tokens
                             WHERE token_hash = ?
                               AND expires_at > CURRENT_TIMESTAMP
@@ -93,7 +98,8 @@ public class SessionMigrationTokenService {
                             SessionMigrationPrincipal.PrincipalType.valueOf(
                                     resultSet.getString("principal_type")),
                             resultSet.getObject("user_id", Long.class),
-                            resultSet.getString("admin_username")),
+                            resultSet.getString("admin_username"),
+                            resultSet.getObject("admin_credential_version", Long.class)),
                     hash(rawToken));
 
             if (principals.isEmpty()) {

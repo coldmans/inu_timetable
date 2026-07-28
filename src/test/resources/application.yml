@@ -31,5 +31,6 @@ subject:
       enabled: false
 
 admin:
+  username: admin
   operation-lock:
     provider: local

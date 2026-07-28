@@ -21,6 +21,7 @@ import java.util.Optional;
 public class SessionMigrationBridgeService {
 
     private final SessionMigrationTokenService tokenService;
+    private final AdminAuthService adminAuthService;
     private final Mode mode;
     private final String cookieName;
     private final Duration ttl;
@@ -30,6 +31,7 @@ public class SessionMigrationBridgeService {
 
     public SessionMigrationBridgeService(
             SessionMigrationTokenService tokenService,
+            AdminAuthService adminAuthService,
             @Value("${session.bridge.mode:off}") String mode,
             @Value("${session.bridge.cookie-name:INU_SESSION_BRIDGE}") String cookieName,
             @Value("${session.bridge.ttl:30m}") Duration ttl,
@@ -37,6 +39,7 @@ public class SessionMigrationBridgeService {
             @Value("${server.servlet.session.cookie.same-site:lax}") String cookieSameSite,
             @Value("${server.servlet.session.cookie.path:/}") String cookiePath) {
         this.tokenService = tokenService;
+        this.adminAuthService = adminAuthService;
         this.mode = Mode.valueOf(mode.trim().toUpperCase(Locale.ROOT));
         this.cookieName = cookieName;
         this.ttl = ttl;
@@ -69,10 +72,11 @@ public class SessionMigrationBridgeService {
         }
 
         HttpSession session = request.getSession(false);
-        if (session != null
-                && Boolean.TRUE.equals(session.getAttribute(AdminAuthService.SESSION_AUTHENTICATED))) {
+        if (adminAuthService.hasAdminAccess(session)) {
             String username = (String) session.getAttribute(AdminAuthService.SESSION_USERNAME);
-            issueAdmin(username, response);
+            Long credentialVersion =
+                    (Long) session.getAttribute(AdminAuthService.SESSION_CREDENTIAL_VERSION);
+            issueAdmin(username, credentialVersion, response);
         }
     }
 
@@ -90,18 +94,31 @@ public class SessionMigrationBridgeService {
         issueUser(userId, response);
     }
 
-    public void issueAdmin(String username, HttpServletResponse response) {
+    public void issueAdmin(
+            String username,
+            Long credentialVersion,
+            HttpServletResponse response) {
         if (isIssueMode()) {
-            addCookie(response, tokenService.issue(SessionMigrationPrincipal.admin(username), ttl), ttl);
+            addCookie(
+                    response,
+                    tokenService.issue(
+                            SessionMigrationPrincipal.admin(username, credentialVersion),
+                            ttl),
+                    ttl);
         }
     }
 
     public void rotateAdmin(
-            String username,
             HttpServletRequest request,
             HttpServletResponse response) {
         revoke(request, response);
-        issueAdmin(username, response);
+        HttpSession session = request.getSession(false);
+        if (adminAuthService.hasAdminAccess(session)) {
+            issueAdmin(
+                    (String) session.getAttribute(AdminAuthService.SESSION_USERNAME),
+                    (Long) session.getAttribute(AdminAuthService.SESSION_CREDENTIAL_VERSION),
+                    response);
+        }
     }
 
     public Optional<SessionMigrationPrincipal> consume(HttpServletRequest request) {

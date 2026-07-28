@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:," />
+  <title>관리자 계정 · INU 시간표</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #fff;
+      --ink: #101828;
+      --muted: #667085;
+      --line: #d0d5dd;
+      --brand: #2563eb;
+      --brand-dark: #1d4ed8;
+      --warn: #b54708;
+      --warn-bg: #fffaeb;
+      --warn-line: #fedf89;
+      --danger: #b42318;
+      --danger-bg: #fef3f2;
+      --danger-line: #fecdca;
+      --shadow: 0 12px 36px rgba(16, 24, 40, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 32px 20px;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .shell {
+      width: min(620px, 100%);
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: -.03em;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    nav a, nav button {
+      border: 0;
+      padding: 0;
+      color: var(--muted);
+      background: transparent;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    nav form { margin: 0; }
+    nav a:hover, nav button:hover { color: var(--ink); }
+
+    .warning, .error {
+      margin-bottom: 14px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .warning {
+      border: 1px solid var(--warn-line);
+      color: var(--warn);
+      background: var(--warn-bg);
+    }
+
+    .error {
+      border: 1px solid var(--danger-line);
+      color: var(--danger);
+      background: var(--danger-bg);
+      font-weight: 700;
+    }
+
+    .card {
+      padding: 28px;
+      border: 1px solid #e4e7ec;
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    .intro {
+      margin: 0 0 24px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .field { margin-bottom: 18px; }
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      color: #344054;
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    input {
+      width: 100%;
+      min-height: 46px;
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--ink);
+      background: #fff;
+      font: inherit;
+      font-size: 16px;
+    }
+
+    input:focus {
+      border-color: #84adff;
+      outline: 3px solid #eff6ff;
+    }
+
+    .hint {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .submit {
+      width: 100%;
+      min-height: 48px;
+      margin-top: 4px;
+      border: 0;
+      border-radius: 11px;
+      color: #fff;
+      background: var(--brand);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .submit:hover { background: var(--brand-dark); }
+
+    @media (max-width: 520px) {
+      body { padding: 20px 14px; }
+      header { align-items: flex-start; }
+      h1 { font-size: 21px; }
+      .card { padding: 22px 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <h1>관리자 계정</h1>
+      <nav aria-label="관리자 메뉴">
+        <a th:if="${!passwordChangeRequired}" href="/admin/dashboard">대시보드</a>
+        <form th:action="@{/admin/logout}" method="post">
+          <button type="submit">로그아웃</button>
+        </form>
+      </nav>
+    </header>
+
+    <div class="warning" th:if="${passwordChangeRequired}">
+      현재 비밀번호는 최초 진입용입니다. 계정 정보를 변경해야 대시보드와 관리 기능을 사용할 수 있습니다.
+    </div>
+    <div class="error" th:if="${error}" th:text="${error}"></div>
+
+    <section class="card">
+      <p class="intro">
+        변경 후에는 새 아이디와 비밀번호만 사용할 수 있습니다.
+        기존 관리자 세션도 함께 만료됩니다.
+      </p>
+
+      <form th:action="@{/admin/account}" method="post">
+        <div class="field">
+          <label for="currentPassword">현재 비밀번호</label>
+          <input id="currentPassword" name="currentPassword" type="password"
+                 autocomplete="current-password" required autofocus />
+        </div>
+
+        <div class="field">
+          <label for="newUsername">새 관리자 아이디</label>
+          <input id="newUsername" name="newUsername" type="text"
+                 th:value="${username}" autocomplete="username"
+                 minlength="4" maxlength="50"
+                 pattern="[A-Za-z0-9._-]{4,50}" required />
+          <p class="hint">영문, 숫자, 마침표, 밑줄, 하이픈만 사용할 수 있습니다. admin은 사용할 수 없습니다.</p>
+        </div>
+
+        <div class="field">
+          <label for="newPassword">새 비밀번호</label>
+          <input id="newPassword" name="newPassword" type="password"
+                 autocomplete="new-password" minlength="12" maxlength="72" required />
+          <p class="hint">12자 이상, 문자·숫자·특수문자를 각각 하나 이상 포함해주세요.</p>
+        </div>
+
+        <div class="field">
+          <label for="newPasswordConfirm">새 비밀번호 확인</label>
+          <input id="newPasswordConfirm" name="newPasswordConfirm" type="password"
+                 autocomplete="new-password" minlength="12" maxlength="72" required />
+        </div>
+
+        <button class="submit" type="submit">계정 정보 저장</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
