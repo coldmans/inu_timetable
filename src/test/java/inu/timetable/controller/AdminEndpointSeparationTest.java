@@ -88,7 +88,7 @@ class AdminEndpointSeparationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "/admin/api/database/add-column",
+            "/admin/api/subjects/manual",
             "/admin/api/insert-missing"
     })
     @DisplayName("admin 변경 API는 CSRF 토큰이 있어도 관리자 세션 없이는 차단한다")
@@ -99,7 +99,9 @@ class AdminEndpointSeparationTest {
         mockMvc.perform(post(path)
                 .session(session)
                 .cookie(csrfProof.cookie())
-                .header("X-XSRF-TOKEN", csrfProof.token()))
+                .header("X-XSRF-TOKEN", csrfProof.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("[]"))
                 .andExpect(status().isForbidden());
     }
 

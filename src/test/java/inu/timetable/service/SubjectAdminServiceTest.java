@@ -71,6 +71,49 @@ class SubjectAdminServiceTest {
     }
 
     @Test
+    void addSubjectsManuallyParsesTimeStringAndPublishesEvent() {
+        when(subjectRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<SubjectManagementResponse> responses = subjectAdminService.addSubjectsManually(List.of(
+                java.util.Map.of(
+                        "subjectName", "자료구조",
+                        "credits", 3,
+                        "professor", "홍길동",
+                        "subjectType", "전심",
+                        "grade", 2,
+                        "department", "컴퓨터공학부",
+                        "timeString", "월 1A-3B 수 5-6")));
+
+        ArgumentCaptor<List<Subject>> captor = ArgumentCaptor.forClass(List.class);
+        verify(subjectRepository).saveAll(captor.capture());
+        Subject savedSubject = captor.getValue().get(0);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getSubjectName()).isEqualTo("자료구조");
+        assertThat(savedSubject.getSubjectType()).isEqualTo(SubjectType.전심);
+        assertThat(savedSubject.getClassMethod()).isEqualTo(ClassMethod.OFFLINE);
+        assertThat(savedSubject.getSchedules()).hasSize(2);
+        assertThat(savedSubject.getSchedules().get(0).getDayOfWeek()).isEqualTo("월");
+        assertThat(savedSubject.getSchedules().get(0).getStartTime()).isEqualTo(1.0);
+        assertThat(savedSubject.getSchedules().get(0).getEndTime()).isEqualTo(4.0);
+        assertThat(savedSubject.getSchedules().get(1).getDayOfWeek()).isEqualTo("수");
+        assertThat(savedSubject.getSchedules().get(1).getStartTime()).isEqualTo(5.0);
+        assertThat(savedSubject.getSchedules().get(1).getEndTime()).isEqualTo(7.0);
+        assertThat(savedSubject.getSchedules().get(0).getSubject()).isSameAs(savedSubject);
+        verify(eventPublisher).publishEvent(any(SubjectDataChangedEvent.class));
+    }
+
+    @Test
+    void addSubjectsManuallySkipsEventWhenNothingSaved() {
+        when(subjectRepository.saveAll(any())).thenReturn(List.of());
+
+        List<SubjectManagementResponse> responses = subjectAdminService.addSubjectsManually(List.of());
+
+        assertThat(responses).isEmpty();
+        verify(eventPublisher, never()).publishEvent(any(SubjectDataChangedEvent.class));
+    }
+
+    @Test
     void updateSubjectReplacesExistingSchedules() {
         Subject subject = sampleSubject();
         when(subjectRepository.findWithSchedulesById(1L)).thenReturn(Optional.of(subject));

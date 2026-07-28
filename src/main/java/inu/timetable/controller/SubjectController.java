@@ -2,15 +2,11 @@ package inu.timetable.controller;
 
 import inu.timetable.dto.SubjectDto;
 import inu.timetable.dto.SubjectFilterCriteria;
-import inu.timetable.entity.Subject;
 import inu.timetable.enums.SubjectType;
-import inu.timetable.repository.SubjectRepository;
 import inu.timetable.service.SubjectQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,15 +20,13 @@ public class SubjectController {
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MIN_KEYWORD_LENGTH = 2;
 
-    private final SubjectRepository subjectRepository;
     private final SubjectQueryService subjectQueryService;
 
     @GetMapping
-    public Page<Subject> getAllSubjects(
+    public Page<SubjectDto> getAllSubjects(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size));
-        return subjectRepository.findByActiveTrue(pageable);
+        return subjectQueryService.findActiveSubjects(Math.max(0, page), clampSize(size));
     }
 
     @GetMapping("/count")
@@ -41,13 +35,13 @@ public class SubjectController {
     }
 
     @GetMapping("/type/{type}")
-    public List<Subject> getSubjectsByType(@PathVariable SubjectType type) {
-        return subjectRepository.findBySubjectTypeAndActiveTrue(type);
+    public List<SubjectDto> getSubjectsByType(@PathVariable SubjectType type) {
+        return subjectQueryService.findBySubjectType(type);
     }
 
     @GetMapping("/department/{department}")
-    public List<Subject> getSubjectsByDepartment(@PathVariable String department) {
-        return subjectRepository.findByDepartmentAndActiveTrue(department);
+    public List<SubjectDto> getSubjectsByDepartment(@PathVariable String department) {
+        return subjectQueryService.findByDepartment(department);
     }
 
     @GetMapping("/departments")
@@ -61,13 +55,13 @@ public class SubjectController {
     }
 
     @GetMapping("/grade/{grade}")
-    public List<Subject> getSubjectsByGrade(@PathVariable Integer grade) {
-        return subjectRepository.findByGradeAndActiveTrue(grade);
+    public List<SubjectDto> getSubjectsByGrade(@PathVariable Integer grade) {
+        return subjectQueryService.findByGrade(grade);
     }
 
     @GetMapping("/professor/{professor}")
-    public List<Subject> getSubjectsByProfessor(@PathVariable String professor) {
-        return subjectRepository.findByProfessorAndActiveTrue(professor);
+    public List<SubjectDto> getSubjectsByProfessor(@PathVariable String professor) {
+        return subjectQueryService.findByProfessor(professor);
     }
 
     @GetMapping("/search")

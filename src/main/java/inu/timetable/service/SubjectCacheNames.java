@@ -10,6 +10,7 @@ public final class SubjectCacheNames {
     public static final String SUBJECT_PROFESSOR_SEARCH = "subjectProfessorSearch";
     public static final String SUBJECT_DEPARTMENTS = "subjectDepartments";
     public static final String SUBJECT_GRADES = "subjectGrades";
+    public static final String SUBJECT_LISTINGS = "subjectListings";
 
     public static final List<String> ALL = List.of(
             ACTIVE_SUBJECT_COUNT,
@@ -17,7 +18,8 @@ public final class SubjectCacheNames {
             SUBJECT_NAME_SEARCH,
             SUBJECT_PROFESSOR_SEARCH,
             SUBJECT_DEPARTMENTS,
-            SUBJECT_GRADES);
+            SUBJECT_GRADES,
+            SUBJECT_LISTINGS);
 
     private SubjectCacheNames() {
     }
