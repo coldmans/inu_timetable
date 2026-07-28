@@ -1,6 +1,7 @@
 package inu.timetable.repository;
 
 import inu.timetable.entity.Schedule;
+import inu.timetable.entity.ScheduleRoomSegment;
 import inu.timetable.entity.Subject;
 import inu.timetable.entity.User;
 import inu.timetable.entity.UserTimetable;
@@ -71,6 +72,32 @@ class SubjectRepositoryIntegrationTest {
                 .orElseThrow();
         assertThat(loadedTarget.getSchedules()).hasSize(1);
         assertThat(loadedTarget.getSchedules().get(0).getDayOfWeek()).isEqualTo("월");
+    }
+
+    @Test
+    void findImportCandidatesLoadsNormalizedRoomSegments() {
+        Subject targetSubject = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        Schedule schedule = targetSubject.getSchedules().get(0);
+        entityManager.persistAndFlush(ScheduleRoomSegment.builder()
+                .schedule(schedule)
+                .room("05-432")
+                .startTime(4.0)
+                .endTime(5.5)
+                .build());
+        entityManager.clear();
+
+        Subject loaded = subjectRepository.findImportCandidatesBySemester("2026-1")
+                .stream()
+                .filter(subject -> "AI01001001".equals(subject.getCourseCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(loaded.getSchedules().get(0).getRoomSegments())
+                .extracting(
+                        ScheduleRoomSegment::getRoom,
+                        ScheduleRoomSegment::getStartTime,
+                        ScheduleRoomSegment::getEndTime)
+                .containsExactly(tuple("05-432", 4.0, 5.5));
     }
 
     @Test

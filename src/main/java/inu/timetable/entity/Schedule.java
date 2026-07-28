@@ -7,6 +7,10 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "schedules", indexes = {
@@ -38,4 +42,10 @@ public class Schedule {
     
     @Column(name = "end_time")
     private Double endTime; // 2, 2.5, 3, 3.5, etc.
+
+    @OneToMany(mappedBy = "schedule", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("startTime ASC, endTime ASC, id ASC")
+    @BatchSize(size = 100)
+    @Builder.Default
+    private Set<ScheduleRoomSegment> roomSegments = new LinkedHashSet<>();
 }

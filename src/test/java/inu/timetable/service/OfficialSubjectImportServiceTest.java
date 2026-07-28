@@ -2,6 +2,7 @@ package inu.timetable.service;
 
 import inu.timetable.dto.OfficialSubjectImportResponse;
 import inu.timetable.entity.Schedule;
+import inu.timetable.entity.ScheduleRoomSegment;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
@@ -157,6 +158,89 @@ class OfficialSubjectImportServiceTest {
         assertThat(schedule.getDayOfWeek()).isEqualTo("금");
         assertThat(schedule.getStartTime()).isEqualTo(5.0);
         assertThat(schedule.getEndTime()).isEqualTo(9.0);
+        assertThat(schedule.getRoomSegments())
+                .extracting(
+                        ScheduleRoomSegment::getRoom,
+                        ScheduleRoomSegment::getStartTime,
+                        ScheduleRoomSegment::getEndTime)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("05-527", 5.0, 7.0),
+                        org.assertj.core.groups.Tuple.tuple("05-432", 7.0, 9.0));
+    }
+
+    @Test
+    void applyBackfillsRoomsWithoutReplacingExistingScheduleTuple() throws Exception {
+        Subject existing = matchingFirstRowSubjectWithoutRooms();
+        Schedule existingSchedule = existing.getSchedules().get(0);
+        when(subjectRepository.findImportCandidatesBySemester("2026-1"))
+                .thenReturn(List.of(existing));
+
+        OfficialSubjectImportResponse response =
+                officialSubjectImportService.apply(sampleWorkbook(), "2026-1", true);
+
+        assertThat(response.getModifiedSubjects())
+                .filteredOn(item -> "AI01001001".equals(item.getCourseCode()))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getChangedFields()).containsExactly("강의실");
+                });
+        assertThat(existing.getSchedules()).containsExactly(existingSchedule);
+        assertThat(existing.getSchedules().get(0).getId()).isEqualTo(77L);
+        assertThat(existing.getSchedules().get(0).getRoomSegments())
+                .extracting(ScheduleRoomSegment::getRoom)
+                .containsExactly("05-527", "05-432");
+    }
+
+    @Test
+    void applyKeepsExistingRoomSegmentTuplesWhenWorkbookIsUnchanged() throws Exception {
+        Subject existing = matchingFirstRowSubjectWithoutRooms();
+        Schedule existingSchedule = existing.getSchedules().get(0);
+        ScheduleRoomSegment firstSegment = ScheduleRoomSegment.builder()
+                .id(101L)
+                .schedule(existingSchedule)
+                .room("05-527")
+                .startTime(5.0)
+                .endTime(7.0)
+                .build();
+        ScheduleRoomSegment secondSegment = ScheduleRoomSegment.builder()
+                .id(102L)
+                .schedule(existingSchedule)
+                .room("05-432")
+                .startTime(7.0)
+                .endTime(9.0)
+                .build();
+        existingSchedule.getRoomSegments().add(firstSegment);
+        existingSchedule.getRoomSegments().add(secondSegment);
+        when(subjectRepository.findImportCandidatesBySemester("2026-1"))
+                .thenReturn(List.of(existing));
+
+        officialSubjectImportService.apply(sampleWorkbook(), "2026-1", true);
+
+        assertThat(existing.getSchedules()).containsExactly(existingSchedule);
+        assertThat(existingSchedule.getRoomSegments())
+                .containsExactly(firstSegment, secondSegment);
+        assertThat(existingSchedule.getRoomSegments())
+                .extracting(ScheduleRoomSegment::getId)
+                .containsExactly(101L, 102L);
+    }
+
+    @Test
+    void applyKeepsThreeRoomSegmentsInsideOneMergedSchedule() throws Exception {
+        when(subjectRepository.findImportCandidatesBySemester("2026-1"))
+                .thenReturn(List.of());
+
+        officialSubjectImportService.apply(threeRoomWorkbook(), "2026-1", true);
+
+        ArgumentCaptor<List<Subject>> captor = ArgumentCaptor.forClass(List.class);
+        verify(subjectRepository).saveAll(captor.capture());
+        Schedule schedule = captor.getValue().get(0).getSchedules().get(0);
+
+        assertThat(schedule.getDayOfWeek()).isEqualTo("목");
+        assertThat(schedule.getStartTime()).isEqualTo(1.0);
+        assertThat(schedule.getEndTime()).isEqualTo(7.0);
+        assertThat(schedule.getRoomSegments())
+                .extracting(ScheduleRoomSegment::getRoom)
+                .containsExactly("28-508", "09-501", "27-104");
     }
 
     @Test
@@ -287,6 +371,42 @@ class OfficialSubjectImportServiceTest {
         }
     }
 
+    private MockMultipartFile threeRoomWorkbook() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("sheet1");
+            sheet.createRow(0).createCell(0)
+                    .setCellValue("2026학년도 1학기 인천대학교 학부 종합강의시간표");
+            Row header = sheet.createRow(1);
+            List<String> headers = List.of(
+                    "순번", "대학(원)", "학과(부)", "학년", "이수구분", "이수영역", "학수번호", "교과목명",
+                    "교과목명(영문)", "담당교수", "강의실", "시간표(교시)", "시간표(시간)", "교시유형", "학점",
+                    "수업구분", "수업유형", "집중이수제", "성적평가", "원어강의구분");
+            for (int index = 0; index < headers.size(); index++) {
+                header.createCell(index).setCellValue(headers.get(index));
+            }
+            createSubjectRow(
+                    sheet,
+                    2,
+                    "0001993003",
+                    "건축공학종합설계",
+                    "테스트교수",
+                    "건축공학부",
+                    "4",
+                    "전공심화",
+                    " [09-501:목(4-5A)] [27-104:(5B-6)] [28-508:(1-2A)(2B-3)]",
+                    3,
+                    "실험실습");
+
+            workbook.write(outputStream);
+            return new MockMultipartFile(
+                    "file",
+                    "three-rooms.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    outputStream.toByteArray());
+        }
+    }
+
     private void createSubjectRow(
             Sheet sheet,
             int rowIndex,
@@ -328,11 +448,44 @@ class OfficialSubjectImportServiceTest {
                 .isNight(false)
                 .schedules(new ArrayList<>())
                 .build();
-        subject.getSchedules().add(Schedule.builder()
+        Schedule schedule = Schedule.builder()
                 .subject(subject)
                 .dayOfWeek("화")
                 .startTime(7.0)
                 .endTime(8.0)
+                .build();
+        schedule.getRoomSegments().add(ScheduleRoomSegment.builder()
+                .schedule(schedule)
+                .room("15-119")
+                .startTime(7.0)
+                .endTime(8.0)
+                .build());
+        subject.getSchedules().add(schedule);
+        return subject;
+    }
+
+    private Subject matchingFirstRowSubjectWithoutRooms() {
+        Subject subject = Subject.builder()
+                .id(1L)
+                .courseCode("AI01001001")
+                .semester("2026-1")
+                .active(true)
+                .subjectName("AI에이전트")
+                .credits(3)
+                .professor("신규교수")
+                .department("컴퓨터공학부")
+                .grade(2)
+                .subjectType(SubjectType.전심)
+                .classMethod(ClassMethod.OFFLINE)
+                .isNight(false)
+                .schedules(new ArrayList<>())
+                .build();
+        subject.getSchedules().add(Schedule.builder()
+                .id(77L)
+                .subject(subject)
+                .dayOfWeek("금")
+                .startTime(5.0)
+                .endTime(9.0)
                 .build());
         return subject;
     }

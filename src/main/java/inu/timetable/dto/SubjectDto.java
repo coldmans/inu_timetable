@@ -46,6 +46,7 @@ public class SubjectDto {
         private String dayOfWeek;
         private String startTime;
         private String endTime;
+        private List<ScheduleRoomSegmentDto> roomSegments;
         
         public static ScheduleDto fromEntity(Schedule schedule) {
             return ScheduleDto.builder()
@@ -53,6 +54,9 @@ public class SubjectDto {
                 .dayOfWeek(schedule.getDayOfWeek())
                 .startTime(TimeConverter.convertToClockTime(schedule.getStartTime()))
                 .endTime(TimeConverter.convertToClockTime(schedule.getEndTime()))
+                .roomSegments(schedule.getRoomSegments().stream()
+                    .map(ScheduleRoomSegmentDto::fromEntity)
+                    .toList())
                 .build();
         }
     }
