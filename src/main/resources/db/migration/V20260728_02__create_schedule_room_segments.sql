@@ -1,3 +1,4 @@
+-- V20260728_01 is reserved for the user inquiries migration.
 CREATE TABLE IF NOT EXISTS schedule_room_segments (
     id BIGSERIAL PRIMARY KEY,
     schedule_id BIGINT NOT NULL,
