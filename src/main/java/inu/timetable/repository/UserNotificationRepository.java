@@ -15,6 +15,11 @@ public interface UserNotificationRepository extends JpaRepository<UserNotificati
 
     List<UserNotification> findAllByUserIdAndReadAtIsNullOrderByCreatedAtAscIdAsc(Long userId);
 
+    @Query("SELECT DISTINCT n.userId FROM UserNotification n " +
+           "WHERE n.userId IN :userIds AND n.message = :message AND n.readAt IS NULL")
+    List<Long> findUserIdsWithUnreadMessage(@Param("userIds") List<Long> userIds,
+                                            @Param("message") String message);
+
     @Modifying(clearAutomatically = true)
     @Query("UPDATE UserNotification n SET n.readAt = :readAt " +
            "WHERE n.userId = :userId AND n.readAt IS NULL")

@@ -24,6 +24,7 @@ public interface WishlistRepository extends JpaRepository<WishlistItem, Long> {
            "JOIN FETCH w.subject s " +
            "LEFT JOIN FETCH s.schedules " +
            "WHERE w.user.id = :userId AND w.semester = :semester " +
+           "AND s.active = true " +
            "ORDER BY w.priority")
     List<WishlistItem> findByUserIdAndSemesterWithSubjectAndSchedules(@Param("userId") Long userId, @Param("semester") String semester);
     
@@ -41,6 +42,11 @@ public interface WishlistRepository extends JpaRepository<WishlistItem, Long> {
     @Modifying
     @Query("DELETE FROM WishlistItem w WHERE w.user.id = :userId AND w.subject.id = :subjectId")
     void deleteByUserIdAndSubjectId(@Param("userId") Long userId, @Param("subjectId") Long subjectId);
+
+    @Query("SELECT DISTINCT w.user.id FROM WishlistItem w " +
+           "WHERE w.subject.id IN :subjectIds AND w.semester = :semester")
+    List<Long> findDistinctUserIdsBySubjectIdsAndSemester(@Param("subjectIds") List<Long> subjectIds,
+                                                          @Param("semester") String semester);
 
     @Query("SELECT w.subject.id AS subjectId, COUNT(w.id) AS wishlistCount " +
            "FROM WishlistItem w " +
