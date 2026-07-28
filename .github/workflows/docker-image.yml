@@ -111,14 +111,6 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
-      - name: Sync admin password to Secret Manager
-        env:
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-        run: |
-          test -n "$ADMIN_PASSWORD"
-          printf '%s' "$ADMIN_PASSWORD" |
-            gcloud secrets versions add ADMIN_PASSWORD --data-file=-
-
       - name: Capture current production revision
         run: |
           CURRENT_REVISION="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
@@ -141,8 +133,8 @@ jobs:
             --tag "$CANDIDATE_TAG" \
             --allow-unauthenticated \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
-            --set-secrets DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest,REDIS_PASSWORD=REDIS_PASSWORD:latest \
-            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=prod@ADMIN_USERNAME=admin@CORS_ALLOWED_ORIGINS=https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app,https://inuu-timetable.vercel.app@SESSION_BRIDGE_MODE=$SESSION_BRIDGE_MODE@SHARED_SESSION_ENABLED=$SHARED_SESSION_ENABLED@DB_POOL_MAXIMUM_SIZE=$DB_POOL_MAXIMUM_SIZE@DB_POOL_MINIMUM_IDLE=$DB_POOL_MINIMUM_IDLE@SUBJECT_CACHE_PROVIDER=$SUBJECT_CACHE_PROVIDER@SUBJECT_CACHE_REDIS_KEY_PREFIX=$SUBJECT_CACHE_REDIS_KEY_PREFIX@SUBJECT_CACHE_DB_VERSION_POLL_ENABLED=$SUBJECT_CACHE_DB_VERSION_POLL_ENABLED@SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED=$SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED@REDIS_HEALTH_ENABLED=$REDIS_HEALTH_ENABLED@REDIS_HOST=$REDIS_HOST@REDIS_PORT=$REDIS_PORT" \
+            --set-secrets DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_PASSWORD=ADMIN_BOOTSTRAP_PASSWORD:latest,REDIS_PASSWORD=REDIS_PASSWORD:latest \
+            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=prod@ADMIN_USERNAME=jangboss02@CORS_ALLOWED_ORIGINS=https://inu-timetable-front-git-main-jjhs-projects-4d22a2fd.vercel.app,https://inuu-timetable.vercel.app@SESSION_BRIDGE_MODE=$SESSION_BRIDGE_MODE@SHARED_SESSION_ENABLED=$SHARED_SESSION_ENABLED@DB_POOL_MAXIMUM_SIZE=$DB_POOL_MAXIMUM_SIZE@DB_POOL_MINIMUM_IDLE=$DB_POOL_MINIMUM_IDLE@SUBJECT_CACHE_PROVIDER=$SUBJECT_CACHE_PROVIDER@SUBJECT_CACHE_REDIS_KEY_PREFIX=$SUBJECT_CACHE_REDIS_KEY_PREFIX@SUBJECT_CACHE_DB_VERSION_POLL_ENABLED=$SUBJECT_CACHE_DB_VERSION_POLL_ENABLED@SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED=$SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED@REDIS_HEALTH_ENABLED=$REDIS_HEALTH_ENABLED@REDIS_HOST=$REDIS_HOST@REDIS_PORT=$REDIS_PORT" \
             --network default \
             --subnet default \
             --vpc-egress private-ranges-only \
@@ -176,8 +168,6 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Verify candidate revision
-        env:
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
           curl --fail --show-error --silent --retry 12 --retry-all-errors \
             --retry-delay 5 "$CANDIDATE_URL/actuator/health"
@@ -202,8 +192,12 @@ jobs:
 
           COOKIE_JAR="$(mktemp)"
           CSRF_BODY="$(mktemp)"
-          LOGIN_BODY="$(mktemp)"
-          trap 'rm -f "$COOKIE_JAR" "$CSRF_BODY" "$LOGIN_BODY"' EXIT
+          trap 'rm -f "$COOKIE_JAR" "$CSRF_BODY"' EXIT
+
+          test "$(curl --show-error --silent \
+            --output /dev/null \
+            --write-out '%{http_code}' \
+            "$CANDIDATE_URL/admin/login")" = "200"
 
           test "$(curl --show-error --silent \
             --output "$CSRF_BODY" \
@@ -213,30 +207,11 @@ jobs:
           CSRF_TOKEN="$(jq --raw-output '.token' "$CSRF_BODY")"
           test -n "$CSRF_TOKEN"
 
-          LOGIN_STATUS="$(curl --show-error --silent \
-            --output "$LOGIN_BODY" \
-            --write-out '%{http_code}' \
-            --cookie "$COOKIE_JAR" \
-            --cookie-jar "$COOKIE_JAR" \
-            --header 'Content-Type: application/json' \
-            --header "X-XSRF-TOKEN: $CSRF_TOKEN" \
-            --data "$(jq --compact-output --null-input \
-              --arg username admin \
-              --arg password "$ADMIN_PASSWORD" \
-              '{username: $username, password: $password}')" \
-            "$CANDIDATE_URL/admin/api/auth/login")"
-          test "$LOGIN_STATUS" = "200"
-          test "$(jq --raw-output '.authenticated' "$LOGIN_BODY")" = "true"
-          if [ "$SESSION_BRIDGE_MODE" = "issue" ]; then
-            grep --quiet 'INU_SESSION_BRIDGE' "$COOKIE_JAR"
-          else
-            grep --quiet $'\tSESSION\t' "$COOKIE_JAR"
-          fi
           test "$(curl --show-error --silent \
             --output /dev/null \
             --write-out '%{http_code}' \
             --cookie "$COOKIE_JAR" \
-            "$CANDIDATE_URL/admin/api/auth/me")" = "200"
+            "$CANDIDATE_URL/admin/api/auth/me")" = "403"
 
       - name: Promote candidate
         run: |
