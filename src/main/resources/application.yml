@@ -86,6 +86,12 @@ user:
     max-failures: ${USER_LOGIN_MAX_FAILURES:5}
     lock-minutes: ${USER_LOGIN_LOCK_MINUTES:10}
 
+inquiry:
+  rate-limit:
+    # 비로그인 허용 엔드포인트라 IP 당 접수 횟수를 제한한다.
+    max-submissions: ${INQUIRY_RATE_LIMIT_MAX_SUBMISSIONS:10}
+    block-minutes: ${INQUIRY_RATE_LIMIT_BLOCK_MINUTES:60}
+
 subject:
   cache:
     # Local development/tests use Caffeine. Cloud Run uses Caffeine L1 + Redis L2.

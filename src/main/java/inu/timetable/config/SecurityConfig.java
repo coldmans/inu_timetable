@@ -86,7 +86,8 @@ public class SecurityConfig {
                                 "/api/dev/**",
                                 "/api/subjects",
                                 "/api/subjects/**",
-                                "/api/events"))
+                                "/api/events",
+                                "/api/inquiries"))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/admin/**", "/admin/api/**").permitAll()
@@ -101,6 +102,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/subjects/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/settings/current-semester").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/events").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/inquiries").permitAll()
                         .anyRequest().denyAll())
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) ->
