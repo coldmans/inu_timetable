@@ -102,6 +102,7 @@ class OfficialSubjectImportServiceTest {
 
         officialSubjectImportService.apply(sampleWorkbook(), "2026-1", true);
 
+        verify(subjectRepository).flush();
         ArgumentCaptor<List<Subject>> modifiedCaptor = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<List<Subject>> timeChangedCaptor = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<List<Subject>> deactivatedCaptor = ArgumentCaptor.forClass(List.class);

@@ -52,7 +52,7 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
     List<Long> findDistinctUserIdsBySubjectIdsAndSemester(@Param("subjectIds") List<Long> subjectIds,
                                                           @Param("semester") String semester);
 
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("DELETE FROM UserTimetable ut " +
            "WHERE ut.subject.id IN :subjectIds AND ut.semester = :semester")
     int deleteAllBySubjectIdsAndSemester(@Param("subjectIds") List<Long> subjectIds,

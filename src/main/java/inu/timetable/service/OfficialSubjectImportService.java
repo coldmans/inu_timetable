@@ -87,6 +87,10 @@ public class OfficialSubjectImportService {
             }
         }
 
+        // 아래 충돌 정리에서 bulk delete 후 영속성 컨텍스트를 비우므로, 과목/스케줄 변경과
+        // 미개설 active=false를 먼저 DB에 확정해 변경 내용이 함께 유실되지 않도록 한다.
+        subjectRepository.flush();
+
         // 변경 영향을 받은 유저에게 알리고, 새 시간과 충돌하는 항목 및 미개설 과목을
         // 같은 트랜잭션에서 시간표로부터 제거한다.
         timetableConflictResolutionService.reconcileImportChanges(
