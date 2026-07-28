@@ -15,8 +15,11 @@
     header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
     h1 { font-size:20px; font-weight:800; margin:0; }
     .sub { color:var(--muted); font-size:13px; margin-top:2px; }
-    nav a { color:var(--muted); text-decoration:none; font-size:13px; font-weight:600; margin-left:12px; }
-    nav a:hover { color:var(--ink); }
+    nav { display:flex; align-items:center; gap:12px; }
+    nav form { margin:0; }
+    nav a, nav button { border:0; padding:0; background:transparent; color:var(--muted);
+      text-decoration:none; font-size:13px; font-weight:600; cursor:pointer; }
+    nav a:hover, nav button:hover { color:var(--ink); }
     .filter { display:inline-flex; gap:4px; background:#eef2f7; border-radius:999px; padding:3px; }
     .filter button { border:0; background:transparent; color:var(--muted); font-weight:700; font-size:13px;
       padding:6px 12px; border-radius:999px; cursor:pointer; }
@@ -53,7 +56,13 @@
           <button data-unresolved="true" class="active">미처리</button>
           <button data-unresolved="false">전체</button>
         </div>
-        <nav><a href="/admin/dashboard">대시보드</a><a href="/admin/upload">업로드</a><a href="/admin/login">로그아웃</a></nav>
+        <nav>
+          <a href="/admin/dashboard">대시보드</a>
+          <a href="/admin/upload">업로드</a>
+          <form action="/admin/logout" th:action="@{/admin/logout}" method="post">
+            <button type="submit">로그아웃</button>
+          </form>
+        </nav>
       </div>
     </header>
 
