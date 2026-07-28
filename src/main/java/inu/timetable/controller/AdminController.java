@@ -103,8 +103,19 @@ public class AdminController {
     }
 
     /**
+     * 문의 관리 페이지 (사이트 내 문의 목록/처리)
+     */
+    @GetMapping("/inquiries")
+    public String inquiriesPage(HttpSession session) {
+        if (!isAuthenticated(session)) {
+            return "redirect:/admin/login";
+        }
+        return "admin/inquiries";
+    }
+
+    /**
      * PDF 업로드 처리
-     * 
+     *
      * @param mode "incremental" (기본값) 또는 "replace"
      */
     @PostMapping("/upload/pdf")
