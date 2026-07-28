@@ -286,6 +286,43 @@ class UserSecurityIntegrationTest {
     }
 
     @Test
+    void csrfCookieTokenAllowsNextSpaMutationWithoutRefresh() throws Exception {
+        RegisteredUser registeredUser = registerAndReturnSession();
+        CsrfProof csrfProof = fetchCsrfProof(registeredUser.session());
+        String requestBody = """
+                {
+                  "userId": %d,
+                  "semester": "2026-1",
+                  "targetCredits": 18
+                }
+                """.formatted(registeredUser.userId());
+
+        mockMvc.perform(post("/api/timetable-combination/generate")
+                        .session(registeredUser.session())
+                        .cookie(csrfProof.cookie())
+                        .header("X-XSRF-TOKEN", csrfProof.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/timetable-combination/generate")
+                        .session(registeredUser.session())
+                        .cookie(csrfProof.cookie())
+                        .header("X-XSRF-TOKEN", csrfProof.cookie().getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/timetable-combination/generate")
+                        .session(registeredUser.session())
+                        .cookie(csrfProof.cookie())
+                        .header("X-XSRF-TOKEN", "invalid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void privateApiValidationReturnsStandardBadRequestResponse() throws Exception {
         RegisteredUser registeredUser = registerAndReturnSession();
         CsrfProof csrfProof = fetchCsrfProof(registeredUser.session());

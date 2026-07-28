@@ -2,6 +2,7 @@ package inu.timetable.config;
 
 import inu.timetable.security.LegacySha256DelegatingPasswordEncoder;
 import inu.timetable.security.SessionMigrationBridgeFilter;
+import inu.timetable.security.SpaCsrfTokenRequestHandler;
 import inu.timetable.security.UserDetailsJpaService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -71,6 +72,7 @@ public class SecurityConfig {
                 .securityContext(context -> context.securityContextRepository(securityContextRepository))
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers(
                                 "/",
                                 "/error",
