@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 public class TimetableCombinationService {
 
     private static final int CREDIT_TOLERANCE = 3;
+    private static final int MAX_TARGET_SEARCH_NODES = 50_000;
     private static final int SLOTS_PER_DAY = 128;
     private static final List<String> KNOWN_DAYS = List.of("월", "화", "수", "목", "금", "토", "일");
     
@@ -28,7 +29,8 @@ public class TimetableCombinationService {
         return generateTimetableCombinations(userId, semester, targetCredits, maxCombinations, new ArrayList<>());
     }
 
-    public List<List<Subject>> generateTimetableCombinations(Long userId, String semester, int targetCredits, int maxCombinations, List<String> freeDays) {
+    public List<List<Subject>> generateTimetableCombinations(Long userId, String semester, Integer targetCredits,
+                                                            int maxCombinations, List<String> freeDays) {
         // 위시리스트 가져오기
         List<WishlistItem> wishlist = wishlistRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester);
 
@@ -85,11 +87,23 @@ public class TimetableCombinationService {
         }
 
         List<List<Subject>> combinations = new ArrayList<>();
+        int[] optionalSuffixCredits = suffixCredits(optionalOptions);
+        int effectiveTargetCredits = targetCredits != null
+                ? targetCredits
+                : findMaximumFeasibleCredits(
+                        optionalOptions,
+                        0,
+                        requiredCredits,
+                        requiredTimeMask,
+                        freeDaySet,
+                        optionalSuffixCredits,
+                        requiredCredits,
+                        new int[]{0});
 
         // 필수 과목을 먼저 포함한 상태로 조합 생성
         generateCombinationsWithRequired(optionalOptions, new ArrayList<>(requiredSubjects), 0,
-                requiredCredits, requiredTimeMask, targetCredits, combinations, maxCombinations,
-                freeDaySet, suffixCredits(optionalOptions));
+                requiredCredits, requiredTimeMask, effectiveTargetCredits, combinations, maxCombinations,
+                freeDaySet, optionalSuffixCredits);
 
         // 필수 과목 학점 합이 목표+tolerance 를 넘어 유효 조합이 하나도 없으면,
         // 필수 과목만으로 구성된 시간표를 최소 1개 보장한다(필수는 반드시 포함되어야 하므로).
@@ -103,8 +117,8 @@ public class TimetableCombinationService {
             int creditsA = a.stream().mapToInt(Subject::getCredits).sum();
             int creditsB = b.stream().mapToInt(Subject::getCredits).sum();
 
-            int diffA = Math.abs(creditsA - targetCredits);
-            int diffB = Math.abs(creditsB - targetCredits);
+            int diffA = Math.abs(creditsA - effectiveTargetCredits);
+            int diffB = Math.abs(creditsB - effectiveTargetCredits);
 
             return Integer.compare(diffA, diffB);
         });
@@ -160,6 +174,43 @@ public class TimetableCombinationService {
                 return;
             }
         }
+    }
+
+    private int findMaximumFeasibleCredits(List<SubjectOption> optionalSubjects, int startIndex,
+                                           int currentCredits, BitSet currentTimeMask,
+                                           Set<String> freeDays, int[] suffixCredits,
+                                           int bestCredits, int[] visitedNodes) {
+        if (++visitedNodes[0] > MAX_TARGET_SEARCH_NODES) {
+            return bestCredits;
+        }
+
+        int best = Math.max(bestCredits, currentCredits);
+        if (startIndex >= optionalSubjects.size()
+                || currentCredits + suffixCredits[startIndex] <= best) {
+            return best;
+        }
+
+        // 포함 가능한 과목부터 탐색해 제한된 탐색 예산 안에서도 높은 학점 조합을 먼저 찾는다.
+        for (int i = startIndex; i < optionalSubjects.size(); i++) {
+            SubjectOption option = optionalSubjects.get(i);
+            if (option.hasFreeDayConflict(freeDays)
+                    || option.hasTimeConflict(currentTimeMask)) {
+                continue;
+            }
+
+            BitSet nextTimeMask = (BitSet) currentTimeMask.clone();
+            nextTimeMask.or(option.timeMask());
+            best = findMaximumFeasibleCredits(
+                    optionalSubjects,
+                    i + 1,
+                    currentCredits + option.credits(),
+                    nextTimeMask,
+                    freeDays,
+                    suffixCredits,
+                    best,
+                    visitedNodes);
+        }
+        return best;
     }
 
     private int[] suffixCredits(List<SubjectOption> optionalSubjects) {

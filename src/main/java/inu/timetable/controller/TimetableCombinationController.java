@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static inu.timetable.util.ApiRequestValues.optionalStringList;
+import static inu.timetable.util.ApiRequestValues.optionalBoolean;
 import static inu.timetable.util.ApiRequestValues.requiredInteger;
 import static inu.timetable.util.ApiRequestValues.requiredLong;
 import static inu.timetable.util.ApiRequestValues.optionalString;
@@ -40,17 +41,22 @@ public class TimetableCombinationController {
     @Operation(
         summary = "시간표 조합 생성",
         description = "위시리스트 기반으로 목표 학점에 맞는 시간표 조합을 자동 생성합니다. " +
+                     "ignoreTargetCredits가 true이면 가능한 높은 학점의 조합을 자동으로 찾습니다. " +
                      "공강 요일을 설정하면 해당 요일에 수업이 없는 조합만 생성됩니다."
     )
     public ResponseEntity<?> generateTimetableCombinations(
-            @Parameter(description = "요청 파라미터: userId, semester, targetCredits, maxCombinations(선택), freeDays(선택)")
+            @Parameter(description = "요청 파라미터: userId, semester, targetCredits, ignoreTargetCredits(선택), maxCombinations(선택), freeDays(선택)")
             @RequestBody Map<String, Object> request,
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
         Long userId = requiredLong(request, "userId");
         userAccessGuard.requireMatchingUser(authenticatedUser, userId);
         String semester = optionalString(request, "semester");
-        int targetCredits = requiredInteger(request, "targetCredits");
-        validateTargetCredits(targetCredits);
+        boolean ignoreTargetCredits = optionalBoolean(request, "ignoreTargetCredits", false);
+        Integer targetCredits = null;
+        if (!ignoreTargetCredits) {
+            targetCredits = requiredInteger(request, "targetCredits");
+            validateTargetCredits(targetCredits);
+        }
         int maxCombinations = request.containsKey("maxCombinations")
                 ? requiredInteger(request, "maxCombinations")
                 : 20;
@@ -65,6 +71,7 @@ public class TimetableCombinationController {
         response.put("combinations", combinations);
         response.put("totalCount", combinations.size());
         response.put("targetCredits", targetCredits);
+        response.put("ignoreTargetCredits", ignoreTargetCredits);
         response.put("freeDays", freeDays);
 
         List<Map<String, Object>> combinationStats = combinations.stream()
