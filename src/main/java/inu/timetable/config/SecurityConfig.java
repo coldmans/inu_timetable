@@ -101,6 +101,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/subjects/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/settings/current-semester").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/inquiries/faqs").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/events").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/inquiries").permitAll()
                         .anyRequest().denyAll())

@@ -7,7 +7,8 @@
   <meta name="_csrf_header" th:content="${_csrf.headerName}" />
   <title>문의 관리 · INU 시간표</title>
   <style>
-    :root { --bg:#f8fafc; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#2563eb; --ok:#16a34a; }
+    :root { --bg:#f8fafc; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+      --brand:#2563eb; --ok:#16a34a; --danger:#dc2626; }
     * { box-sizing: border-box; }
     body { margin:0; background:var(--bg); color:var(--ink);
       font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif; }
@@ -25,6 +26,37 @@
       padding:6px 12px; border-radius:999px; cursor:pointer; }
     .filter button.active { background:var(--card); color:var(--brand); box-shadow:0 1px 2px rgba(15,23,42,.12); }
     .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; }
+    .section { margin-top:24px; }
+    .sectionHeader { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+    .sectionHeader h2 { margin:0; font-size:17px; }
+    .primaryBtn, .secondaryBtn, .dangerBtn { border-radius:9px; padding:8px 13px; font-size:13px;
+      font-weight:700; cursor:pointer; }
+    .primaryBtn { border:1px solid var(--brand); color:#fff; background:var(--brand); }
+    .secondaryBtn { border:1px solid var(--line); color:var(--ink); background:var(--card); }
+    .dangerBtn { border:1px solid #fecaca; color:var(--danger); background:#fff; }
+    .primaryBtn:disabled, .secondaryBtn:disabled, .dangerBtn:disabled { opacity:.55; cursor:default; }
+    .faqForm { display:none; margin-bottom:16px; padding:16px; border:1px solid #bfdbfe;
+      border-radius:12px; background:#eff6ff; }
+    .faqForm.open { display:block; }
+    .field { margin-bottom:12px; }
+    .field label { display:block; margin-bottom:6px; font-size:12px; font-weight:700; color:#334155; }
+    .field input[type="text"], .field input[type="number"], .field textarea { width:100%; border:1px solid #cbd5e1;
+      border-radius:9px; padding:9px 10px; background:#fff; color:var(--ink); font:inherit; font-size:14px; }
+    .field textarea { min-height:110px; resize:vertical; }
+    .fieldRow { display:grid; grid-template-columns:minmax(120px, 180px) 1fr; gap:16px; align-items:end; }
+    .checkLabel { display:flex; align-items:center; gap:8px; min-height:38px; font-size:13px; font-weight:700; }
+    .formActions { display:flex; justify-content:flex-end; gap:8px; }
+    .faqList { display:grid; gap:10px; }
+    .faqCard { border:1px solid var(--line); border-radius:12px; padding:14px; }
+    .faqTop { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+    .faqQuestion { margin:0; font-size:14px; line-height:1.5; word-break:break-word; }
+    .faqAnswer { margin:9px 0 0; color:#475569; font-size:13px; line-height:1.6; white-space:pre-wrap;
+      word-break:break-word; }
+    .faqMeta { display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin-top:11px; }
+    .faqActions { display:flex; flex-shrink:0; gap:6px; }
+    .smallBtn { padding:5px 9px; }
+    .badge.active { background:#dcfce7; color:#166534; }
+    .badge.inactive { background:#f1f5f9; color:#64748b; }
     table { width:100%; border-collapse:collapse; font-size:14px; }
     th, td { text-align:left; padding:10px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
     th { color:var(--muted); font-size:12px; font-weight:700; white-space:nowrap; }
@@ -42,6 +74,12 @@
     .pager button { border:1px solid var(--line); background:var(--card); color:var(--ink); font-weight:700;
       font-size:13px; padding:6px 12px; border-radius:8px; cursor:pointer; }
     .pager button:disabled { color:var(--muted); cursor:default; opacity:.5; }
+    @media (max-width:700px) {
+      .panel { padding:14px; overflow-x:auto; }
+      .sectionHeader, .faqTop { align-items:stretch; flex-direction:column; }
+      .fieldRow { grid-template-columns:1fr; gap:0; }
+      .faqActions { align-self:flex-end; }
+    }
   </style>
 </head>
 <body>
@@ -88,6 +126,46 @@
         <button id="nextBtn">다음</button>
       </div>
     </div>
+
+    <section class="section panel" aria-labelledby="faqHeading">
+      <div class="sectionHeader">
+        <div>
+          <h2 id="faqHeading">문의 Q&amp;A 관리</h2>
+          <div class="sub">공개 상태인 항목만 사용자 문의창에 순서대로 표시됩니다.</div>
+        </div>
+        <button type="button" class="primaryBtn" id="addFaqBtn">Q&amp;A 추가</button>
+      </div>
+
+      <form id="faqForm" class="faqForm">
+        <div class="field">
+          <label for="faqQuestion">질문</label>
+          <input id="faqQuestion" name="question" type="text" maxlength="200" required />
+        </div>
+        <div class="field">
+          <label for="faqAnswer">답변</label>
+          <textarea id="faqAnswer" name="answer" maxlength="2000" required></textarea>
+        </div>
+        <div class="fieldRow">
+          <div class="field">
+            <label for="faqSortOrder">표시 순서</label>
+            <input id="faqSortOrder" name="sortOrder" type="number" min="0" step="1" value="0" required />
+          </div>
+          <label class="checkLabel">
+            <input id="faqActive" name="active" type="checkbox" />
+            사용자에게 공개
+          </label>
+        </div>
+        <div class="formActions">
+          <button type="button" class="secondaryBtn" id="cancelFaqBtn">취소</button>
+          <button type="submit" class="primaryBtn" id="saveFaqBtn">저장</button>
+        </div>
+      </form>
+
+      <div id="faqList" class="faqList"></div>
+      <div id="faqEmptyMessage" class="empty" style="display:none;">
+        등록된 Q&amp;A가 없습니다. 필요한 내용을 직접 추가해주세요.
+      </div>
+    </section>
   </div>
 
   <script>
@@ -95,6 +173,18 @@
     let currentPage = 0;
     let totalPages = 0;
     let unresolvedOnly = true;
+    let faqItems = [];
+    let editingFaqId = null;
+    const SERVER_TIME_ZONE_PATTERN = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+    const KOREA_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('ko-KR-u-nu-latn', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23'
+    });
 
     const csrfToken = document.querySelector('meta[name="_csrf"]').content;
     const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
@@ -161,9 +251,128 @@
       load();
     }
 
+    async function loadFaqs() {
+      const res = await fetch('/admin/api/inquiry-faqs', { credentials: 'same-origin' });
+      if (res.status === 401 || res.status === 403) { location.href = '/admin/login'; return; }
+      if (!res.ok) throw new Error('Q&A 목록 조회 실패');
+      faqItems = await res.json();
+      renderFaqs();
+    }
+
+    function renderFaqs() {
+      const list = document.getElementById('faqList');
+      const empty = document.getElementById('faqEmptyMessage');
+      list.innerHTML = '';
+      empty.style.display = faqItems.length ? 'none' : 'block';
+
+      faqItems.forEach(faq => {
+        const card = document.createElement('article');
+        card.className = 'faqCard';
+        card.innerHTML = `
+          <div class="faqTop">
+            <div>
+              <h3 class="faqQuestion">${escapeHtml(faq.question)}</h3>
+              <p class="faqAnswer">${escapeHtml(faq.answer)}</p>
+              <div class="faqMeta">
+                <span class="badge ${faq.active ? 'active' : 'inactive'}">${faq.active ? '공개' : '비공개'}</span>
+                <span class="muted">순서 ${faq.sortOrder}</span>
+                <span class="muted">수정 ${formatDate(faq.updatedAt)}</span>
+              </div>
+            </div>
+            <div class="faqActions">
+              <button type="button" class="secondaryBtn smallBtn editFaqBtn" data-id="${faq.id}">수정</button>
+              <button type="button" class="dangerBtn smallBtn deleteFaqBtn" data-id="${faq.id}">삭제</button>
+            </div>
+          </div>`;
+        list.appendChild(card);
+      });
+    }
+
+    function openFaqForm(faq = null) {
+      editingFaqId = faq?.id ?? null;
+      document.getElementById('faqQuestion').value = faq?.question ?? '';
+      document.getElementById('faqAnswer').value = faq?.answer ?? '';
+      document.getElementById('faqSortOrder').value = faq?.sortOrder ?? 0;
+      document.getElementById('faqActive').checked = faq?.active ?? false;
+      document.getElementById('saveFaqBtn').textContent = editingFaqId ? '수정 저장' : '추가';
+      document.getElementById('faqForm').classList.add('open');
+      document.getElementById('faqQuestion').focus();
+    }
+
+    function closeFaqForm() {
+      editingFaqId = null;
+      document.getElementById('faqForm').reset();
+      document.getElementById('faqSortOrder').value = 0;
+      document.getElementById('faqActive').checked = false;
+      document.getElementById('faqForm').classList.remove('open');
+      document.getElementById('saveFaqBtn').textContent = '저장';
+    }
+
+    async function saveFaq() {
+      const saveButton = document.getElementById('saveFaqBtn');
+      const payload = {
+        question: document.getElementById('faqQuestion').value,
+        answer: document.getElementById('faqAnswer').value,
+        sortOrder: Number(document.getElementById('faqSortOrder').value),
+        active: document.getElementById('faqActive').checked
+      };
+      const url = editingFaqId
+        ? `/admin/api/inquiry-faqs/${editingFaqId}`
+        : '/admin/api/inquiry-faqs';
+
+      saveButton.disabled = true;
+      try {
+        const res = await fetch(url, {
+          method: editingFaqId ? 'PUT' : 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', [csrfHeader]: csrfToken },
+          body: JSON.stringify(payload)
+        });
+        if (res.status === 401 || res.status === 403) { location.href = '/admin/login'; return; }
+        if (!res.ok) {
+          const message = await res.text();
+          throw new Error(message || '저장에 실패했습니다.');
+        }
+        closeFaqForm();
+        await loadFaqs();
+      } catch (error) {
+        alert(error.message || '저장에 실패했습니다. 다시 시도해주세요.');
+      } finally {
+        saveButton.disabled = false;
+      }
+    }
+
+    async function deleteFaq(id, button) {
+      if (!confirm('이 Q&A를 삭제할까요? 삭제 후에는 복구할 수 없습니다.')) return;
+      button.disabled = true;
+      try {
+        const res = await fetch(`/admin/api/inquiry-faqs/${id}`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+          headers: { [csrfHeader]: csrfToken }
+        });
+        if (res.status === 401 || res.status === 403) { location.href = '/admin/login'; return; }
+        if (!res.ok) throw new Error('삭제에 실패했습니다.');
+        if (editingFaqId === id) closeFaqForm();
+        await loadFaqs();
+      } catch (error) {
+        button.disabled = false;
+        alert(error.message || '삭제에 실패했습니다. 다시 시도해주세요.');
+      }
+    }
+
     function formatDate(iso) {
       if (!iso) return '–';
-      return iso.replace('T', ' ').slice(0, 16);
+      const value = String(iso).trim();
+      const date = new Date(SERVER_TIME_ZONE_PATTERN.test(value) ? value : `${value}Z`);
+      if (Number.isNaN(date.getTime())) return '–';
+      const parts = Object.fromEntries(
+        KOREA_DATE_TIME_FORMATTER
+          .formatToParts(date)
+          .filter(({ type }) => type !== 'literal')
+          .map(({ type, value: partValue }) => [type, partValue])
+      );
+      return `${parts.year}.${parts.month}.${parts.day} ${parts.hour}:${parts.minute}`;
     }
 
     function escapeHtml(s) {
@@ -195,9 +404,32 @@
       if (currentPage < totalPages - 1) { currentPage++; load(); }
     });
 
-    load().catch(() => { document.getElementById('emptyMessage').textContent = '목록을 불러오지 못했습니다.';
+    document.getElementById('addFaqBtn').addEventListener('click', () => openFaqForm());
+    document.getElementById('cancelFaqBtn').addEventListener('click', closeFaqForm);
+    document.getElementById('faqForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      saveFaq();
+    });
+    document.getElementById('faqList').addEventListener('click', (event) => {
+      const editButton = event.target.closest('.editFaqBtn');
+      if (editButton) {
+        const faq = faqItems.find(item => item.id === Number(editButton.dataset.id));
+        if (faq) openFaqForm(faq);
+        return;
+      }
+      const deleteButton = event.target.closest('.deleteFaqBtn');
+      if (deleteButton) deleteFaq(Number(deleteButton.dataset.id), deleteButton);
+    });
+
+    load().catch(() => {
+      document.getElementById('emptyMessage').textContent = '목록을 불러오지 못했습니다.';
       document.getElementById('emptyMessage').style.display = 'block';
-      document.getElementById('inquiryTable').style.display = 'none'; });
+      document.getElementById('inquiryTable').style.display = 'none';
+    });
+    loadFaqs().catch(() => {
+      document.getElementById('faqEmptyMessage').textContent = 'Q&A 목록을 불러오지 못했습니다.';
+      document.getElementById('faqEmptyMessage').style.display = 'block';
+    });
   </script>
 </body>
 </html>
