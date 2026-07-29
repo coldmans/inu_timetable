@@ -54,6 +54,32 @@ class TimetableCombinationServiceTest {
         });
     }
 
+    @Test
+    void generatesHighestCreditCombinationsWhenTargetCreditsAreNotSpecified() {
+        TimetableCombinationService service = new TimetableCombinationService(wishlistRepository);
+        Subject mondayMorning = subject(1L, "월요일오전", "월", 1.0, 2.5);
+        Subject mondayConflict = subject(2L, "월요일충돌", "월", 1.5, 3.0);
+        Subject tuesday = subject(3L, "화요일", "화", 1.0, 2.5);
+        Subject wednesday = subject(4L, "수요일", "수", 1.0, 2.5);
+        when(wishlistRepository.findByUserIdAndSemesterWithSubjectAndSchedules(USER_ID, SEMESTER))
+                .thenReturn(List.of(
+                        wishlistItem(mondayMorning, false),
+                        wishlistItem(mondayConflict, false),
+                        wishlistItem(tuesday, false),
+                        wishlistItem(wednesday, false)));
+
+        List<List<Subject>> combinations = service.generateTimetableCombinations(
+                USER_ID, SEMESTER, null, 20, List.of());
+
+        assertThat(combinations).isNotEmpty();
+        assertThat(combinations.get(0))
+                .extracting(Subject::getSubjectName)
+                .contains("화요일", "수요일")
+                .satisfiesOnlyOnce(name -> assertThat(name).startsWith("월요일"));
+        assertThat(combinations.get(0)).hasSize(3);
+        assertThat(combinations).allSatisfy(combination -> assertThat(hasConflict(combination)).isFalse());
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {6, 12, 18, 24, 30})
     void matchesReferenceCombinationsAcrossWishlistSizes(int wishlistSize) {
