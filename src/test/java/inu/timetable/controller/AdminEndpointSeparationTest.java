@@ -128,6 +128,37 @@ class AdminEndpointSeparationTest {
     }
 
     @Test
+    @DisplayName("admin 과목 검토 계획 조회는 인증 게이트 뒤에 있다")
+    void adminSubjectImportPlanReadRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/admin/api/subject-import-plans/test-plan"))
+                .andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/admin/api/subject-import-plans/test-plan/impact",
+            "/admin/api/subject-import-plans/test-plan/apply"
+    })
+    @DisplayName("admin 과목 검토 JSON API는 CSRF 토큰이 있어도 관리자 세션 없이는 차단한다")
+    void adminSubjectImportPlanMutationsRequireAuthenticationAfterCsrf(String path)
+            throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        CsrfTestSupport.CsrfProof csrfProof = fetchCsrfProof(mockMvc, objectMapper, session);
+
+        mockMvc.perform(post(path)
+                .session(session)
+                .cookie(csrfProof.cookie())
+                .header("X-XSRF-TOKEN", csrfProof.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "courseCodes": ["AI001"]
+                        }
+                        """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("admin 과목 생성 API는 CSRF 토큰이 있어도 관리자 세션 없이는 차단한다")
     void adminSubjectCreateRequiresAuthenticationAfterCsrf() throws Exception {
         MockHttpSession session = new MockHttpSession();

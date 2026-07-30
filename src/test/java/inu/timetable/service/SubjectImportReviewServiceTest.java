@@ -254,6 +254,20 @@ class SubjectImportReviewServiceTest {
                 .hasMessageContaining("다시 검토");
     }
 
+    @Test
+    void applyRejectsAlreadyAppliedPlan() {
+        SubjectImportPlan appliedPlan = SubjectImportPlan.builder()
+                .id("applied-plan")
+                .status("APPLIED")
+                .build();
+        when(planRepository.findByIdForUpdate("applied-plan"))
+                .thenReturn(java.util.Optional.of(appliedPlan));
+
+        assertThatThrownBy(() -> service.apply("applied-plan", List.of("AI001")))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("이미 반영");
+    }
+
     private SubjectImportPlanResponse.ChangeItem previewSingle(
             Subject existing,
             OfficialSubjectImportService.OfficialSubjectRecord incoming) throws Exception {
