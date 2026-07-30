@@ -47,6 +47,11 @@ spring:
       repositories:
         enabled: false
 
+subject:
+  import:
+    plan-retention-days: ${SUBJECT_IMPORT_PLAN_RETENTION_DAYS:90}
+    cleanup-cron: ${SUBJECT_IMPORT_PLAN_CLEANUP_CRON:0 35 3 * * *}
+
 server:
   servlet:
     session:
