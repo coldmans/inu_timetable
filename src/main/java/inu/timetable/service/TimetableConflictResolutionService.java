@@ -15,8 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -147,11 +149,22 @@ public class TimetableConflictResolutionService {
         Set<Long> changedSubjectIds = Set.copyOf(timeChangedSubjectIds);
         List<Long> candidateUserIds = userTimetableRepository
                 .findDistinctUserIdsBySubjectIdsAndSemester(timeChangedSubjectIds, semester);
+        if (candidateUserIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<UserTimetable>> timetablesByUser = new LinkedHashMap<>();
+        userTimetableRepository
+                .findAllByUserIdsAndSemesterWithSubjectAndSchedules(
+                        candidateUserIds,
+                        semester)
+                .forEach(entry -> timetablesByUser
+                        .computeIfAbsent(entry.getUser().getId(), ignored -> new ArrayList<>())
+                        .add(entry));
         List<UserTimetable> entriesToRemove = new ArrayList<>();
 
         for (Long userId : candidateUserIds) {
             List<UserTimetable> snapshot =
-                    userTimetableRepository.findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester);
+                    timetablesByUser.getOrDefault(userId, List.of());
             for (UserTimetable changedEntry : snapshot) {
                 if (!changedSubjectIds.contains(changedEntry.getSubject().getId())) {
                     continue;

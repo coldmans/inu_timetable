@@ -486,11 +486,22 @@ public class SubjectImportReviewService {
                 .findDistinctUserIdsBySubjectIdsAndSemester(
                         new ArrayList<>(timeChanges.keySet()),
                         semester);
+        if (candidateUserIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<UserTimetable>> timetablesByUser = new LinkedHashMap<>();
+        userTimetableRepository
+                .findAllByUserIdsAndSemesterWithSubjectAndSchedules(
+                        candidateUserIds,
+                        semester)
+                .forEach(entry -> timetablesByUser
+                        .computeIfAbsent(entry.getUser().getId(), ignored -> new ArrayList<>())
+                        .add(entry));
         List<SubjectImportImpactResponse.ProjectedConflict> conflicts = new ArrayList<>();
 
         for (Long userId : candidateUserIds) {
-            List<UserTimetable> snapshot = userTimetableRepository
-                    .findByUserIdAndSemesterWithSubjectAndSchedules(userId, semester)
+            List<UserTimetable> snapshot = timetablesByUser
+                    .getOrDefault(userId, List.of())
                     .stream()
                     .filter(entry -> !canceledIds.contains(entry.getSubject().getId()))
                     .toList();

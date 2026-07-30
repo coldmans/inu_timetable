@@ -37,6 +37,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -162,6 +164,38 @@ class SubjectImportReviewServiceTest {
                 .extracting(SubjectImportPlanResponse.FieldChange::field)
                 .contains("강의실")
                 .doesNotContain("시간표");
+    }
+
+    @Test
+    void previewBatchLoadsCandidateUserTimetablesForConflictProjection() throws Exception {
+        Subject existing = subject(1L, "AI001", "기존과목", true, "월", 1.0, 3.0, "27-101");
+        OfficialSubjectImportService.OfficialSubjectRecord incoming = record(
+                "AI001", "기존과목", false, "월", 2.0, 4.0, "27-101");
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "inu.json", "application/json", "{}".getBytes());
+
+        when(officialSubjectImportService.parseOfficialFile(file, "2026-2"))
+                .thenReturn(new OfficialSubjectImportService.ParsedWorkbook(
+                        List.of(incoming),
+                        "SYLLABUS_JSON"));
+        when(subjectRepository.findImportCandidatesBySemester("2026-2"))
+                .thenReturn(List.of(existing));
+        when(planRepository.save(any(SubjectImportPlan.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(userTimetableRepository.findDistinctUserIdsBySubjectIdsAndSemester(
+                anyList(), eq("2026-2")))
+                .thenReturn(List.of(11L, 12L));
+        when(userTimetableRepository.findAllByUserIdsAndSemesterWithSubjectAndSchedules(
+                List.of(11L, 12L), "2026-2"))
+                .thenReturn(List.of());
+
+        service.preview(file, "2026-2", false);
+
+        verify(userTimetableRepository)
+                .findAllByUserIdsAndSemesterWithSubjectAndSchedules(
+                        List.of(11L, 12L), "2026-2");
+        verify(userTimetableRepository, never())
+                .findByUserIdAndSemesterWithSubjectAndSchedules(any(), eq("2026-2"));
     }
 
     @Test
