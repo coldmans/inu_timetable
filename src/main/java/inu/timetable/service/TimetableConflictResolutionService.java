@@ -1,5 +1,7 @@
 package inu.timetable.service;
 
+import inu.timetable.dto.TimetableReconciliationResult;
+import inu.timetable.dto.TimetableReconciliationResult.RemovedTimetableEntry;
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.entity.UserNotification;
@@ -47,7 +49,7 @@ public class TimetableConflictResolutionService {
      * 서로 충돌하면 처리 순서와 관계없이 두 과목을 모두 제외해 결과 시간표에 충돌이 남지 않는다.</p>
      */
     @Transactional
-    public ReconciliationResult reconcileImportChanges(
+    public TimetableReconciliationResult reconcileImportChanges(
             List<Subject> modifiedSubjects,
             List<Subject> timeChangedSubjects,
             List<Subject> deactivatedSubjects,
@@ -88,7 +90,7 @@ public class TimetableConflictResolutionService {
 
         List<RemovedTimetableEntry> removedEntries = new ArrayList<>(deactivatedEntries);
         removedEntries.addAll(conflictEntries);
-        return new ReconciliationResult(
+        return new TimetableReconciliationResult(
                 conflictEntries.size(),
                 deactivatedEntries.size(),
                 notifiedUserCount,
@@ -266,22 +268,4 @@ public class TimetableConflictResolutionService {
         return changedStart < otherEnd && changedEnd > otherStart;
     }
 
-    public record ReconciliationResult(
-            int conflictRemovedCount,
-            int deactivatedRemovedCount,
-            int notifiedUserCount,
-            int timetableUserCount,
-            int wishlistUserCount,
-            int affectedUserCount,
-            List<RemovedTimetableEntry> removedEntries) {
-    }
-
-    public record RemovedTimetableEntry(
-            Long timetableEntryId,
-            Long userId,
-            Long subjectId,
-            String courseCode,
-            String subjectName,
-            String reason) {
-    }
 }

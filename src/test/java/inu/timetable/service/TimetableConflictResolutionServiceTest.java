@@ -1,5 +1,6 @@
 package inu.timetable.service;
 
+import inu.timetable.dto.TimetableReconciliationResult;
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.entity.User;
@@ -158,7 +159,7 @@ class TimetableConflictResolutionServiceTest {
         persistTimetableEntry(user, anotherChangedSubject);
         entityManager.flush();
 
-        TimetableConflictResolutionService.ReconciliationResult result =
+        TimetableReconciliationResult result =
                 timetableConflictResolutionService.reconcileImportChanges(
                         List.of(changedSubject, anotherChangedSubject),
                         List.of(changedSubject, anotherChangedSubject),
@@ -180,7 +181,7 @@ class TimetableConflictResolutionServiceTest {
         persistWishlistEntry(user, changedSubject);
         entityManager.flush();
 
-        TimetableConflictResolutionService.ReconciliationResult result =
+        TimetableReconciliationResult result =
                 timetableConflictResolutionService.reconcileImportChanges(
                         List.of(changedSubject),
                         List.of(changedSubject),
@@ -205,7 +206,7 @@ class TimetableConflictResolutionServiceTest {
         persistWishlistEntry(user, changedSubject);
         entityManager.flush();
 
-        TimetableConflictResolutionService.ReconciliationResult result =
+        TimetableReconciliationResult result =
                 timetableConflictResolutionService.reconcileImportChanges(
                         List.of(),
                         List.of(),
@@ -233,7 +234,7 @@ class TimetableConflictResolutionServiceTest {
         persistTimetableEntry(user, deactivatedSubject);
         entityManager.flush();
 
-        TimetableConflictResolutionService.ReconciliationResult result =
+        TimetableReconciliationResult result =
                 timetableConflictResolutionService.reconcileImportChanges(
                         List.of(changedSubject),
                         List.of(changedSubject),
@@ -276,7 +277,7 @@ class TimetableConflictResolutionServiceTest {
         persistTimetableEntry(user, noTimeSubject);
         entityManager.flush();
 
-        TimetableConflictResolutionService.ReconciliationResult result =
+        TimetableReconciliationResult result =
                 timetableConflictResolutionService.reconcileImportChanges(
                         List.of(changedSubject),
                         List.of(changedSubject),

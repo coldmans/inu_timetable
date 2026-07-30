@@ -3,6 +3,7 @@ package inu.timetable.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inu.timetable.dto.SubjectImportApplyResponse;
 import inu.timetable.dto.SubjectImportPlanResponse;
+import inu.timetable.dto.TimetableReconciliationResult;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
@@ -68,7 +69,7 @@ class SubjectImportReviewServiceIntegrationTest {
         subjectRepository.save(subject("AI001", "기존과목"));
         when(timetableConflictResolutionService.reconcileImportChanges(
                 anyList(), anyList(), anyList(), anyString()))
-                .thenReturn(new TimetableConflictResolutionService.ReconciliationResult(
+                .thenReturn(new TimetableReconciliationResult(
                         0, 0, 0, 0, 0, 0, List.of()));
 
         MockMultipartFile json = new MockMultipartFile(
@@ -120,7 +121,7 @@ class SubjectImportReviewServiceIntegrationTest {
         subjectRepository.save(subject("AI002", "다요일기존과목"));
         when(timetableConflictResolutionService.reconcileImportChanges(
                 anyList(), anyList(), anyList(), anyString()))
-                .thenReturn(new TimetableConflictResolutionService.ReconciliationResult(
+                .thenReturn(new TimetableReconciliationResult(
                         0, 0, 0, 0, 0, 0, List.of()));
 
         MockMultipartFile json = new MockMultipartFile(

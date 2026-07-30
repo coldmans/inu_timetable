@@ -1,5 +1,6 @@
 package inu.timetable.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inu.timetable.dto.OfficialSubjectImportResponse;
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.ScheduleRoomSegment;
@@ -55,7 +56,11 @@ class OfficialSubjectImportServiceTest {
     @BeforeEach
     void setUp() {
         officialSubjectImportService = new OfficialSubjectImportService(
-                subjectRepository, eventPublisher, subjectUpdateLogService, timetableConflictResolutionService);
+                subjectRepository,
+                eventPublisher,
+                subjectUpdateLogService,
+                timetableConflictResolutionService,
+                new ObjectMapper().findAndRegisterModules());
     }
 
     @Test

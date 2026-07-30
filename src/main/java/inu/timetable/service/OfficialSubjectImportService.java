@@ -26,7 +26,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -48,12 +47,11 @@ public class OfficialSubjectImportService {
     private static final Pattern PERIOD_PATTERN = Pattern.compile("\\(([^)]+)\\)");
     private static final Pattern BARE_PERIOD_PATTERN = Pattern.compile("(?:야)?\\d{1,2}[AB]?(?:\\s*-\\s*(?:야)?\\d{1,2}[AB]?)?");
     private static final String DAYS = "월화수목금토일";
-    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
-
     private final SubjectRepository subjectRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final SubjectUpdateLogService subjectUpdateLogService;
     private final TimetableConflictResolutionService timetableConflictResolutionService;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public OfficialSubjectImportResponse preview(MultipartFile file, String semester) throws IOException {
@@ -293,7 +291,7 @@ public class OfficialSubjectImportService {
     }
 
     private ParsedWorkbook parseOfficialJson(MultipartFile file, String semester) throws IOException {
-        JsonNode root = JSON_MAPPER.readTree(file.getBytes());
+        JsonNode root = objectMapper.readTree(file.getBytes());
         JsonNode rowsNode = root.path("rows");
         if (!rowsNode.isArray()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "JSON의 rows 배열을 찾을 수 없습니다.");

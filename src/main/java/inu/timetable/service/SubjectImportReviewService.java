@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inu.timetable.dto.SubjectImportApplyResponse;
 import inu.timetable.dto.SubjectImportImpactResponse;
 import inu.timetable.dto.SubjectImportPlanResponse;
+import inu.timetable.dto.TimetableReconciliationResult;
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.Subject;
 import inu.timetable.entity.SubjectImportPlan;
@@ -36,7 +37,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -182,7 +182,7 @@ public class SubjectImportReviewService {
 
         subjectRepository.saveAll(subjectsToSave);
         subjectRepository.flush();
-        TimetableConflictResolutionService.ReconciliationResult reconciliation =
+        TimetableReconciliationResult reconciliation =
                 timetableConflictResolutionService.reconcileImportChanges(
                         modifiedSubjects,
                         timeChangedSubjects,
