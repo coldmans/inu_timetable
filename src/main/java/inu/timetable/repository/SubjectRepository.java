@@ -86,9 +86,9 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                         "LEFT JOIN UserTimetable ut ON ut.subject = s " +
                         "WHERE s.active = true " +
                         "AND (:semester IS NULL OR s.semester = :semester OR s.semester IS NULL) " +
-                        "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
-                        "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
-					"AND (:courseCode IS NULL OR s.courseCode LIKE %:courseCode%) " +
+                        "AND (:subjectName IS NULL OR LOWER(s.subjectName) LIKE LOWER(CONCAT('%', :subjectName, '%'))) " +
+                        "AND (:professor IS NULL OR LOWER(s.professor) LIKE LOWER(CONCAT('%', :professor, '%'))) " +
+                        "AND (:courseCode IS NULL OR LOWER(s.courseCode) LIKE LOWER(CONCAT('%', :courseCode, '%'))) " +
                         "AND (:department IS NULL OR s.department = :department) " +
                         "AND (:departmentCount = 0 OR s.department IN :departments) " +
                         "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +
@@ -106,9 +106,9 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
                                         +
                                         "WHERE s.active = true " +
                                         "AND (:semester IS NULL OR s.semester = :semester OR s.semester IS NULL) " +
-                                        "AND (:subjectName IS NULL OR s.subjectName LIKE %:subjectName%) " +
-                                        "AND (:professor IS NULL OR s.professor LIKE %:professor%) " +
-					"AND (:courseCode IS NULL OR s.courseCode LIKE %:courseCode%) " +
+                                        "AND (:subjectName IS NULL OR LOWER(s.subjectName) LIKE LOWER(CONCAT('%', :subjectName, '%'))) " +
+                                        "AND (:professor IS NULL OR LOWER(s.professor) LIKE LOWER(CONCAT('%', :professor, '%'))) " +
+                                        "AND (:courseCode IS NULL OR LOWER(s.courseCode) LIKE LOWER(CONCAT('%', :courseCode, '%'))) " +
                                         "AND (:department IS NULL OR s.department = :department) " +
                                         "AND (:departmentCount = 0 OR s.department IN :departments) " +
                                         "AND (:subjectType IS NULL OR s.subjectType = :subjectType) " +

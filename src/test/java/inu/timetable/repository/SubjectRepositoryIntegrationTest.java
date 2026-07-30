@@ -179,6 +179,50 @@ class SubjectRepositoryIntegrationTest {
     }
 
     @Test
+    void findIdsWithFiltersMatchesSubjectNameIgnoringEnglishCase() {
+        Subject matched = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        matched.setSubjectName("AI Ethics");
+        persistSubject("AI01001002", "2026-1", true, "화", 1.0, 3.0)
+                .setSubjectName("Advanced AI Ethics");
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = findIdsWithSearchFilters("ai ethics", null, null, 1);
+
+        assertThat(subjectIds.getContent()).containsExactly(matched.getId());
+        assertThat(subjectIds.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void findIdsWithFiltersMatchesProfessorIgnoringEnglishCase() {
+        Subject matched = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        matched.setProfessor("Alice Kim");
+        persistSubject("AI01001002", "2026-1", true, "화", 1.0, 3.0)
+                .setProfessor("홍길동");
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = findIdsWithSearchFilters(null, "alice kim", null);
+
+        assertThat(subjectIds.getContent()).containsExactly(matched.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersMatchesCourseCodeIgnoringEnglishCase() {
+        Subject matched = persistSubject("AIA6086001", "2026-1", true, "월", 4.0, 7.0);
+        persistSubject("XYZ0000001", "2026-1", true, "화", 1.0, 3.0);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = findIdsWithSearchFilters(null, null, "aia6086");
+
+        assertThat(subjectIds.getContent()).containsExactly(matched.getId());
+    }
+
+    @Test
     void findIdsWithFiltersCanFilterByMultipleDepartments() {
         Subject computer = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
         computer.setDepartment("컴퓨터공학부");
@@ -318,6 +362,27 @@ class SubjectRepositoryIntegrationTest {
                 friStart, friEnd,
                 null, null,
                 PageRequest.of(0, 10));
+    }
+
+    private Page<Long> findIdsWithSearchFilters(
+            String subjectName,
+            String professor,
+            String courseCode) {
+        return findIdsWithSearchFilters(subjectName, professor, courseCode, 10);
+    }
+
+    private Page<Long> findIdsWithSearchFilters(
+            String subjectName,
+            String professor,
+            String courseCode,
+            int pageSize) {
+        return subjectRepository.findIdsWithFilters(
+                null, subjectName, professor, courseCode, null,
+                Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, pageSize));
     }
 
     @Test
