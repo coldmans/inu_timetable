@@ -34,6 +34,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -53,6 +54,7 @@ public class SubjectImportReviewService {
     private static final String STATUS_PREVIEWED = "PREVIEWED";
     private static final String STATUS_APPLIED = "APPLIED";
     private static final int MAX_CONFLICT_DETAILS = 100;
+    private static final String DAYS = "월화수목금토일";
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
 
     private final OfficialSubjectImportService officialSubjectImportService;
@@ -665,20 +667,19 @@ public class SubjectImportReviewService {
     }
 
     private SubjectImportPlanResponse.SubjectSnapshot snapshot(Subject subject) {
-        List<SubjectImportPlanResponse.ScheduleSnapshot> schedules = subject.getSchedules().stream()
-                .map(schedule -> new SubjectImportPlanResponse.ScheduleSnapshot(
-                        schedule.getDayOfWeek(),
-                        schedule.getStartTime(),
-                        schedule.getEndTime(),
-                        schedule.getRoomSegments().stream()
-                                .map(room -> new SubjectImportPlanResponse.RoomSnapshot(
-                                        room.getRoom(),
-                                        room.getStartTime(),
-                                        room.getEndTime()))
-                                .sorted((left, right) -> roomKey(left).compareTo(roomKey(right)))
-                                .toList()))
-                .sorted((left, right) -> scheduleKey(left).compareTo(scheduleKey(right)))
-                .toList();
+        List<SubjectImportPlanResponse.ScheduleSnapshot> schedules = canonicalSchedules(
+                subject.getSchedules().stream()
+                        .map(schedule -> new SubjectImportPlanResponse.ScheduleSnapshot(
+                                schedule.getDayOfWeek(),
+                                schedule.getStartTime(),
+                                schedule.getEndTime(),
+                                schedule.getRoomSegments().stream()
+                                        .map(room -> new SubjectImportPlanResponse.RoomSnapshot(
+                                                room.getRoom(),
+                                                room.getStartTime(),
+                                                room.getEndTime()))
+                                        .toList()))
+                        .toList());
         return new SubjectImportPlanResponse.SubjectSnapshot(
                 subject.getId(),
                 subject.getCourseCode(),
@@ -698,6 +699,19 @@ public class SubjectImportReviewService {
 
     private SubjectImportPlanResponse.SubjectSnapshot snapshot(
             OfficialSubjectImportService.OfficialSubjectRecord record) {
+        List<SubjectImportPlanResponse.ScheduleSnapshot> schedules = canonicalSchedules(
+                record.schedules().stream()
+                        .map(schedule -> new SubjectImportPlanResponse.ScheduleSnapshot(
+                                schedule.dayOfWeek(),
+                                schedule.startTime(),
+                                schedule.endTime(),
+                                schedule.roomSegments().stream()
+                                        .map(room -> new SubjectImportPlanResponse.RoomSnapshot(
+                                                room.room(),
+                                                room.startTime(),
+                                                room.endTime()))
+                                        .toList()))
+                        .toList());
         return new SubjectImportPlanResponse.SubjectSnapshot(
                 null,
                 record.courseCode(),
@@ -712,18 +726,7 @@ public class SubjectImportReviewService {
                 record.classMethod().name(),
                 Boolean.TRUE.equals(record.isNight()),
                 Boolean.TRUE.equals(record.syllabusAvailable()),
-                record.schedules().stream()
-                        .map(schedule -> new SubjectImportPlanResponse.ScheduleSnapshot(
-                                schedule.dayOfWeek(),
-                                schedule.startTime(),
-                                schedule.endTime(),
-                                schedule.roomSegments().stream()
-                                        .map(room -> new SubjectImportPlanResponse.RoomSnapshot(
-                                                room.room(),
-                                                room.startTime(),
-                                                room.endTime()))
-                                        .toList()))
-                        .toList());
+                schedules);
     }
 
     private SubjectImportPlanResponse.SubjectSnapshot withActive(
@@ -839,6 +842,45 @@ public class SubjectImportReviewService {
 
     private String roomKey(SubjectImportPlanResponse.RoomSnapshot room) {
         return room.room() + ":" + room.startTime() + "-" + room.endTime();
+    }
+
+    private List<SubjectImportPlanResponse.ScheduleSnapshot> canonicalSchedules(
+            List<SubjectImportPlanResponse.ScheduleSnapshot> schedules) {
+        Comparator<Double> timeComparator = Comparator.nullsLast(Double::compareTo);
+        Comparator<SubjectImportPlanResponse.RoomSnapshot> roomComparator =
+                Comparator.comparing(
+                                SubjectImportPlanResponse.RoomSnapshot::startTime,
+                                timeComparator)
+                        .thenComparing(
+                                SubjectImportPlanResponse.RoomSnapshot::endTime,
+                                timeComparator)
+                        .thenComparing(
+                                SubjectImportPlanResponse.RoomSnapshot::room,
+                                Comparator.nullsLast(String::compareTo));
+        Comparator<SubjectImportPlanResponse.ScheduleSnapshot> scheduleComparator =
+                Comparator.comparingInt(
+                                (SubjectImportPlanResponse.ScheduleSnapshot schedule) ->
+                                        dayOrder(schedule.dayOfWeek()))
+                        .thenComparing(
+                                SubjectImportPlanResponse.ScheduleSnapshot::startTime,
+                                timeComparator)
+                        .thenComparing(
+                                SubjectImportPlanResponse.ScheduleSnapshot::endTime,
+                                timeComparator);
+
+        return schedules.stream()
+                .map(schedule -> new SubjectImportPlanResponse.ScheduleSnapshot(
+                        schedule.dayOfWeek(),
+                        schedule.startTime(),
+                        schedule.endTime(),
+                        schedule.rooms().stream().sorted(roomComparator).toList()))
+                .sorted(scheduleComparator)
+                .toList();
+    }
+
+    private int dayOrder(String dayOfWeek) {
+        int index = dayOfWeek == null ? -1 : DAYS.indexOf(dayOfWeek);
+        return index < 0 ? DAYS.length() : index;
     }
 
     private List<String> warnings(

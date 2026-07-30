@@ -115,6 +115,46 @@ class SubjectImportReviewServiceIntegrationTest {
                 .isEmpty();
     }
 
+    @Test
+    void appliesAndVerifiesMultiDayAndMultiBlockSchedules() throws Exception {
+        subjectRepository.save(subject("AI002", "다요일기존과목"));
+        when(timetableConflictResolutionService.reconcileImportChanges(
+                anyList(), anyList(), anyList(), anyString()))
+                .thenReturn(new TimetableConflictResolutionService.ReconciliationResult(
+                        0, 0, 0, 0, 0, 0, List.of()));
+
+        MockMultipartFile json = new MockMultipartFile(
+                "file",
+                "INU_강의계획서_2026_20.json",
+                "application/json",
+                """
+                {
+                  "rows": [
+                    {
+                      "yy": "2026", "tmGbn": "20", "haksuNo": "AI002",
+                      "scNm": "다요일변경과목", "hp": {"hi": 3, "lo": 0},
+                      "profNm": "새교수", "hgMjNm": "임베디드시스템공학과",
+                      "hySeqGbn": "2", "cptnGbn": "전공심화",
+                      "lsnTypeGbn": "강의(이론)", "inptGbn": "1",
+                      "timeNm": " [27-201:월(9)] [27-202:월(11)] [27-101:화(1)(2)] [27-101:목(1)(2)]"
+                    }
+                  ]
+                }
+                """.getBytes());
+
+        SubjectImportPlanResponse preview = service.preview(json, "2026-2", false);
+        SubjectImportApplyResponse applied = service.apply(preview.planId(), List.of("AI002"));
+
+        assertThat(applied.verified()).isTrue();
+        assertThat(applied.verification())
+                .singleElement()
+                .satisfies(item -> assertThat(item.matched()).isTrue());
+        assertThat(subjectRepository.findFirstByCourseCodeAndSemesterOrderByIdAsc("AI002", "2026-2"))
+                .get()
+                .extracting(subject -> subject.getSchedules().size())
+                .isEqualTo(4);
+    }
+
     private Subject subject(String code, String name) {
         return Subject.builder()
                 .courseCode(code)
