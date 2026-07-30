@@ -47,11 +47,6 @@ spring:
       repositories:
         enabled: false
 
-subject:
-  import:
-    plan-retention-days: ${SUBJECT_IMPORT_PLAN_RETENTION_DAYS:90}
-    cleanup-cron: ${SUBJECT_IMPORT_PLAN_CLEANUP_CRON:0 35 3 * * *}
-
 server:
   servlet:
     session:
@@ -98,6 +93,9 @@ inquiry:
     block-minutes: ${INQUIRY_RATE_LIMIT_BLOCK_MINUTES:60}
 
 subject:
+  import:
+    plan-retention-days: ${SUBJECT_IMPORT_PLAN_RETENTION_DAYS:90}
+    cleanup-cron: ${SUBJECT_IMPORT_PLAN_CLEANUP_CRON:0 35 3 * * *}
   cache:
     # Local development/tests use Caffeine. Cloud Run uses Caffeine L1 + Redis L2.
     provider: ${SUBJECT_CACHE_PROVIDER:caffeine}
