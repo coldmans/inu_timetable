@@ -17,6 +17,7 @@ import inu.timetable.repository.SubjectImportPlanRepository;
 import inu.timetable.repository.SubjectRepository;
 import inu.timetable.repository.UserTimetableRepository;
 import inu.timetable.repository.WishlistRepository;
+import inu.timetable.util.BusinessTime;
 import inu.timetable.util.TimeConverter;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +33,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -55,7 +55,6 @@ public class SubjectImportReviewService {
     private static final String STATUS_APPLIED = "APPLIED";
     private static final int MAX_CONFLICT_DETAILS = 100;
     private static final String DAYS = "월화수목금토일";
-    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
 
     private final OfficialSubjectImportService officialSubjectImportService;
     private final SubjectRepository subjectRepository;
@@ -915,7 +914,7 @@ public class SubjectImportReviewService {
     }
 
     private LocalDateTime nowInKorea() {
-        return LocalDateTime.ofInstant(clock.instant(), BUSINESS_ZONE);
+        return BusinessTime.nowInKorea(clock);
     }
 
     private String sha256(byte[] bytes) {
