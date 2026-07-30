@@ -110,7 +110,8 @@ class AdminEndpointSeparationTest {
             "/admin/api/validation/pdf",
             "/admin/api/validation/excel",
             "/admin/api/subjects/import/preview",
-            "/admin/api/subjects/import/apply"
+            "/admin/api/subjects/import/apply",
+            "/admin/api/subject-import-plans"
     })
     @DisplayName("admin 파일 API는 CSRF 토큰이 있어도 관리자 세션 없이는 차단한다")
     void adminMultipartApiPathsRequireAuthenticationAfterCsrf(String path) throws Exception {

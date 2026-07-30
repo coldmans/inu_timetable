@@ -308,6 +308,67 @@ class OfficialSubjectImportServiceTest {
                 .hasMessageContaining("2026-1");
     }
 
+    @Test
+    void previewParsesRawInuSyllabusJsonWithoutExcelConversion() throws Exception {
+        when(subjectRepository.findImportCandidatesBySemester("2026-2")).thenReturn(List.of());
+
+        OfficialSubjectImportResponse response =
+                officialSubjectImportService.preview(syllabusJson(), "2026-2");
+
+        assertThat(response.getSourceFormat()).isEqualTo("SYLLABUS_JSON");
+        assertThat(response.getTotalRows()).isEqualTo(1);
+        assertThat(response.getAddedCount()).isEqualTo(1);
+        assertThat(response.getAddedSubjects().get(0).getCourseCode()).isEqualTo("AI01001001");
+    }
+
+    @Test
+    void applyPersistsSyllabusAvailabilityFromRawJson() throws Exception {
+        when(subjectRepository.findImportCandidatesBySemester("2026-2")).thenReturn(List.of());
+
+        officialSubjectImportService.apply(syllabusJson(), "2026-2", false);
+
+        ArgumentCaptor<List<Subject>> captor = ArgumentCaptor.forClass(List.class);
+        verify(subjectRepository).saveAll(captor.capture());
+        Subject saved = captor.getValue().get(0);
+        assertThat(saved.getSyllabusAvailable()).isTrue();
+        assertThat(saved.getSchedules()).hasSize(1);
+        assertThat(saved.getSchedules().get(0).getRoomSegments())
+                .extracting(ScheduleRoomSegment::getRoom)
+                .containsExactly("27-101");
+    }
+
+    private MockMultipartFile syllabusJson() {
+        String json = """
+                {
+                  "queriedAt": "2026-07-30T12:00:00.000Z",
+                  "year": "2026",
+                  "term": "20",
+                  "rowcount": 1,
+                  "rows": [
+                    {
+                      "yy": "2026",
+                      "tmGbn": "20",
+                      "haksuNo": "AI01001001",
+                      "scNm": "임베디드시스템",
+                      "hp": {"hi": 3, "lo": 0},
+                      "profNm": "홍길동",
+                      "hgMjNm": "임베디드시스템공학과",
+                      "hySeqGbn": "2",
+                      "cptnGbn": "전공심화",
+                      "lsnTypeGbn": "강의(이론)",
+                      "inptGbn": "1",
+                      "timeNm": " [27-101:월(1)(2)(3)]"
+                    }
+                  ]
+                }
+                """;
+        return new MockMultipartFile(
+                "file",
+                "INU_강의계획서_2026_20.json",
+                "application/json",
+                json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private MockMultipartFile syllabusWorkbook() throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {

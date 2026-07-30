@@ -56,14 +56,21 @@ public class TimetableConflictResolutionService {
 
         Set<Long> affectedSubjectIds = new LinkedHashSet<>(modifiedSubjectIds);
         affectedSubjectIds.addAll(deactivatedSubjectIds);
-        Set<Long> affectedUserIds = findAffectedUserIds(new ArrayList<>(affectedSubjectIds), semester);
+        List<Long> affectedIds = new ArrayList<>(affectedSubjectIds);
+        Set<Long> timetableUserIds = findTimetableUserIds(affectedIds, semester);
+        Set<Long> wishlistUserIds = findWishlistUserIds(affectedIds, semester);
+        Set<Long> affectedUserIds = new LinkedHashSet<>(timetableUserIds);
+        affectedUserIds.addAll(wishlistUserIds);
 
-        int deactivatedRemovedCount = deactivatedSubjectIds.isEmpty()
-                ? 0
-                : userTimetableRepository.deleteAllBySubjectIdsAndSemester(deactivatedSubjectIds, semester);
+        List<RemovedTimetableEntry> deactivatedEntries =
+                snapshotDeactivatedEntries(deactivatedSubjectIds, semester);
+        if (!deactivatedSubjectIds.isEmpty()) {
+            userTimetableRepository.deleteAllBySubjectIdsAndSemester(deactivatedSubjectIds, semester);
+        }
         // 없어질 과목과의 겹침 때문에 정상 개설 과목까지 함께 빠지는 일을 막기 위해
         // 미개설 항목을 먼저 제거한 뒤 남은 시간표에서 충돌을 판정한다.
-        int conflictRemovedCount = removeConflictingChangedEntries(timeChangedSubjectIds, semester);
+        List<RemovedTimetableEntry> conflictEntries =
+                removeConflictingChangedEntries(timeChangedSubjectIds, semester);
         int notifiedUserCount = createNotifications(affectedUserIds);
 
         if (!affectedUserIds.isEmpty()) {
@@ -72,15 +79,21 @@ public class TimetableConflictResolutionService {
                             + "conflictRemoved={}, deactivatedRemoved={}, notifications={}",
                     semester,
                     affectedUserIds.size(),
-                    conflictRemovedCount,
-                    deactivatedRemovedCount,
+                    conflictEntries.size(),
+                    deactivatedEntries.size(),
                     notifiedUserCount);
         }
 
+        List<RemovedTimetableEntry> removedEntries = new ArrayList<>(deactivatedEntries);
+        removedEntries.addAll(conflictEntries);
         return new ReconciliationResult(
-                conflictRemovedCount,
-                deactivatedRemovedCount,
-                notifiedUserCount);
+                conflictEntries.size(),
+                deactivatedEntries.size(),
+                notifiedUserCount,
+                timetableUserIds.size(),
+                wishlistUserIds.size(),
+                affectedUserIds.size(),
+                removedEntries);
     }
 
     /**
@@ -95,21 +108,40 @@ public class TimetableConflictResolutionService {
                 semester).conflictRemovedCount();
     }
 
-    private Set<Long> findAffectedUserIds(List<Long> affectedSubjectIds, String semester) {
-        Set<Long> userIds = new LinkedHashSet<>();
+    private Set<Long> findTimetableUserIds(List<Long> affectedSubjectIds, String semester) {
         if (affectedSubjectIds.isEmpty()) {
-            return userIds;
+            return Set.of();
         }
-        userIds.addAll(userTimetableRepository
+        return new LinkedHashSet<>(userTimetableRepository
                 .findDistinctUserIdsBySubjectIdsAndSemester(affectedSubjectIds, semester));
-        userIds.addAll(wishlistRepository
-                .findDistinctUserIdsBySubjectIdsAndSemester(affectedSubjectIds, semester));
-        return userIds;
     }
 
-    private int removeConflictingChangedEntries(List<Long> timeChangedSubjectIds, String semester) {
+    private Set<Long> findWishlistUserIds(List<Long> affectedSubjectIds, String semester) {
+        if (affectedSubjectIds.isEmpty()) {
+            return Set.of();
+        }
+        return new LinkedHashSet<>(wishlistRepository
+                .findDistinctUserIdsBySubjectIdsAndSemester(affectedSubjectIds, semester));
+    }
+
+    private List<RemovedTimetableEntry> snapshotDeactivatedEntries(
+            List<Long> subjectIds,
+            String semester) {
+        if (subjectIds.isEmpty()) {
+            return List.of();
+        }
+        return userTimetableRepository
+                .findAllBySubjectIdsAndSemesterWithUserAndSubject(subjectIds, semester)
+                .stream()
+                .map(entry -> toRemovedEntry(entry, "CANCELED"))
+                .toList();
+    }
+
+    private List<RemovedTimetableEntry> removeConflictingChangedEntries(
+            List<Long> timeChangedSubjectIds,
+            String semester) {
         if (timeChangedSubjectIds.isEmpty()) {
-            return 0;
+            return List.of();
         }
 
         Set<Long> changedSubjectIds = Set.copyOf(timeChangedSubjectIds);
@@ -135,8 +167,22 @@ public class TimetableConflictResolutionService {
             }
         }
 
+        List<RemovedTimetableEntry> removedEntries = entriesToRemove.stream()
+                .map(entry -> toRemovedEntry(entry, "TIME_CONFLICT"))
+                .toList();
         userTimetableRepository.deleteAll(entriesToRemove);
-        return entriesToRemove.size();
+        return removedEntries;
+    }
+
+    private RemovedTimetableEntry toRemovedEntry(UserTimetable entry, String reason) {
+        Subject subject = entry.getSubject();
+        return new RemovedTimetableEntry(
+                entry.getId(),
+                entry.getUser().getId(),
+                subject.getId(),
+                subject.getCourseCode(),
+                subject.getSubjectName(),
+                reason);
     }
 
     private int createNotifications(Set<Long> affectedUserIds) {
@@ -210,6 +256,19 @@ public class TimetableConflictResolutionService {
     public record ReconciliationResult(
             int conflictRemovedCount,
             int deactivatedRemovedCount,
-            int notifiedUserCount) {
+            int notifiedUserCount,
+            int timetableUserCount,
+            int wishlistUserCount,
+            int affectedUserCount,
+            List<RemovedTimetableEntry> removedEntries) {
+    }
+
+    public record RemovedTimetableEntry(
+            Long timetableEntryId,
+            Long userId,
+            Long subjectId,
+            String courseCode,
+            String subjectName,
+            String reason) {
     }
 }

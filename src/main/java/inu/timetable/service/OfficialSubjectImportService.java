@@ -1,5 +1,7 @@
 package inu.timetable.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inu.timetable.dto.OfficialSubjectImportResponse;
 import inu.timetable.entity.Schedule;
 import inu.timetable.entity.ScheduleRoomSegment;
@@ -24,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -45,6 +48,7 @@ public class OfficialSubjectImportService {
     private static final Pattern PERIOD_PATTERN = Pattern.compile("\\(([^)]+)\\)");
     private static final Pattern BARE_PERIOD_PATTERN = Pattern.compile("(?:야)?\\d{1,2}[AB]?(?:\\s*-\\s*(?:야)?\\d{1,2}[AB]?)?");
     private static final String DAYS = "월화수목금토일";
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     private final SubjectRepository subjectRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -54,7 +58,7 @@ public class OfficialSubjectImportService {
     @Transactional(readOnly = true)
     public OfficialSubjectImportResponse preview(MultipartFile file, String semester) throws IOException {
         String normalizedSemester = normalizeSemester(semester);
-        ParsedWorkbook parsed = parseOfficialExcel(file, normalizedSemester);
+        ParsedWorkbook parsed = parseOfficialFile(file, normalizedSemester);
         ImportDiff diff = diff(parsed.records(), loadImportCandidates(normalizedSemester));
         return toResponse(false, normalizedSemester, parsed.sourceFormat(), parsed.records(), diff, true);
     }
@@ -63,7 +67,7 @@ public class OfficialSubjectImportService {
     public OfficialSubjectImportResponse apply(MultipartFile file, String semester, boolean deactivateMissing)
             throws IOException {
         String normalizedSemester = normalizeSemester(semester);
-        ParsedWorkbook parsed = parseOfficialExcel(file, normalizedSemester);
+        ParsedWorkbook parsed = parseOfficialFile(file, normalizedSemester);
         List<OfficialSubjectRecord> records = parsed.records();
         List<Subject> candidates = loadImportCandidates(normalizedSemester);
         ImportDiff diff = diff(records, candidates);
@@ -214,11 +218,19 @@ public class OfficialSubjectImportService {
         return subjectRepository.findImportCandidatesBySemester(semester);
     }
 
-    private ParsedWorkbook parseOfficialExcel(MultipartFile file, String semester) throws IOException {
+    ParsedWorkbook parseOfficialFile(MultipartFile file, String semester) throws IOException {
         if (file == null || file.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Excel file is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "JSON 또는 Excel 파일이 필요합니다.");
         }
+        String filename = defaultText(file.getOriginalFilename(), "").toLowerCase();
+        String contentType = defaultText(file.getContentType(), "").toLowerCase();
+        if (filename.endsWith(".json") || contentType.contains("json")) {
+            return parseOfficialJson(file, semester);
+        }
+        return parseOfficialExcel(file, semester);
+    }
 
+    private ParsedWorkbook parseOfficialExcel(MultipartFile file, String semester) throws IOException {
         try (InputStream inputStream = file.getInputStream();
              Workbook workbook = new XSSFWorkbook(inputStream)) {
             Sheet sheet = workbook.getSheetAt(0);
@@ -265,6 +277,10 @@ public class OfficialSubjectImportService {
                         parseSubjectType(cellValue(row, headerInfo.column("이수구분"), formatter)),
                         parseClassMethod(cellValue(row, headerInfo.optionalColumn("수업유형", "수업구분", "수업방법"), formatter)),
                         hasNightSchedule(cellValue(row, timetableColumn, formatter)),
+                        parseSyllabusAvailability(cellValue(
+                                row,
+                                headerInfo.optionalColumn("강의계획서입력여부", "강의 계획서 입력여부"),
+                                formatter)),
                         parseSchedules(cellValue(row, timetableColumn, formatter))));
             }
 
@@ -276,7 +292,107 @@ public class OfficialSubjectImportService {
         }
     }
 
-    private record ParsedWorkbook(List<OfficialSubjectRecord> records, String sourceFormat) {
+    private ParsedWorkbook parseOfficialJson(MultipartFile file, String semester) throws IOException {
+        JsonNode root = JSON_MAPPER.readTree(file.getBytes());
+        JsonNode rowsNode = root.path("rows");
+        if (!rowsNode.isArray()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "JSON의 rows 배열을 찾을 수 없습니다.");
+        }
+
+        String[] semesterParts = semester.split("-", 2);
+        String expectedYear = semesterParts[0];
+        String expectedTerm = semesterParts.length == 2 ? semesterParts[1] : "";
+        List<OfficialSubjectRecord> records = new ArrayList<>();
+        Set<String> courseCodes = new LinkedHashSet<>();
+        Set<String> duplicateCourseCodes = new LinkedHashSet<>();
+
+        for (JsonNode row : rowsNode) {
+            String year = text(row, "yy");
+            String term = normalizeJsonTerm(text(row, "tmGbn"));
+            if (!expectedYear.equals(year) || !expectedTerm.equals(term)) {
+                continue;
+            }
+
+            String courseCode = text(row, "haksuNo");
+            String subjectName = text(row, "scNm");
+            if (!hasText(courseCode) && !hasText(subjectName)) {
+                continue;
+            }
+            if (!hasText(courseCode)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "학수번호가 비어 있는 JSON 행이 있습니다.");
+            }
+            if (!courseCodes.add(courseCode)) {
+                duplicateCourseCodes.add(courseCode);
+            }
+
+            String timeSchedule = text(row, "timeNm");
+            records.add(new OfficialSubjectRecord(
+                    courseCode,
+                    semester,
+                    subjectName,
+                    parseJsonCredits(row.path("hp")),
+                    defaultText(text(row, "profNm"), "미배정"),
+                    trimToNull(text(row, "hgMjNm")),
+                    parseGrade(text(row, "hySeqGbn")),
+                    parseSubjectType(text(row, "cptnGbn")),
+                    parseClassMethod(firstText(row, "lsnTypeGbn", "lsnGbn", "lsnMthdGbn")),
+                    hasNightSchedule(timeSchedule),
+                    "1".equals(text(row, "inptGbn")),
+                    parseSchedules(timeSchedule)));
+        }
+
+        if (records.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "선택한 학기(" + semester + ")에 해당하는 JSON 과목이 없습니다.");
+        }
+        if (!duplicateCourseCodes.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "중복 학수번호가 있습니다: " + String.join(", ", duplicateCourseCodes));
+        }
+        return new ParsedWorkbook(records, "SYLLABUS_JSON");
+    }
+
+    private String normalizeJsonTerm(String term) {
+        return switch (term) {
+            case "10" -> "1";
+            case "20" -> "2";
+            case "30" -> "여름";
+            case "40" -> "겨울";
+            default -> term;
+        };
+    }
+
+    private int parseJsonCredits(JsonNode node) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return 0;
+        }
+        if (node.isNumber()) {
+            return (int) Math.round(node.asDouble());
+        }
+        if (node.isObject() && node.has("hi")) {
+            return node.path("hi").asInt();
+        }
+        return parseCredits(node.asText());
+    }
+
+    private String firstText(JsonNode node, String... fields) {
+        for (String field : fields) {
+            String value = text(node, field);
+            if (hasText(value)) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private String text(JsonNode node, String field) {
+        JsonNode value = node.path(field);
+        return value.isMissingNode() || value.isNull() ? "" : value.asText("").trim();
+    }
+
+    record ParsedWorkbook(List<OfficialSubjectRecord> records, String sourceFormat) {
     }
 
     // 강의계획서 조회 파일에는 년도/학기 컬럼이 있으므로, 업로드 시 선택한 학기와
@@ -327,7 +443,7 @@ public class OfficialSubjectImportService {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "학수번호/교과목명 헤더를 찾을 수 없습니다.");
     }
 
-    private void applyRecord(Subject subject, OfficialSubjectRecord record) {
+    void applyRecord(Subject subject, OfficialSubjectRecord record) {
         subject.setCourseCode(record.courseCode());
         subject.setSemester(record.semester());
         subject.setActive(true);
@@ -339,6 +455,7 @@ public class OfficialSubjectImportService {
         subject.setSubjectType(record.subjectType());
         subject.setClassMethod(record.classMethod());
         subject.setIsNight(record.isNight());
+        subject.setSyllabusAvailable(record.syllabusAvailable());
 
         synchronizeSchedules(subject, record.schedules());
     }
@@ -434,7 +551,7 @@ public class OfficialSubjectImportService {
         }
     }
 
-    private List<String> changedFields(Subject subject, OfficialSubjectRecord record) {
+    List<String> changedFields(Subject subject, OfficialSubjectRecord record) {
         List<String> fields = new ArrayList<>();
         addIfChanged(fields, "교과목명", subject.getSubjectName(), record.subjectName());
         addIfChanged(fields, "학점", subject.getCredits(), record.credits());
@@ -444,6 +561,7 @@ public class OfficialSubjectImportService {
         addIfChanged(fields, "이수구분", subject.getSubjectType(), record.subjectType());
         addIfChanged(fields, "수업유형", subject.getClassMethod(), record.classMethod());
         addIfChanged(fields, "야간여부", subject.getIsNight(), record.isNight());
+        addIfChanged(fields, "강의계획서 첨부", subject.getSyllabusAvailable(), record.syllabusAvailable());
         boolean schedulesChanged = !sameSchedules(subject.getSchedules(), record.schedules());
         if (schedulesChanged) {
             fields.add("시간표");
@@ -538,7 +656,7 @@ public class OfficialSubjectImportService {
                 .build();
     }
 
-    private List<ScheduleValue> parseSchedules(String timeSchedule) {
+    List<ScheduleValue> parseSchedules(String timeSchedule) {
         if (!hasText(timeSchedule) || "-".equals(timeSchedule.trim())) {
             return List.of();
         }
@@ -848,6 +966,13 @@ public class OfficialSubjectImportService {
         return hasText(timeSchedule) && timeSchedule.contains("야");
     }
 
+    private boolean parseSyllabusAvailability(String value) {
+        return "1".equals(value)
+                || "Y".equalsIgnoreCase(value)
+                || "입력".equals(value)
+                || "첨부".equals(value);
+    }
+
     private String cellValue(Row row, Integer columnIndex, DataFormatter formatter) {
         if (row == null || columnIndex == null || columnIndex < 0) {
             return "";
@@ -898,7 +1023,7 @@ public class OfficialSubjectImportService {
         }
     }
 
-    private record OfficialSubjectRecord(
+    record OfficialSubjectRecord(
             String courseCode,
             String semester,
             String subjectName,
@@ -909,10 +1034,11 @@ public class OfficialSubjectImportService {
             SubjectType subjectType,
             ClassMethod classMethod,
             Boolean isNight,
+            Boolean syllabusAvailable,
             List<ScheduleValue> schedules) {
     }
 
-    private record ScheduleValue(
+    record ScheduleValue(
             String dayOfWeek,
             Double startTime,
             Double endTime,
@@ -926,7 +1052,7 @@ public class OfficialSubjectImportService {
             String room) {
     }
 
-    private record RoomSegmentValue(
+    record RoomSegmentValue(
             String room,
             String dayOfWeek,
             Double startTime,

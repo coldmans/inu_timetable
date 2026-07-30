@@ -52,6 +52,14 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
     List<Long> findDistinctUserIdsBySubjectIdsAndSemester(@Param("subjectIds") List<Long> subjectIds,
                                                           @Param("semester") String semester);
 
+    @Query("SELECT ut FROM UserTimetable ut " +
+           "JOIN FETCH ut.user u " +
+           "JOIN FETCH ut.subject s " +
+           "WHERE s.id IN :subjectIds AND ut.semester = :semester")
+    List<UserTimetable> findAllBySubjectIdsAndSemesterWithUserAndSubject(
+            @Param("subjectIds") List<Long> subjectIds,
+            @Param("semester") String semester);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("DELETE FROM UserTimetable ut " +
            "WHERE ut.subject.id IN :subjectIds AND ut.semester = :semester")
@@ -63,4 +71,12 @@ public interface UserTimetableRepository extends JpaRepository<UserTimetable, Lo
            "WHERE ut.subject.id IN :subjectIds " +
            "GROUP BY ut.subject.id")
     List<SubjectTimetableAddCount> countAddedUsersBySubjectIds(@Param("subjectIds") List<Long> subjectIds);
+
+    @Query("SELECT ut.subject.id AS subjectId, COUNT(DISTINCT ut.user.id) AS timetableAddCount " +
+           "FROM UserTimetable ut " +
+           "WHERE ut.subject.id IN :subjectIds AND ut.semester = :semester " +
+           "GROUP BY ut.subject.id")
+    List<SubjectTimetableAddCount> countAddedUsersBySubjectIdsAndSemester(
+            @Param("subjectIds") List<Long> subjectIds,
+            @Param("semester") String semester);
 }
