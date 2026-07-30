@@ -1,0 +1,23 @@
+package inu.timetable.repository;
+
+import inu.timetable.entity.SubjectImportPlan;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+public interface SubjectImportPlanRepository extends JpaRepository<SubjectImportPlan, String> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT plan FROM SubjectImportPlan plan WHERE plan.id = :planId")
+    Optional<SubjectImportPlan> findByIdForUpdate(@Param("planId") String planId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM SubjectImportPlan plan WHERE plan.createdAt < :cutoff")
+    int deleteAllCreatedBefore(@Param("cutoff") LocalDateTime cutoff);
+}

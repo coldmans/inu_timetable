@@ -53,4 +53,12 @@ public interface WishlistRepository extends JpaRepository<WishlistItem, Long> {
            "WHERE w.subject.id IN :subjectIds " +
            "GROUP BY w.subject.id")
     List<SubjectWishlistCount> countBySubjectIds(@Param("subjectIds") List<Long> subjectIds);
+
+    @Query("SELECT w.subject.id AS subjectId, COUNT(w.id) AS wishlistCount " +
+           "FROM WishlistItem w " +
+           "WHERE w.subject.id IN :subjectIds AND w.semester = :semester " +
+           "GROUP BY w.subject.id")
+    List<SubjectWishlistCount> countBySubjectIdsAndSemester(
+            @Param("subjectIds") List<Long> subjectIds,
+            @Param("semester") String semester);
 }

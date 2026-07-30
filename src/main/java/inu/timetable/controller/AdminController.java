@@ -156,6 +156,18 @@ public class AdminController {
     }
 
     /**
+     * 공식 강의계획서 JSON 검토 및 선택 반영 페이지
+     */
+    @GetMapping("/import-review")
+    public String importReviewPage(HttpSession session) {
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
+        }
+        return "admin/import-review";
+    }
+
+    /**
      * 분석 대시보드 페이지 (DAU/MAU·이벤트·인기 검색어)
      */
     @GetMapping("/dashboard")

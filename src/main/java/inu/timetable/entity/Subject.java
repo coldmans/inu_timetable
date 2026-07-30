@@ -77,4 +77,8 @@ public class Subject {
     
     @Column
     private String department;
+
+    @Column(name = "syllabus_available", nullable = false)
+    @Builder.Default
+    private Boolean syllabusAvailable = false;
 }

@@ -122,6 +122,7 @@
             <div class="nav-links">
                 <a href="/admin/dashboard">대시보드</a>
                 <a href="/admin/inquiries">문의</a>
+                <a href="/admin/import-review">JSON 검토·반영</a>
                 <a href="/admin/validate">검증 페이지</a>
                 <a href="/admin/account">계정</a>
                 <form th:action="@{/admin/logout}" method="post">
@@ -132,6 +133,15 @@
 
         <div th:if="${success}" class="success" th:text="${success}"></div>
         <div th:if="${error}" class="error" th:text="${error}"></div>
+
+        <div class="card" style="border:2px solid #2563eb; background:#f8fbff;">
+            <h2>✨ 강의계획서 JSON 검토·선택 반영</h2>
+            <p class="description">JSON을 올리면 시간·강의실·강의계획서·폐강·추가 변경을 나누어 보여주고, 선택한 과목의 사용자 영향과 시간표 충돌을 확인한 뒤 반영합니다.</p>
+            <a href="/admin/import-review"
+               style="display:inline-block; padding:12px 18px; border-radius:8px; background:#2563eb; color:white; text-decoration:none; font-weight:700;">
+                안전 검토 화면 열기
+            </a>
+        </div>
 
         <div class="card">
             <h2>📄 PDF 업로드 (수강편람)</h2>
