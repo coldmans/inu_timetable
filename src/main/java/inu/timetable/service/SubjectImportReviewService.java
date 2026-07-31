@@ -886,6 +886,7 @@ public class SubjectImportReviewService {
                         schedule.startTime(),
                         schedule.endTime(),
                         schedule.rooms().stream().sorted(roomComparator).toList()))
+                .distinct()
                 .sorted(scheduleComparator)
                 .toList();
     }

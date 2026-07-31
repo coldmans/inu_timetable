@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -281,6 +282,46 @@ class SubjectImportReviewServiceTest {
         assertThatThrownBy(() -> service.apply(preview.planId(), List.of("AI001")))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("다시 검토");
+    }
+
+    @Test
+    void applyIgnoresDuplicateScheduleRowsLoadedDuringImpactCalculation() throws Exception {
+        Subject original = subject(1L, "AI001", "기존과목", true, "월", 1.0, 3.0, "27-101");
+        OfficialSubjectImportService.OfficialSubjectRecord record = record(
+                "AI001", "변경과목", false, "월", 1.0, 3.0, "27-101");
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "inu.json", "application/json", "{}".getBytes());
+        ArgumentCaptor<SubjectImportPlan> planCaptor = ArgumentCaptor.forClass(SubjectImportPlan.class);
+
+        when(officialSubjectImportService.parseOfficialFile(file, "2026-2"))
+                .thenReturn(new OfficialSubjectImportService.ParsedWorkbook(List.of(record), "SYLLABUS_JSON"));
+        when(subjectRepository.findImportCandidatesBySemester("2026-2"))
+                .thenReturn(List.of(original));
+        when(planRepository.save(planCaptor.capture()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        doAnswer(invocation -> {
+            Subject subject = invocation.getArgument(0);
+            OfficialSubjectImportService.OfficialSubjectRecord applied = invocation.getArgument(1);
+            subject.setSubjectName(applied.subjectName());
+            return null;
+        }).when(officialSubjectImportService).applyRecord(any(), any());
+
+        SubjectImportPlanResponse preview = service.preview(file, "2026-2", false);
+        when(planRepository.findByIdForUpdate(preview.planId()))
+                .thenReturn(java.util.Optional.of(planCaptor.getValue()));
+        when(planRepository.findById(preview.planId()))
+                .thenReturn(java.util.Optional.of(planCaptor.getValue()));
+        when(subjectRepository.findFirstByCourseCodeAndSemesterOrderByIdAsc("AI001", "2026-2"))
+                .thenReturn(java.util.Optional.of(original));
+
+        // A fetch join over multiple user timetable rows can hydrate the same schedule
+        // more than once in the managed List even though the DB contains one schedule row.
+        original.getSchedules().add(original.getSchedules().get(0));
+
+        var response = service.apply(preview.planId(), List.of("AI001"));
+
+        assertThat(response.verified()).isTrue();
+        assertThat(planCaptor.getValue().getStatus()).isEqualTo("APPLIED");
     }
 
     @Test
