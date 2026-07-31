@@ -261,7 +261,7 @@
   <header>
     <div>
       <h1>과목 데이터 검토</h1>
-      <div class="sub">학교 강의계획서 JSON을 현재 DB와 비교하고, 영향 범위를 확인한 뒤 선택 반영합니다.</div>
+      <div class="sub">학교 과목 파일(JSON·Excel)을 현재 DB와 비교하고, 영향 범위를 확인한 뒤 선택 반영합니다.</div>
     </div>
     <nav aria-label="관리자 메뉴">
       <a href="/admin/dashboard">대시보드</a>
@@ -275,7 +275,7 @@
   </header>
 
   <section class="steps" aria-label="반영 단계">
-    <div class="step active" id="step1"><span>1</span> JSON 업로드·검증</div>
+    <div class="step active" id="step1"><span>1</span> JSON·Excel 업로드·검증</div>
     <div class="step" id="step2"><span>2</span> 변경·영향 선택 검토</div>
     <div class="step" id="step3"><span>3</span> 반영·DB 재검증</div>
   </section>
@@ -284,11 +284,13 @@
     <form id="uploadForm">
       <div class="upload-grid">
         <label class="dropzone" id="dropzone">
-          <input id="jsonFile" type="file" name="file" accept=".json,application/json" required />
+          <input id="sourceFile" type="file" name="file"
+                 accept=".json,.xlsx,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                 required />
           <span>
             <span class="upload-icon">⇧</span>
-            <span class="drop-title" id="uploadTitle">강의계획서 JSON을 놓거나 눌러서 선택</span>
-            <span class="drop-help">통합정보시스템에서 내려받은 INU_강의계획서_연도_학기.json</span>
+            <span class="drop-title" id="uploadTitle">강의계획서 JSON 또는 종합강의시간표 Excel을 선택</span>
+            <span class="drop-help">지원 형식: INU_강의계획서_연도_학기.json · 종합강의시간표.xlsx</span>
             <span class="filename" id="filename"></span>
           </span>
         </label>
@@ -300,13 +302,13 @@
           </div>
           <label class="check-setting">
             <input id="deactivateMissing" type="checkbox" checked />
-            <span>JSON에 없는 기존 과목을 <b>폐강 후보</b>로 포함합니다. 실제 반영은 아래 과목별 체크로 다시 선택합니다.</span>
+            <span>업로드 파일에 없는 기존 과목을 <b>폐강 후보</b>로 포함합니다. 실제 반영은 아래 과목별 체크로 다시 선택합니다.</span>
           </label>
           <button class="primary" id="previewButton" type="submit">검증하고 변경점 보기</button>
         </div>
       </div>
     </form>
-    <div class="loading" id="loading"><span class="spinner"></span><span>JSON과 현재 DB를 비교하고 있습니다.</span></div>
+    <div class="loading" id="loading"><span class="spinner"></span><span>업로드 파일과 현재 DB를 비교하고 있습니다.</span></div>
     <div class="error" id="error" role="alert"></div>
   </section>
 
@@ -454,7 +456,9 @@
     });
   }
 
-  $("jsonFile").addEventListener("change", (event) => {
+  const supportedExtensions = [".json", ".xlsx"];
+
+  $("sourceFile").addEventListener("change", (event) => {
     const file = event.target.files[0];
     $("filename").textContent = file ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB` : "";
   });
@@ -469,9 +473,10 @@
   $("uploadForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     clearError();
-    const file = $("jsonFile").files[0];
-    if (!file || !file.name.toLowerCase().endsWith(".json")) {
-      showError("통합정보시스템에서 내려받은 JSON 파일을 선택해주세요.");
+    const file = $("sourceFile").files[0];
+    const lowerName = file?.name.toLowerCase() ?? "";
+    if (!file || !supportedExtensions.some((extension) => lowerName.endsWith(extension))) {
+      showError("통합정보시스템에서 내려받은 JSON 또는 Excel(.xlsx) 파일을 선택해주세요.");
       return;
     }
     setLoading(true);

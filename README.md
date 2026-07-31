@@ -72,10 +72,10 @@ Portfolio packet: [`docs/portfolio/README.md`](docs/portfolio/README.md)
 
 - 관리자용 과목 등록/수정/삭제 API
 - 공식 강의시간표 가져오기 preview/apply 흐름
-- 강의계획서 JSON 변경 유형·before/after·사용자 영향 검토 후 선택 반영
+- 강의계획서 JSON·종합강의시간표 Excel 변경 유형·before/after·사용자 영향 검토 후 선택 반영
 - 중복 요청 방지와 관리자 접근 가드
 
-관리자 JSON 반영 화면과 에이전트용 API 절차는
+관리자 과목 파일 반영 화면과 에이전트용 API 절차는
 [`docs/admin-subject-import.md`](docs/admin-subject-import.md)를 참고하세요.
 
 ## Performance Tuning
