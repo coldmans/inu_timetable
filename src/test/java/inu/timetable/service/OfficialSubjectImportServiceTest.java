@@ -327,7 +327,7 @@ class OfficialSubjectImportServiceTest {
     }
 
     @Test
-    void applyPersistsSyllabusAvailabilityFromRawJson() throws Exception {
+    void applyIgnoresSyllabusAvailabilityFromRawJson() throws Exception {
         when(subjectRepository.findImportCandidatesBySemester("2026-2")).thenReturn(List.of());
 
         officialSubjectImportService.apply(syllabusJson(), "2026-2", false);
@@ -335,11 +335,46 @@ class OfficialSubjectImportServiceTest {
         ArgumentCaptor<List<Subject>> captor = ArgumentCaptor.forClass(List.class);
         verify(subjectRepository).saveAll(captor.capture());
         Subject saved = captor.getValue().get(0);
-        assertThat(saved.getSyllabusAvailable()).isTrue();
+        assertThat(saved.getSyllabusAvailable()).isFalse();
         assertThat(saved.getSchedules()).hasSize(1);
         assertThat(saved.getSchedules().get(0).getRoomSegments())
                 .extracting(ScheduleRoomSegment::getRoom)
                 .containsExactly("27-101");
+    }
+
+    @Test
+    void changedFieldsIgnoresSyllabusAvailabilityDifference() {
+        Subject existing = Subject.builder()
+                .courseCode("AI001")
+                .semester("2026-2")
+                .active(true)
+                .subjectName("동일과목")
+                .credits(3)
+                .professor("교수")
+                .department("임베디드시스템공학과")
+                .grade(2)
+                .subjectType(SubjectType.전심)
+                .classMethod(ClassMethod.OFFLINE)
+                .isNight(false)
+                .syllabusAvailable(false)
+                .schedules(new ArrayList<>())
+                .build();
+        OfficialSubjectImportService.OfficialSubjectRecord incoming =
+                new OfficialSubjectImportService.OfficialSubjectRecord(
+                        "AI001",
+                        "2026-2",
+                        "동일과목",
+                        3,
+                        "교수",
+                        "임베디드시스템공학과",
+                        2,
+                        SubjectType.전심,
+                        ClassMethod.OFFLINE,
+                        false,
+                        true,
+                        List.of());
+
+        assertThat(officialSubjectImportService.changedFields(existing, incoming)).isEmpty();
     }
 
     private MockMultipartFile syllabusJson() {
