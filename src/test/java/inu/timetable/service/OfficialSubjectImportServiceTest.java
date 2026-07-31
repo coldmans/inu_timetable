@@ -314,6 +314,22 @@ class OfficialSubjectImportServiceTest {
     }
 
     @Test
+    void previewRejectsSemesterMismatchAgainstOfficialTimetableTitle() {
+        assertThatThrownBy(() -> officialSubjectImportService.preview(sampleWorkbook(), "2026-2"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("2026-1");
+    }
+
+    @Test
+    void previewRejectsWorkbookContainingMultipleSemesters() {
+        assertThatThrownBy(() -> officialSubjectImportService.preview(mixedSemesterSyllabusWorkbook(), "2026-1"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("여러 학기")
+                .hasMessageContaining("2026-1")
+                .hasMessageContaining("2026-2");
+    }
+
+    @Test
     void previewParsesRawInuSyllabusJsonWithoutExcelConversion() throws Exception {
         when(subjectRepository.findImportCandidatesBySemester("2026-2")).thenReturn(List.of());
 
@@ -410,6 +426,14 @@ class OfficialSubjectImportServiceTest {
     }
 
     private MockMultipartFile syllabusWorkbook() throws Exception {
+        return syllabusWorkbook("1학기", "1학기");
+    }
+
+    private MockMultipartFile mixedSemesterSyllabusWorkbook() throws Exception {
+        return syllabusWorkbook("1학기", "2학기");
+    }
+
+    private MockMultipartFile syllabusWorkbook(String firstTerm, String secondTerm) throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("sheet1");
@@ -423,9 +447,9 @@ class OfficialSubjectImportServiceTest {
                 header.createCell(index).setCellValue(headers.get(index));
             }
 
-            createSyllabusRow(sheet, 1, "HS90001001", "포용의문화", "전공심화", "1",
+            createSyllabusRow(sheet, 1, firstTerm, "HS90001001", "포용의문화", "전공심화", "1",
                     " [ZZ-200:목(2)(3)(4)]", "3.0", "강의(이론)");
-            createSyllabusRow(sheet, 2, "HS90002001", "야간무크과목", "기초교양", "2",
+            createSyllabusRow(sheet, 2, secondTerm, "HS90002001", "야간무크과목", "기초교양", "2",
                     " [ZZ-200:금(야1)(야2)]", "2.0", "K-MOOC");
 
             workbook.write(outputStream);
@@ -438,13 +462,13 @@ class OfficialSubjectImportServiceTest {
     }
 
     private void createSyllabusRow(
-            Sheet sheet, int rowIndex, String courseCode, String subjectName,
+            Sheet sheet, int rowIndex, String term, String courseCode, String subjectName,
             String subjectType, String grade, String timetable, String credits, String classType) {
         Row row = sheet.createRow(rowIndex);
         row.createCell(0).setCellValue("0");
         row.createCell(1).setCellValue(String.valueOf(rowIndex));
         row.createCell(2).setCellValue("2026");
-        row.createCell(3).setCellValue("1학기");
+        row.createCell(3).setCellValue(term);
         row.createCell(4).setCellValue("기타");
         row.createCell(5).setCellValue("HUSS(타대학)");
         row.createCell(6).setCellValue(subjectType);

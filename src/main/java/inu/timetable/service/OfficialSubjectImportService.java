@@ -46,6 +46,8 @@ public class OfficialSubjectImportService {
     private static final Pattern DAY_PATTERN = Pattern.compile("^([월화수목금토일])\\s*(.*)$");
     private static final Pattern PERIOD_PATTERN = Pattern.compile("\\(([^)]+)\\)");
     private static final Pattern BARE_PERIOD_PATTERN = Pattern.compile("(?:야)?\\d{1,2}[AB]?(?:\\s*-\\s*(?:야)?\\d{1,2}[AB]?)?");
+    private static final Pattern TITLE_SEMESTER_PATTERN =
+            Pattern.compile("(20\\d{2})\\s*학년도\\s*(1|2)\\s*학기");
     private static final String DAYS = "월화수목금토일";
     private final SubjectRepository subjectRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -393,29 +395,84 @@ public class OfficialSubjectImportService {
     record ParsedWorkbook(List<OfficialSubjectRecord> records, String sourceFormat) {
     }
 
-    // 강의계획서 조회 파일에는 년도/학기 컬럼이 있으므로, 업로드 시 선택한 학기와
-    // 파일 데이터의 학기가 다르면 잘못된 학기로 반영되는 사고를 막기 위해 거부한다.
+    // 강의계획서 조회 파일은 년도/학기 컬럼을, 종합강의시간표는 제목행을 사용한다.
+    // 모든 행을 확인해 혼합 학기 파일이나 잘못 선택한 반영 학기를 사전에 거부한다.
     private void validateFileSemester(Sheet sheet, HeaderInfo headerInfo, String semester, DataFormatter formatter) {
+        Set<String> fileSemesters = new LinkedHashSet<>();
         Integer yearColumn = headerInfo.optionalColumn("년도");
         Integer termColumn = headerInfo.optionalColumn("학기");
-        if (yearColumn == null || termColumn == null) {
-            return;
-        }
-
-        for (int rowIndex = headerInfo.rowIndex() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
-            Row row = sheet.getRow(rowIndex);
-            String year = cellValue(row, yearColumn, formatter).replaceAll("[^0-9]", "");
-            String term = cellValue(row, termColumn, formatter).replaceAll("[^0-9]", "");
-            if (!hasText(year) || !hasText(term)) {
-                continue;
+        if (yearColumn != null && termColumn != null) {
+            for (int rowIndex = headerInfo.rowIndex() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                Row row = sheet.getRow(rowIndex);
+                String fileSemester = fileSemester(
+                        cellValue(row, yearColumn, formatter),
+                        cellValue(row, termColumn, formatter));
+                if (hasText(fileSemester)) {
+                    fileSemesters.add(fileSemester);
+                }
             }
-            String fileSemester = year + "-" + term;
+        }
+        fileSemesters.addAll(titleSemesters(sheet, headerInfo.rowIndex(), formatter));
+
+        if (fileSemesters.size() > 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "파일에 여러 학기 데이터가 섞여 있습니다: " + String.join(", ", fileSemesters));
+        }
+        if (fileSemesters.size() == 1) {
+            String fileSemester = fileSemesters.iterator().next();
             if (!fileSemester.equals(semester)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
                         "파일의 학기(" + fileSemester + ")와 업로드 학기(" + semester + ")가 다릅니다.");
             }
-            return;
         }
+    }
+
+    private Set<String> titleSemesters(
+            Sheet sheet,
+            int headerRowIndex,
+            DataFormatter formatter) {
+        Set<String> semesters = new LinkedHashSet<>();
+        for (int rowIndex = 0; rowIndex < headerRowIndex; rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+            for (Cell cell : row) {
+                Matcher matcher = TITLE_SEMESTER_PATTERN.matcher(
+                        formatter.formatCellValue(cell).trim());
+                while (matcher.find()) {
+                    semesters.add(matcher.group(1) + "-" + matcher.group(2));
+                }
+            }
+        }
+        return semesters;
+    }
+
+    private String fileSemester(String yearValue, String termValue) {
+        String year = defaultText(yearValue, "").replaceAll("[^0-9]", "");
+        String term = normalizeExcelTerm(termValue);
+        if (!hasText(year) || !hasText(term)) {
+            return null;
+        }
+        return year + "-" + term;
+    }
+
+    private String normalizeExcelTerm(String termValue) {
+        String term = defaultText(termValue, "").trim();
+        if (term.contains("여름") || term.contains("하계")) {
+            return "여름";
+        }
+        if (term.contains("겨울") || term.contains("동계")) {
+            return "겨울";
+        }
+        String numeric = term.replaceAll("[^0-9]", "");
+        return switch (numeric) {
+            case "10" -> "1";
+            case "20" -> "2";
+            default -> numeric;
+        };
     }
 
     private HeaderInfo findHeader(Sheet sheet, DataFormatter formatter) {

@@ -30,7 +30,7 @@ import java.io.IOException;
 @RestController
 @RequestMapping("/admin/api/subject-import-plans")
 @RequiredArgsConstructor
-@Tag(name = "관리자 과목 데이터 검토", description = "강의계획서 JSON의 변경점과 사용자 영향을 검토한 뒤 선택 반영하는 API")
+@Tag(name = "관리자 과목 데이터 검토", description = "강의계획서 JSON 또는 종합강의시간표 Excel의 변경점과 사용자 영향을 검토한 뒤 선택 반영하는 API")
 public class AdminSubjectImportController {
 
     private final AdminAuthService adminAuthService;
@@ -38,7 +38,7 @@ public class AdminSubjectImportController {
     private final SubjectImportReviewService subjectImportReviewService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "강의계획서 JSON 미리보기", description = "DB를 변경하지 않고 변경 유형, before/after, 사용자 영향과 예상 충돌을 저장합니다.")
+    @Operation(summary = "과목 파일 미리보기", description = "JSON 또는 Excel을 현재 DB와 비교해 변경 유형, before/after, 사용자 영향과 예상 충돌을 저장합니다.")
     public SubjectImportPlanResponse preview(
             @RequestPart("file") MultipartFile file,
             @RequestParam String semester,
