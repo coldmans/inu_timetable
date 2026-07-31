@@ -54,6 +54,7 @@ public class SubjectImportReviewService {
     private static final String STATUS_PREVIEWED = "PREVIEWED";
     private static final String STATUS_APPLIED = "APPLIED";
     private static final int MAX_CONFLICT_DETAILS = 100;
+    private static final int CURRENT_COMPARISON_VERSION = 2;
     private static final String DAYS = "월화수목금토일";
 
     private final OfficialSubjectImportService officialSubjectImportService;
@@ -85,7 +86,7 @@ public class SubjectImportReviewService {
                 .filter(change -> !change.categories().contains(SubjectImportChangeCategory.CANCELED))
                 .count();
         List<String> warnings = warnings(parsed.records(), changes);
-        StoredPlan stored = new StoredPlan(changes, warnings);
+        StoredPlan stored = new StoredPlan(CURRENT_COMPARISON_VERSION, changes, warnings);
         LocalDateTime now = nowInKorea();
         SubjectImportPlan plan = SubjectImportPlan.builder()
                 .id(UUID.randomUUID().toString())
@@ -131,6 +132,7 @@ public class SubjectImportReviewService {
     public SubjectImportApplyResponse apply(String planId, List<String> courseCodes) {
         SubjectImportPlan plan = requirePreviewedPlanForApply(planId);
         StoredPlan stored = read(plan.getPlanPayload(), StoredPlan.class);
+        requireCurrentComparisonVersion(stored);
         List<SubjectImportPlanResponse.ChangeItem> selected =
                 selectedChanges(stored, courseCodes);
         SubjectImportImpactResponse previewedImpact =
@@ -332,7 +334,6 @@ public class SubjectImportReviewService {
         addField(fields, "이수구분", before.subjectType(), after.subjectType());
         addField(fields, "수업유형", before.classMethod(), after.classMethod());
         addField(fields, "야간여부", before.night(), after.night());
-        addField(fields, "강의계획서 첨부", before.syllabusAvailable(), after.syllabusAvailable());
         if (!scheduleKeys(before.schedules()).equals(scheduleKeys(after.schedules()))) {
             addField(fields, "시간표", scheduleText(before.schedules()), scheduleText(after.schedules()));
         }
@@ -360,16 +361,10 @@ public class SubjectImportReviewService {
         if (labels.contains("강의실")) {
             categories.add(SubjectImportChangeCategory.ROOM_CHANGED);
         }
-        if (!before.syllabusAvailable() && after.syllabusAvailable()) {
-            categories.add(SubjectImportChangeCategory.SYLLABUS_ATTACHED);
-        }
-        if (before.syllabusAvailable() && !after.syllabusAvailable()) {
-            categories.add(SubjectImportChangeCategory.SYLLABUS_REMOVED);
-        }
         if (!before.active() && after.active()) {
             categories.add(SubjectImportChangeCategory.REACTIVATED);
         }
-        Set<String> categorizedLabels = Set.of("시간표", "강의실", "강의계획서 첨부", "개설 상태");
+        Set<String> categorizedLabels = Set.of("시간표", "강의실", "개설 상태");
         if (fields.stream().anyMatch(field -> !categorizedLabels.contains(field.field()))) {
             categories.add(SubjectImportChangeCategory.DETAILS_CHANGED);
         }
@@ -582,7 +577,7 @@ public class SubjectImportReviewService {
         if (change.before() == null) {
             return current != null;
         }
-        return current == null || !snapshot(current).equals(change.before());
+        return current == null || !sameSubjectData(snapshot(current), change.before());
     }
 
     private boolean sameSubjectData(
@@ -602,8 +597,15 @@ public class SubjectImportReviewService {
                 && Objects.equals(current.subjectType(), expected.subjectType())
                 && Objects.equals(current.classMethod(), expected.classMethod())
                 && current.night() == expected.night()
-                && current.syllabusAvailable() == expected.syllabusAvailable()
                 && Objects.equals(current.schedules(), expected.schedules());
+    }
+
+    private void requireCurrentComparisonVersion(StoredPlan stored) {
+        if (stored.comparisonVersion() != CURRENT_COMPARISON_VERSION) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "비교 기준이 변경된 이전 미리보기입니다. JSON을 다시 업로드해주세요.");
+        }
     }
 
     private List<SubjectImportPlanResponse.ChangeItem> selectedChanges(
@@ -962,6 +964,7 @@ public class SubjectImportReviewService {
     }
 
     private record StoredPlan(
+            int comparisonVersion,
             List<SubjectImportPlanResponse.ChangeItem> changes,
             List<String> warnings) {
     }

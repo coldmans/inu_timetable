@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,10 +56,11 @@ class SubjectImportReviewServiceTest {
     @Mock EntityManager entityManager;
 
     private SubjectImportReviewService service;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        objectMapper = new ObjectMapper().findAndRegisterModules();
         service = new SubjectImportReviewService(
                 officialSubjectImportService,
                 subjectRepository,
@@ -118,11 +120,14 @@ class SubjectImportReviewServiceTest {
                     assertThat(change.categories()).contains(
                             SubjectImportChangeCategory.TIME_CHANGED,
                             SubjectImportChangeCategory.ROOM_CHANGED,
-                            SubjectImportChangeCategory.SYLLABUS_ATTACHED,
                             SubjectImportChangeCategory.DETAILS_CHANGED);
+                    assertThat(change.categories()).doesNotContain(
+                            SubjectImportChangeCategory.SYLLABUS_ATTACHED,
+                            SubjectImportChangeCategory.SYLLABUS_REMOVED);
                     assertThat(change.fields())
                             .extracting(SubjectImportPlanResponse.FieldChange::field)
-                            .contains("교과목명", "시간표", "강의실", "강의계획서 첨부");
+                            .contains("교과목명", "시간표", "강의실")
+                            .doesNotContain("강의계획서 첨부");
                 });
         assertThat(response.changes())
                 .filteredOn(change -> change.courseCode().equals("OLD001"))
@@ -164,6 +169,30 @@ class SubjectImportReviewServiceTest {
                 .extracting(SubjectImportPlanResponse.FieldChange::field)
                 .contains("강의실")
                 .doesNotContain("시간표");
+    }
+
+    @Test
+    void previewIgnoresSyllabusAvailabilityOnlyChange() throws Exception {
+        Subject existing = subject(1L, "AI001", "기존과목", true, "월", 1.0, 3.0, "27-101");
+        OfficialSubjectImportService.OfficialSubjectRecord incoming = record(
+                "AI001", "기존과목", true, "월", 1.0, 3.0, "27-101");
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "inu.json", "application/json", "{}".getBytes());
+
+        when(officialSubjectImportService.parseOfficialFile(file, "2026-2"))
+                .thenReturn(new OfficialSubjectImportService.ParsedWorkbook(
+                        List.of(incoming),
+                        "SYLLABUS_JSON"));
+        when(subjectRepository.findImportCandidatesBySemester("2026-2"))
+                .thenReturn(List.of(existing));
+        when(planRepository.save(any(SubjectImportPlan.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        SubjectImportPlanResponse response = service.preview(file, "2026-2", false);
+
+        assertThat(response.changedCount()).isZero();
+        assertThat(response.unchangedCount()).isOne();
+        assertThat(response.changes()).isEmpty();
     }
 
     @Test
@@ -266,6 +295,25 @@ class SubjectImportReviewServiceTest {
         assertThatThrownBy(() -> service.apply("applied-plan", List.of("AI001")))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("이미 반영");
+    }
+
+    @Test
+    void applyRejectsPlanCreatedBeforeComparisonPolicyChange() throws Exception {
+        SubjectImportPlan legacyPlan = SubjectImportPlan.builder()
+                .id("legacy-plan")
+                .semester("2026-2")
+                .status("PREVIEWED")
+                .planPayload(objectMapper.writeValueAsString(java.util.Map.of(
+                        "changes", List.of(),
+                        "warnings", List.of())))
+                .build();
+        when(planRepository.findByIdForUpdate("legacy-plan"))
+                .thenReturn(java.util.Optional.of(legacyPlan));
+
+        assertThatThrownBy(() -> service.apply("legacy-plan", List.of("AI001")))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("다시 업로드");
+        verifyNoInteractions(subjectRepository);
     }
 
     private SubjectImportPlanResponse.ChangeItem previewSingle(

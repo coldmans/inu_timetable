@@ -453,7 +453,6 @@ public class OfficialSubjectImportService {
         subject.setSubjectType(record.subjectType());
         subject.setClassMethod(record.classMethod());
         subject.setIsNight(record.isNight());
-        subject.setSyllabusAvailable(record.syllabusAvailable());
 
         synchronizeSchedules(subject, record.schedules());
     }
@@ -559,7 +558,6 @@ public class OfficialSubjectImportService {
         addIfChanged(fields, "이수구분", subject.getSubjectType(), record.subjectType());
         addIfChanged(fields, "수업유형", subject.getClassMethod(), record.classMethod());
         addIfChanged(fields, "야간여부", subject.getIsNight(), record.isNight());
-        addIfChanged(fields, "강의계획서 첨부", subject.getSyllabusAvailable(), record.syllabusAvailable());
         boolean schedulesChanged = !sameSchedules(subject.getSchedules(), record.schedules());
         if (schedulesChanged) {
             fields.add("시간표");

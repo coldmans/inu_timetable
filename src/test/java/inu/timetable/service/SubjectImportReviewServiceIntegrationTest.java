@@ -110,7 +110,7 @@ class SubjectImportReviewServiceIntegrationTest {
                 .satisfies(subject -> {
                     assertThat(subject.getSubjectName()).isEqualTo("변경과목");
                     assertThat(subject.getProfessor()).isEqualTo("새교수");
-                    assertThat(subject.getSyllabusAvailable()).isTrue();
+                    assertThat(subject.getSyllabusAvailable()).isFalse();
                 });
         assertThat(subjectRepository.findFirstByCourseCodeAndSemesterOrderByIdAsc("NEW001", "2026-2"))
                 .isEmpty();

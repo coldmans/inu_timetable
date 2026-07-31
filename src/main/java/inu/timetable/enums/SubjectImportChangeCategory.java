@@ -5,6 +5,7 @@ public enum SubjectImportChangeCategory {
     CANCELED("폐강"),
     TIME_CHANGED("시간 변경"),
     ROOM_CHANGED("강의실 변경"),
+    // 기존에 저장된 검토 계획 JSON을 읽기 위한 호환 값이다. 새 비교에서는 생성하지 않는다.
     SYLLABUS_ATTACHED("강의계획서 첨부"),
     SYLLABUS_REMOVED("강의계획서 미첨부"),
     REACTIVATED("재개설"),
