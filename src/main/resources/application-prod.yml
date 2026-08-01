@@ -42,7 +42,8 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: OFF
 
 # 운영 세션 쿠키 보안: HTTPS 전용(Secure) + 크로스사이트(SPA 별도 오리진) 허용.
-# nginx 가 HTTPS 종단이므로 X-Forwarded-Proto 를 신뢰해 Secure 쿠키가 정상 발급되게 한다.
+# Cloud Run 앞의 Google 관리형 HTTPS proxy가 전달한 X-Forwarded-*를 신뢰해
+# Secure 쿠키와 원래 요청 scheme을 올바르게 처리한다.
 server:
   forward-headers-strategy: framework
   servlet:
