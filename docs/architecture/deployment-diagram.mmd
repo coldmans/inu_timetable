@@ -1,55 +1,69 @@
 flowchart TB
     student["Student browser"]
     admin["Admin browser"]
+    vercel["Vercel\nReact/Vite SPA"]
 
-    subgraph frontend["Frontend"]
-        vercel["Vercel\nReact/Vite SPA\ninuu-timetable.vercel.app"]
+    subgraph cicd["GitHub CI/CD"]
+        pr["Pull request"]
+        prcheck["PR validation\nclean test bootJar"]
+        main["main push or manual dispatch"]
+        actions["GitHub Actions\nDeploy to GCP Cloud Run"]
+        oidc["OIDC Workload Identity\nshort-lived GCP credentials"]
+        source["gcloud run deploy --source ."]
+        smoke["Candidate smoke\nhealth, API, auth, cache metrics"]
+        promote["Traffic promotion\n10% -> 50% -> 100% when configured"]
+        rollback["Rollback\nprevious revision -> 100%"]
     end
 
-    subgraph gcp["GCP VM"]
-        nginx["nginx reverse proxy\npublic :8080"]
-        blue["Spring Boot backend\ninu-backend-blue\n127.0.0.1:8081"]
-        green["Spring Boot backend\ninu-backend-green\n127.0.0.1:8082"]
+    subgraph gcp["Google Cloud asia-northeast3"]
+        cloudrun["Cloud Run service\n0..3 instances, concurrency 40\n1 vCPU / 1 GiB"]
+        stable["Stable revision\nproduction traffic"]
+        candidate["Tagged candidate revision\ninitially zero traffic"]
+        secrets["Secret Manager\nDB, Gemini, admin bootstrap, Redis credentials"]
+        redis["Memorystore Redis\nprivate VPC endpoint\nshared subject-cache L2"]
     end
 
-    subgraph data["Data stores"]
-        postgres["PostgreSQL / Supabase\nsubjects, schedules, users,\nwishlist, timetables"]
-        audit["admin_audit_logs"]
-        activity["user_activity_daily"]
+    subgraph data["Supabase PostgreSQL"]
+        appdata["Application data\nsubjects, schedules, room segments,\nusers, wishlists, timetables"]
+        sharedstate["Shared runtime state\nSpring JDBC sessions, login limits,\ncache versions, import plans and locks"]
+        operations["Operations data\nupdate logs, notifications, inquiries,\nFAQ, analytics, admin audit"]
+        flyway["Flyway migrations\nHibernate ddl-auto=validate"]
     end
 
-    subgraph observability["Observability"]
-        actuator["Spring Actuator\n/actuator/health\n/actuator/prometheus"]
-        prometheus["Prometheus"]
-        grafana["Grafana dashboard"]
-    end
+    gemini["Google Gemini API\nPDF / legacy Excel parsing"]
+    metrics["Actuator / Micrometer\nhealth and Prometheus metrics"]
+    localobs["Repository-local\nPrometheus + Grafana"]
 
-    subgraph cicd["CI/CD"]
-        github["GitHub main"]
-        actions["GitHub Actions\nGradle build/test"]
-        dockerhub["Docker Hub image"]
-        deploy["deploy-blue-green.sh"]
-    end
+    student -->|"Loads SPA"| vercel
+    admin -->|"Loads SPA/admin pages"| vercel
+    vercel -->|"/api/** and /admin/api/**"| cloudrun
+    cloudrun --> stable
+    cloudrun -.->|"candidate tag URL"| candidate
 
-    student -->|Loads SPA| vercel
-    admin -->|Hidden admin route| vercel
-    vercel -->|/api/** and /admin/api/**| nginx
-    nginx -->|Active upstream| blue
-    nginx -. switches to .-> green
+    stable --> appdata
+    stable --> sharedstate
+    stable --> operations
+    stable --> redis
+    stable --> metrics
+    candidate --> appdata
+    candidate --> sharedstate
+    candidate --> redis
+    candidate --> metrics
+    secrets --> stable
+    secrets --> candidate
+    flyway --> appdata
+    stable -->|"PDF/legacy Excel import only"| gemini
 
-    blue -->|JPA/Flyway| postgres
-    green -->|JPA/Flyway| postgres
-    blue -->|Writes admin metadata| audit
-    green -->|Writes daily distinct usage| activity
+    pr --> prcheck
+    main --> actions
+    actions --> oidc
+    oidc --> source
+    source --> candidate
+    candidate --> smoke
+    smoke -->|"pass"| promote
+    promote --> stable
+    smoke -.->|"fail before traffic: stable traffic unchanged"| stable
+    promote -.->|"verification fail"| rollback
+    rollback --> stable
 
-    blue --> actuator
-    green --> actuator
-    prometheus -->|Scrapes| actuator
-    grafana -->|Queries| prometheus
-
-    github --> actions
-    actions -->|Builds and pushes| dockerhub
-    actions -->|Copies and runs| deploy
-    deploy -->|Starts inactive color and health checks| blue
-    deploy -->|Starts inactive color and health checks| green
-    deploy -->|Reloads upstream or rolls back| nginx
+    localobs -.->|"local scrape"| metrics
