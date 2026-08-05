@@ -11,7 +11,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -33,13 +33,14 @@ class SubjectUpdateLogControllerTest {
     @Test
     @DisplayName("업데이트 일지는 인증 없이 최신순으로 조회된다")
     void getUpdateLogsIsPublicAndOrderedByAppliedAtDesc() throws Exception {
-        saveLog(LocalDateTime.of(2026, 7, 24, 10, 0), "2026-1", 5, 2, 1);
-        saveLog(LocalDateTime.of(2026, 7, 26, 10, 0), "2026-2", 10, 3, 0);
-        saveLog(LocalDateTime.of(2026, 7, 25, 10, 0), "2026-1", 7, 0, 2);
+        saveLog(Instant.parse("2026-07-24T01:00:00Z"), "2026-1", 5, 2, 1);
+        saveLog(Instant.parse("2026-07-26T01:00:00Z"), "2026-2", 10, 3, 0);
+        saveLog(Instant.parse("2026-07-25T01:00:00Z"), "2026-1", 7, 0, 2);
 
         mockMvc.perform(get("/api/subjects/update-logs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)))
+                .andExpect(jsonPath("$[0].appliedAt").value("2026-07-26T01:00:00Z"))
                 .andExpect(jsonPath("$[0].semester").value("2026-2"))
                 .andExpect(jsonPath("$[0].sourceFormat").value("OFFICIAL_TIMETABLE"))
                 .andExpect(jsonPath("$[0].addedCount").value(10))
@@ -53,7 +54,7 @@ class SubjectUpdateLogControllerTest {
     @DisplayName("limit 파라미터를 적용하고 최대 50으로 클램프한다")
     void getUpdateLogsClampsLimit() throws Exception {
         for (int index = 0; index < 55; index++) {
-            saveLog(LocalDateTime.of(2026, 7, 1, 0, 0).plusMinutes(index), "2026-1", index, 0, 0);
+            saveLog(Instant.parse("2026-07-01T00:00:00Z").plusSeconds(index * 60L), "2026-1", index, 0, 0);
         }
 
         mockMvc.perform(get("/api/subjects/update-logs").param("limit", "2"))
@@ -66,7 +67,7 @@ class SubjectUpdateLogControllerTest {
     }
 
     private void saveLog(
-            LocalDateTime appliedAt, String semester, int addedCount, int modifiedCount, int removedCount) {
+            Instant appliedAt, String semester, int addedCount, int modifiedCount, int removedCount) {
         subjectUpdateLogRepository.save(SubjectUpdateLog.builder()
                 .appliedAt(appliedAt)
                 .semester(semester)

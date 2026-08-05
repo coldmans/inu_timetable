@@ -3,7 +3,6 @@ package inu.timetable.service;
 import inu.timetable.dto.SubjectUpdateLogResponse;
 import inu.timetable.entity.SubjectUpdateLog;
 import inu.timetable.repository.SubjectUpdateLogRepository;
-import inu.timetable.util.BusinessTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -25,7 +24,7 @@ public class SubjectUpdateLogService {
     public SubjectUpdateLog record(
             String semester, String sourceFormat, int addedCount, int modifiedCount, int removedCount) {
         return subjectUpdateLogRepository.save(SubjectUpdateLog.builder()
-                .appliedAt(BusinessTime.nowInKorea(clock))
+                .appliedAt(clock.instant())
                 .semester(semester)
                 .sourceFormat(sourceFormat)
                 .addedCount(addedCount)

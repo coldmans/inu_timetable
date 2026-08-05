@@ -9,7 +9,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,7 +22,7 @@ class SubjectUpdateLogServiceTest {
     private SubjectUpdateLogRepository subjectUpdateLogRepository;
 
     @Test
-    void recordsAppliedAtInKoreanTimeRegardlessOfServerTimezone() {
+    void recordsAppliedAtAsUtcInstantRegardlessOfServerTimezone() {
         Clock utcClock = Clock.fixed(
                 Instant.parse("2026-07-30T12:00:00Z"),
                 ZoneOffset.UTC);
@@ -36,6 +35,6 @@ class SubjectUpdateLogServiceTest {
                 service.record("2026-2", "SYLLABUS_JSON_REVIEW", 1, 2, 3);
 
         assertThat(saved.getAppliedAt())
-                .isEqualTo(LocalDateTime.parse("2026-07-30T21:00:00"));
+                .isEqualTo(Instant.parse("2026-07-30T12:00:00Z"));
     }
 }
