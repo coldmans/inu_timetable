@@ -11,7 +11,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * 공식 엑셀 반영 이력(공개 일지). apply 성공 시마다 1행 기록한다.
@@ -29,7 +29,7 @@ public class SubjectUpdateLog {
     private Long id;
 
     @Column(name = "applied_at", nullable = false)
-    private LocalDateTime appliedAt;
+    private Instant appliedAt;
 
     @Column(nullable = false, length = 20)
     private String semester;

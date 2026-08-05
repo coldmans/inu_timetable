@@ -2,10 +2,10 @@ package inu.timetable.dto;
 
 import inu.timetable.entity.SubjectUpdateLog;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record SubjectUpdateLogResponse(
-        LocalDateTime appliedAt,
+        Instant appliedAt,
         String semester,
         String sourceFormat,
         int addedCount,
