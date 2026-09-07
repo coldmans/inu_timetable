@@ -1,6 +1,7 @@
 package inu.timetable.dto;
 
 import inu.timetable.entity.Schedule;
+import inu.timetable.entity.ScheduleRoomSegment;
 import inu.timetable.entity.Subject;
 import inu.timetable.enums.ClassMethod;
 import inu.timetable.enums.SubjectType;
@@ -57,6 +58,7 @@ public class SubjectManagementResponse {
         private String dayOfWeek;
         private Double startTime;
         private Double endTime;
+        private List<RoomSegmentResponse> roomSegments;
 
         public static ScheduleResponse from(Schedule schedule) {
             return ScheduleResponse.builder()
@@ -64,6 +66,28 @@ public class SubjectManagementResponse {
                     .dayOfWeek(schedule.getDayOfWeek())
                     .startTime(schedule.getStartTime())
                     .endTime(schedule.getEndTime())
+                    .roomSegments(schedule.getRoomSegments().stream()
+                            .map(RoomSegmentResponse::from)
+                            .toList())
+                    .build();
+        }
+    }
+
+    @Getter
+    @Builder
+    @AllArgsConstructor
+    public static class RoomSegmentResponse {
+        private Long id;
+        private String room;
+        private Double startTime;
+        private Double endTime;
+
+        public static RoomSegmentResponse from(ScheduleRoomSegment segment) {
+            return RoomSegmentResponse.builder()
+                    .id(segment.getId())
+                    .room(segment.getRoom())
+                    .startTime(segment.getStartTime())
+                    .endTime(segment.getEndTime())
                     .build();
         }
     }

@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -283,6 +284,66 @@ class UserSecurityIntegrationTest {
                                 }
                                 """.formatted(registeredUser.userId())))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void ignoreTargetCreditsAllowsGenerationWithoutNumericTarget() throws Exception {
+        RegisteredUser registeredUser = registerAndReturnSession();
+        CsrfProof csrfProof = fetchCsrfProof(registeredUser.session());
+
+        mockMvc.perform(post("/api/timetable-combination/generate")
+                        .session(registeredUser.session())
+                        .cookie(csrfProof.cookie())
+                        .header("X-XSRF-TOKEN", csrfProof.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "userId": %d,
+                                  "semester": "2026-1",
+                                  "targetCredits": 12,
+                                  "ignoreTargetCredits": true
+                                }
+                                """.formatted(registeredUser.userId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ignoreTargetCredits").value(true))
+                .andExpect(jsonPath("$.targetCredits").value(nullValue()));
+    }
+
+    @Test
+    void csrfCookieTokenAllowsNextSpaMutationWithoutRefresh() throws Exception {
+        RegisteredUser registeredUser = registerAndReturnSession();
+        CsrfProof csrfProof = fetchCsrfProof(registeredUser.session());
+        String requestBody = """
+                {
+                  "userId": %d,
+                  "semester": "2026-1",
+                  "targetCredits": 18
+                }
+                """.formatted(registeredUser.userId());
+
+        mockMvc.perform(post("/api/timetable-combination/generate")
+                        .session(registeredUser.session())
+                        .cookie(csrfProof.cookie())
+                        .header("X-XSRF-TOKEN", csrfProof.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/timetable-combination/generate")
+                        .session(registeredUser.session())
+                        .cookie(csrfProof.cookie())
+                        .header("X-XSRF-TOKEN", csrfProof.cookie().getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/timetable-combination/generate")
+                        .session(registeredUser.session())
+                        .cookie(csrfProof.cookie())
+                        .header("X-XSRF-TOKEN", "invalid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden());
     }
 
     @Test

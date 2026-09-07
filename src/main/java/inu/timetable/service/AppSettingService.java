@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 public class AppSettingService {
 
     static final String CURRENT_SEMESTER_KEY = "current_semester";
-    static final String DEFAULT_SEMESTER = "2026-1";
+    static final String DEFAULT_SEMESTER = "2026-2";
 
     private static final Pattern SEMESTER_PATTERN = Pattern.compile("^\\d{4}-[12]$");
 

@@ -1,6 +1,9 @@
 spring:
   application:
     name: timeTable
+  autoconfigure:
+    # Redis backs Spring Cache only; no Redis entity repositories exist.
+    exclude: org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   profiles:
     # 배포 스크립트(deploy-blue-green.sh)와 동일한 표준 변수명으로 통일.
     # 운영 배포 시 SPRING_PROFILES_ACTIVE=prod 가 주입되며, 미설정 시 로컬 개발용 dev 로 동작한다.
@@ -16,8 +19,8 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 30
-      minimum-idle: 10
+      maximum-pool-size: ${DB_POOL_MAXIMUM_SIZE:30}
+      minimum-idle: ${DB_POOL_MINIMUM_IDLE:10}
       connection-timeout: 20000
       idle-timeout: 300000
       max-lifetime: 600000
@@ -34,6 +37,15 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:2s}
+      repositories:
+        enabled: false
 
 server:
   servlet:
@@ -45,12 +57,22 @@ server:
         secure: ${SESSION_COOKIE_SECURE:false}
         same-site: ${SESSION_COOKIE_SAME_SITE:lax}
 
+session:
+  # Boot 3.5는 store-type 스위치를 제거했으므로 명시적인 조건부 설정으로 켠다.
+  # 1단계는 false, 2단계는 SHARED_SESSION_ENABLED=true.
+  shared:
+    enabled: ${SHARED_SESSION_ENABLED:false}
+  bridge:
+    mode: ${SESSION_BRIDGE_MODE:off}
+    cookie-name: ${SESSION_BRIDGE_COOKIE_NAME:INU_SESSION_BRIDGE}
+    ttl: ${SESSION_BRIDGE_TTL:30m}
+
 gemini:
   api:
     key: ${GEMINI_API_KEY}
 
 admin:
-  username: ${ADMIN_USERNAME:admin}
+  username: ${ADMIN_USERNAME:jangboss02}
   password-hash: ${ADMIN_PASSWORD_HASH:}
   password: ${ADMIN_PASSWORD:}
   bcrypt-strength: ${ADMIN_BCRYPT_STRENGTH:12}
@@ -63,6 +85,37 @@ user:
   login:
     max-failures: ${USER_LOGIN_MAX_FAILURES:5}
     lock-minutes: ${USER_LOGIN_LOCK_MINUTES:10}
+
+inquiry:
+  rate-limit:
+    # 비로그인 허용 엔드포인트라 IP 당 접수 횟수를 제한한다.
+    max-submissions: ${INQUIRY_RATE_LIMIT_MAX_SUBMISSIONS:10}
+    block-minutes: ${INQUIRY_RATE_LIMIT_BLOCK_MINUTES:60}
+
+subject:
+  import:
+    plan-retention-days: ${SUBJECT_IMPORT_PLAN_RETENTION_DAYS:90}
+    cleanup-cron: ${SUBJECT_IMPORT_PLAN_CLEANUP_CRON:0 35 3 * * *}
+  cache:
+    # Local development/tests use Caffeine. Cloud Run uses Caffeine L1 + Redis L2.
+    provider: ${SUBJECT_CACHE_PROVIDER:caffeine}
+    maximum-size: ${SUBJECT_CACHE_MAXIMUM_SIZE:1000}
+    expire-after-write: ${SUBJECT_CACHE_EXPIRE_AFTER_WRITE:10m}
+    redis:
+      key-prefix: ${SUBJECT_CACHE_REDIS_KEY_PREFIX:inu:timetable:dev}
+      # After a Redis error, bypass it briefly, then flush stale values before reuse.
+      retry-after: ${SUBJECT_CACHE_REDIS_RETRY_AFTER:5s}
+    compatibility:
+      # Keep both true while Caffeine L1 is used. A future Redis Pub/Sub invalidation
+      # rollout may replace this DB version bridge after mixed revisions have drained.
+      poll-enabled: ${SUBJECT_CACHE_DB_VERSION_POLL_ENABLED:true}
+      publish-enabled: ${SUBJECT_CACHE_DB_VERSION_PUBLISH_ENABLED:true}
+    warm-up:
+      enabled: ${SUBJECT_CACHE_WARM_UP_ENABLED:true}
+      concurrency: ${SUBJECT_CACHE_WARM_UP_CONCURRENCY:4}
+      page-size: ${SUBJECT_CACHE_WARM_UP_PAGE_SIZE:20}
+    invalidation:
+      poll-interval-ms: ${SUBJECT_CACHE_INVALIDATION_POLL_INTERVAL_MS:1000}
 
 # Actuator 모니터링 설정
 management:

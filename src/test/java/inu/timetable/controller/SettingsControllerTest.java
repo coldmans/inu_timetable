@@ -30,11 +30,11 @@ class SettingsControllerTest {
     private AppSettingRepository appSettingRepository;
 
     @Test
-    @DisplayName("현재 학기 설정이 없으면 기본값 2026-1을 반환한다")
+    @DisplayName("현재 학기 설정이 없으면 기본값 2026-2를 반환한다")
     void getCurrentSemesterReturnsFallbackWhenSettingMissing() throws Exception {
         mockMvc.perform(get("/api/settings/current-semester"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.semester").value("2026-1"));
+                .andExpect(jsonPath("$.semester").value("2026-2"));
     }
 
     @Test

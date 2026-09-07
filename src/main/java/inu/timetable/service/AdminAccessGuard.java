@@ -15,12 +15,15 @@ public class AdminAccessGuard {
 
     public void requireAuthenticated(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (!adminAuthService.isAuthenticated(session)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin login required");
+        if (!adminAuthService.hasAdminAccess(session)) {
+            String reason = adminAuthService.isPasswordChangeRequired(session)
+                    ? "Admin credential change required"
+                    : "Admin login required";
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, reason);
         }
     }
 
     public boolean isAuthenticated(HttpSession session) {
-        return adminAuthService.isAuthenticated(session);
+        return adminAuthService.hasAdminAccess(session);
     }
 }

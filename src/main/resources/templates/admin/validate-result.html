@@ -32,6 +32,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         h1 {
@@ -43,6 +44,7 @@
             display: flex;
             gap: 15px;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         .nav-links a,
@@ -183,8 +185,10 @@
         <div class="header">
             <h1>📊 검증 결과</h1>
             <div class="nav-links">
+                <a href="/admin/dashboard">대시보드</a>
                 <a href="/admin/validate">다시 검증하기</a>
                 <a href="/admin/upload">업로드 페이지</a>
+                <a href="/admin/account">계정</a>
                 <form th:action="@{/admin/logout}" method="post">
                     <button type="submit">로그아웃</button>
                 </form>

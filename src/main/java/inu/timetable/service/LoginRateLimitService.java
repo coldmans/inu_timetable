@@ -8,14 +8,16 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 @Service
 public class LoginRateLimitService {
 
-    private final Map<String, LoginAttempt> loginAttempts = new ConcurrentHashMap<>();
+    private static final String NAMESPACE = "USER";
+
+    private final LoginAttemptStore loginAttemptStore;
+
+    public LoginRateLimitService(LoginAttemptStore loginAttemptStore) {
+        this.loginAttemptStore = loginAttemptStore;
+    }
 
     @Value("${user.login.max-failures:5}")
     private int maxFailures;
@@ -25,34 +27,23 @@ public class LoginRateLimitService {
 
     public void rejectIfLocked(String username, HttpServletRequest request) {
         String attemptKey = attemptKey(username, request);
-        LoginAttempt attempt = loginAttempts.get(attemptKey);
-        if (attempt == null || attempt.blockedUntil == null) {
-            return;
-        }
-
-        if (Instant.now().isBefore(attempt.blockedUntil)) {
+        if (loginAttemptStore.isBlocked(NAMESPACE, attemptKey)) {
             throw new ResponseStatusException(
                     HttpStatus.TOO_MANY_REQUESTS,
                     "로그인 실패가 반복되었습니다. 잠시 후 다시 시도해주세요.");
         }
-
-        loginAttempts.remove(attemptKey);
     }
 
     public void recordFailure(String username, HttpServletRequest request) {
-        String attemptKey = attemptKey(username, request);
-        loginAttempts.compute(attemptKey, (key, current) -> {
-            LoginAttempt attempt = current == null ? new LoginAttempt() : current;
-            attempt.failedCount++;
-            if (attempt.failedCount >= maxFailures) {
-                attempt.blockedUntil = Instant.now().plus(Duration.ofMinutes(lockMinutes));
-            }
-            return attempt;
-        });
+        loginAttemptStore.recordFailure(
+                NAMESPACE,
+                attemptKey(username, request),
+                maxFailures,
+                Duration.ofMinutes(lockMinutes));
     }
 
     public void recordSuccess(String username, HttpServletRequest request) {
-        loginAttempts.remove(attemptKey(username, request));
+        loginAttemptStore.clear(NAMESPACE, attemptKey(username, request));
     }
 
     private String attemptKey(String username, HttpServletRequest request) {
@@ -66,10 +57,5 @@ public class LoginRateLimitService {
         // 신뢰된 프록시(nginx) 뒤의 실제 IP 보정은 server.forward-headers-strategy=framework
         // (운영 프로파일)가 처리하므로, 여기서는 컨테이너가 인지한 원격 주소만 사용한다.
         return request.getRemoteAddr();
-    }
-
-    private static class LoginAttempt {
-        private int failedCount;
-        private Instant blockedUntil;
     }
 }

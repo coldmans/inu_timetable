@@ -2,7 +2,9 @@ package inu.timetable.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inu.timetable.controller.CsrfTestSupport.CsrfProof;
+import inu.timetable.entity.AdminAccount;
 import inu.timetable.entity.AppSetting;
+import inu.timetable.repository.AdminAccountRepository;
 import inu.timetable.repository.AppSettingRepository;
 import inu.timetable.service.AdminAuthService;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +42,9 @@ class AdminSettingsControllerTest {
 
     @Autowired
     private AppSettingRepository appSettingRepository;
+
+    @Autowired
+    private AdminAccountRepository adminAccountRepository;
 
     @Test
     @DisplayName("관리자 인증이 없으면 현재 학기 변경을 거부한다")
@@ -124,9 +129,19 @@ class AdminSettingsControllerTest {
     }
 
     private MockHttpSession adminSession() {
+        adminAccountRepository.findById(AdminAccount.SINGLETON_ID)
+                .orElseGet(() -> adminAccountRepository.save(AdminAccount.builder()
+                        .id(AdminAccount.SINGLETON_ID)
+                        .username("admin")
+                        .passwordHash("unused-in-session-test")
+                        .passwordChangeRequired(false)
+                        .credentialVersion(1L)
+                        .build()));
         MockHttpSession session = new MockHttpSession();
         session.setAttribute(AdminAuthService.SESSION_AUTHENTICATED, true);
         session.setAttribute(AdminAuthService.SESSION_USERNAME, "admin");
+        session.setAttribute(AdminAuthService.SESSION_CREDENTIAL_VERSION, 1L);
+        session.setAttribute(AdminAuthService.SESSION_PASSWORD_CHANGE_REQUIRED, false);
         return session;
     }
 }

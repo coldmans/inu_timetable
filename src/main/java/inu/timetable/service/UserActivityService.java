@@ -14,12 +14,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
 public class UserActivityService {
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
 
     private final UserActivityDailyRepository userActivityDailyRepository;
     private final UserRepository userRepository;
@@ -34,7 +37,7 @@ public class UserActivityService {
             return;
         }
 
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = businessDate();
         resetCacheIfDateChanged(today);
 
         String cacheKey = userId + ":" + today;
@@ -71,13 +74,17 @@ public class UserActivityService {
     }
 
     public long countDau() {
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = businessDate();
         return userActivityDailyRepository.countDistinctUsersBetween(today, today);
     }
 
     public long countMau() {
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = businessDate();
         return userActivityDailyRepository.countDistinctUsersBetween(today.minusDays(29), today);
+    }
+
+    private LocalDate businessDate() {
+        return LocalDate.now(clock.withZone(BUSINESS_ZONE));
     }
 
     private void resetCacheIfDateChanged(LocalDate today) {

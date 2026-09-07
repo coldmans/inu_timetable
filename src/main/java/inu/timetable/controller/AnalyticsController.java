@@ -1,9 +1,11 @@
 package inu.timetable.controller;
 
 import inu.timetable.dto.AnalyticsSummaryResponse;
+import inu.timetable.dto.AnalyticsDashboardResponse;
 import inu.timetable.enums.AnalyticsEventType;
 import inu.timetable.security.AuthenticatedUser;
 import inu.timetable.service.AdminAccessGuard;
+import inu.timetable.service.AnalyticsDashboardService;
 import inu.timetable.service.AnalyticsService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ import java.util.Map;
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
+    private final AnalyticsDashboardService analyticsDashboardService;
     private final AdminAccessGuard adminAccessGuard;
 
     /**
@@ -51,6 +54,14 @@ public class AnalyticsController {
             @RequestParam(defaultValue = "14") int days) {
         adminAccessGuard.requireAuthenticated(request);
         return analyticsService.summary(Math.max(1, Math.min(days, 90)));
+    }
+
+    @GetMapping("/admin/api/analytics/dashboard")
+    public AnalyticsDashboardResponse dashboard(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "today") String range) {
+        adminAccessGuard.requireAuthenticated(request);
+        return analyticsDashboardService.dashboard(range);
     }
 
     private AnalyticsEventType parseType(Object raw) {

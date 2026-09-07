@@ -22,6 +22,14 @@ public record AuthenticatedUser(
                 List.of(new SimpleGrantedAuthority("ROLE_USER")));
     }
 
+    public static AuthenticatedUser forSession(User user) {
+        return new AuthenticatedUser(
+                user.getId(),
+                user.getUsername(),
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_USER")));
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return authorities;

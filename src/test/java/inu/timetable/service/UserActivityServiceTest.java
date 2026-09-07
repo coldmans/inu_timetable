@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -94,5 +95,25 @@ class UserActivityServiceTest {
         long mau = userActivityService.countMau();
 
         assertThat(mau).isEqualTo(2500L);
+    }
+
+    @Test
+    void countDauUsesKoreaDateEvenWhenServerClockRunsInUtc() {
+        Clock utcClockAfterKoreaMidnight = Clock.fixed(
+                Instant.parse("2026-07-28T16:02:00Z"),
+                ZoneOffset.UTC);
+        userActivityService = new UserActivityService(
+                userActivityDailyRepository,
+                userRepository,
+                entityManager,
+                utcClockAfterKoreaMidnight);
+        when(userActivityDailyRepository.countDistinctUsersBetween(
+                LocalDate.of(2026, 7, 29),
+                LocalDate.of(2026, 7, 29)))
+                .thenReturn(48L);
+
+        long dau = userActivityService.countDau();
+
+        assertThat(dau).isEqualTo(48L);
     }
 }

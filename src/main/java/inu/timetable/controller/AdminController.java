@@ -6,7 +6,9 @@ import inu.timetable.service.ExcelParseService;
 import inu.timetable.service.OfficialSubjectImportService;
 import inu.timetable.service.ParsingValidationService;
 import inu.timetable.service.PdfParseService;
+import inu.timetable.service.SessionMigrationBridgeService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -34,15 +36,17 @@ public class AdminController {
     private final ExcelParseService excelParseService;
     private final OfficialSubjectImportService officialSubjectImportService;
     private final ParsingValidationService validationService;
+    private final SessionMigrationBridgeService sessionMigrationBridgeService;
 
     /**
      * 로그인 페이지
      */
     @GetMapping("/login")
     public String loginPage(HttpSession session) {
-        // 이미 인증된 경우 업로드 페이지로 리다이렉트
-        if (isAuthenticated(session)) {
-            return "redirect:/admin/upload";
+        if (adminAuthService.isCurrentAdminSession(session)) {
+            return adminAuthService.isPasswordChangeRequired(session)
+                    ? "redirect:/admin/account"
+                    : "redirect:/admin/dashboard";
         }
         return "admin/login";
     }
@@ -55,10 +59,15 @@ public class AdminController {
             @RequestParam String username,
             @RequestParam String password,
             HttpServletRequest request,
+            HttpServletResponse response,
             RedirectAttributes redirectAttributes) {
         try {
-            adminAuthService.login(username, password, request);
-            return "redirect:/admin/upload";
+            var authentication = adminAuthService.login(username, password, request);
+            if (authentication.passwordChangeRequired()) {
+                return "redirect:/admin/account";
+            }
+            sessionMigrationBridgeService.rotateAdmin(request, response);
+            return "redirect:/admin/dashboard";
         } catch (ResponseStatusException e) {
             String message = e.getStatusCode().equals(HttpStatus.TOO_MANY_REQUESTS)
                     ? "로그인 실패가 너무 많습니다. 잠시 후 다시 시도해주세요."
@@ -75,9 +84,63 @@ public class AdminController {
      * 로그아웃
      */
     @PostMapping("/logout")
-    public String logout(HttpServletRequest request) {
+    public String logout(HttpServletRequest request, HttpServletResponse response) {
+        sessionMigrationBridgeService.revoke(request, response);
         adminAuthService.logout(request);
         return "redirect:/admin/login";
+    }
+
+    /**
+     * 관리자 계정 변경 페이지
+     */
+    @GetMapping("/account")
+    public String accountPage(HttpSession session, Model model) {
+        if (!adminAuthService.isCurrentAdminSession(session)) {
+            return "redirect:/admin/login";
+        }
+        model.addAttribute("username", session.getAttribute(AdminAuthService.SESSION_USERNAME));
+        model.addAttribute(
+                "passwordChangeRequired",
+                adminAuthService.isPasswordChangeRequired(session));
+        return "admin/account";
+    }
+
+    /**
+     * 관리자 아이디 및 비밀번호 변경
+     */
+    @PostMapping("/account")
+    public String changeAccount(
+            @RequestParam String currentPassword,
+            @RequestParam String newUsername,
+            @RequestParam String newPassword,
+            @RequestParam String newPasswordConfirm,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            RedirectAttributes redirectAttributes) {
+        if (!adminAuthService.isCurrentAdminSession(request.getSession(false))) {
+            return "redirect:/admin/login";
+        }
+
+        try {
+            adminAuthService.changeCredentials(
+                    currentPassword,
+                    newUsername,
+                    newPassword,
+                    newPasswordConfirm,
+                    request);
+            sessionMigrationBridgeService.rotateAdmin(request, response);
+            redirectAttributes.addFlashAttribute(
+                    "success",
+                    "관리자 계정 정보가 변경되었습니다.");
+            return "redirect:/admin/dashboard";
+        } catch (ResponseStatusException exception) {
+            redirectAttributes.addFlashAttribute(
+                    "error",
+                    exception.getReason() != null
+                            ? exception.getReason()
+                            : "계정 정보를 변경하지 못했습니다.");
+            return "redirect:/admin/account";
+        }
     }
 
     /**
@@ -85,10 +148,23 @@ public class AdminController {
      */
     @GetMapping("/upload")
     public String uploadPage(HttpSession session, Model model) {
-        if (!isAuthenticated(session)) {
-            return "redirect:/admin/login";
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
         }
         return "admin/upload";
+    }
+
+    /**
+     * 공식 강의계획서 JSON 검토 및 선택 반영 페이지
+     */
+    @GetMapping("/import-review")
+    public String importReviewPage(HttpSession session) {
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
+        }
+        return "admin/import-review";
     }
 
     /**
@@ -96,15 +172,28 @@ public class AdminController {
      */
     @GetMapping("/dashboard")
     public String dashboardPage(HttpSession session) {
-        if (!isAuthenticated(session)) {
-            return "redirect:/admin/login";
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
         }
         return "admin/dashboard";
     }
 
     /**
+     * 문의 관리 페이지 (사이트 내 문의 목록/처리)
+     */
+    @GetMapping("/inquiries")
+    public String inquiriesPage(HttpSession session) {
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
+        }
+        return "admin/inquiries";
+    }
+
+    /**
      * PDF 업로드 처리
-     * 
+     *
      * @param mode "incremental" (기본값) 또는 "replace"
      */
     @PostMapping("/upload/pdf")
@@ -112,8 +201,9 @@ public class AdminController {
             @RequestParam(value = "mode", defaultValue = "incremental") String mode,
             HttpSession session,
             RedirectAttributes redirectAttributes) {
-        if (!isAuthenticated(session)) {
-            return "redirect:/admin/login";
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
         }
 
         try {
@@ -150,8 +240,9 @@ public class AdminController {
             @RequestParam(value = "deactivateMissing", defaultValue = "false") boolean deactivateMissing,
             HttpSession session,
             RedirectAttributes redirectAttributes) {
-        if (!isAuthenticated(session)) {
-            return "redirect:/admin/login";
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
         }
 
         try {
@@ -182,8 +273,9 @@ public class AdminController {
      */
     @GetMapping("/validate")
     public String validatePage(HttpSession session) {
-        if (!isAuthenticated(session)) {
-            return "redirect:/admin/login";
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
         }
         return "admin/validate";
     }
@@ -197,8 +289,9 @@ public class AdminController {
             HttpSession session,
             Model model,
             RedirectAttributes redirectAttributes) {
-        if (!isAuthenticated(session)) {
-            return "redirect:/admin/login";
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
         }
 
         try {
@@ -232,8 +325,9 @@ public class AdminController {
             HttpSession session,
             Model model,
             RedirectAttributes redirectAttributes) {
-        if (!isAuthenticated(session)) {
-            return "redirect:/admin/login";
+        String redirect = protectedPageRedirect(session);
+        if (redirect != null) {
+            return redirect;
         }
 
         try {
@@ -251,8 +345,14 @@ public class AdminController {
     /**
      * 인증 확인
      */
-    private boolean isAuthenticated(HttpSession session) {
-        return adminAuthService.isAuthenticated(session);
+    private String protectedPageRedirect(HttpSession session) {
+        if (!adminAuthService.isCurrentAdminSession(session)) {
+            return "redirect:/admin/login";
+        }
+        if (adminAuthService.isPasswordChangeRequired(session)) {
+            return "redirect:/admin/account";
+        }
+        return null;
     }
 
     /**
@@ -289,8 +389,11 @@ public class AdminController {
     }
 
     private void requireAuthenticated(HttpSession session) {
-        if (!isAuthenticated(session)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin login required");
+        if (!adminAuthService.hasAdminAccess(session)) {
+            String reason = adminAuthService.isPasswordChangeRequired(session)
+                    ? "Admin credential change required"
+                    : "Admin login required";
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, reason);
         }
     }
 }

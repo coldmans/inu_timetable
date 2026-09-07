@@ -7,6 +7,7 @@ import inu.timetable.exception.ApiException;
 import inu.timetable.security.AuthenticatedUser;
 import inu.timetable.service.AuthService;
 import inu.timetable.service.LoginRateLimitService;
+import inu.timetable.service.SessionMigrationBridgeService;
 import inu.timetable.service.UserActivityService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -46,6 +47,7 @@ public class AuthController {
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
     private final UserActivityService userActivityService;
     private final LoginRateLimitService loginRateLimitService;
+    private final SessionMigrationBridgeService sessionMigrationBridgeService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(
@@ -59,10 +61,11 @@ public class AuthController {
         List<AuthService.MajorSelection> majorSelections = parseMajorSelections(request.get("majors"));
 
         User user = authService.register(username, password, grade, major, majorSelections);
-        AuthenticatedUser principal = AuthenticatedUser.from(user);
+        AuthenticatedUser principal = AuthenticatedUser.forSession(user);
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 principal, null, principal.getAuthorities());
         saveAuthentication(authentication, servletRequest, servletResponse);
+        sessionMigrationBridgeService.rotateUser(user.getId(), servletRequest, servletResponse);
         recordActivityQuietly(user.getId());
         return ResponseEntity.ok(UserResponse.from(user));
     }
@@ -87,10 +90,13 @@ public class AuthController {
         }
 
         loginRateLimitService.recordSuccess(username, servletRequest);
-        saveAuthentication(authentication, servletRequest, servletResponse);
-
-        AuthenticatedUser principal = (AuthenticatedUser) authentication.getPrincipal();
-        User user = authService.findById(principal.id());
+        AuthenticatedUser authenticatedPrincipal = (AuthenticatedUser) authentication.getPrincipal();
+        User user = authService.findById(authenticatedPrincipal.id());
+        AuthenticatedUser sessionPrincipal = AuthenticatedUser.forSession(user);
+        Authentication sessionAuthentication = UsernamePasswordAuthenticationToken.authenticated(
+                sessionPrincipal, null, sessionPrincipal.getAuthorities());
+        saveAuthentication(sessionAuthentication, servletRequest, servletResponse);
+        sessionMigrationBridgeService.rotateUser(user.getId(), servletRequest, servletResponse);
         recordActivityQuietly(user.getId());
         return ResponseEntity.ok(UserResponse.from(user));
     }
@@ -115,7 +121,7 @@ public class AuthController {
         List<AuthService.MajorSelection> majorSelections = parseMajorSelections(request.get("majors"));
 
         User user = authService.updateProfile(authenticatedUser.id(), grade, major, majorSelections);
-        AuthenticatedUser principal = AuthenticatedUser.from(user);
+        AuthenticatedUser principal = AuthenticatedUser.forSession(user);
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 principal, null, principal.getAuthorities());
         replaceAuthentication(authentication, servletRequest, servletResponse);
@@ -129,6 +135,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+        sessionMigrationBridgeService.revoke(request, response);
         new SecurityContextLogoutHandler().logout(
                 request,
                 response,
@@ -146,6 +153,7 @@ public class AuthController {
         }
 
         authService.withdraw(authenticatedUser.id());
+        sessionMigrationBridgeService.revoke(request, response);
         new SecurityContextLogoutHandler().logout(
                 request,
                 response,

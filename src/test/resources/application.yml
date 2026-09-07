@@ -12,7 +12,25 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:shared-state-schema.ddl
+
+session:
+  shared:
+    enabled: false
 
 gemini:
   api:
     key: test-key
+
+subject:
+  cache:
+    warm-up:
+      enabled: false
+
+admin:
+  username: admin
+  operation-lock:
+    provider: local

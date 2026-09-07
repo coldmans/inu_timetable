@@ -1,6 +1,8 @@
 package inu.timetable.config;
 
 import inu.timetable.security.LegacySha256DelegatingPasswordEncoder;
+import inu.timetable.security.SessionMigrationBridgeFilter;
+import inu.timetable.security.SpaCsrfTokenRequestHandler;
 import inu.timetable.security.UserDetailsJpaService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -22,6 +24,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
@@ -62,12 +65,14 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            SecurityContextRepository securityContextRepository) throws Exception {
+            SecurityContextRepository securityContextRepository,
+            SessionMigrationBridgeFilter sessionMigrationBridgeFilter) throws Exception {
         http
                 .cors(Customizer.withDefaults())
                 .securityContext(context -> context.securityContextRepository(securityContextRepository))
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers(
                                 "/",
                                 "/error",
@@ -81,7 +86,8 @@ public class SecurityConfig {
                                 "/api/dev/**",
                                 "/api/subjects",
                                 "/api/subjects/**",
-                                "/api/events"))
+                                "/api/events",
+                                "/api/inquiries"))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/admin/**", "/admin/api/**").permitAll()
@@ -92,16 +98,20 @@ public class SecurityConfig {
                         .requestMatchers("/api/dev/**").permitAll()
                         .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
                         .requestMatchers("/api/wishlist/**", "/api/timetable/**", "/api/timetable-combination/**").authenticated()
+                        .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/subjects/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/settings/current-semester").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/inquiries/faqs").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/events").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/inquiries").permitAll()
                         .anyRequest().denyAll())
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) ->
                                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Login required")))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-                .logout(AbstractHttpConfigurer::disable);
+                .logout(AbstractHttpConfigurer::disable)
+                .addFilterAfter(sessionMigrationBridgeFilter, SecurityContextHolderFilter.class);
 
         return http.build();
     }

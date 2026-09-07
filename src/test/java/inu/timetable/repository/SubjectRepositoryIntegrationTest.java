@@ -1,6 +1,7 @@
 package inu.timetable.repository;
 
 import inu.timetable.entity.Schedule;
+import inu.timetable.entity.ScheduleRoomSegment;
 import inu.timetable.entity.Subject;
 import inu.timetable.entity.User;
 import inu.timetable.entity.UserTimetable;
@@ -74,6 +75,32 @@ class SubjectRepositoryIntegrationTest {
     }
 
     @Test
+    void findImportCandidatesLoadsNormalizedRoomSegments() {
+        Subject targetSubject = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        Schedule schedule = targetSubject.getSchedules().get(0);
+        entityManager.persistAndFlush(ScheduleRoomSegment.builder()
+                .schedule(schedule)
+                .room("05-432")
+                .startTime(4.0)
+                .endTime(5.5)
+                .build());
+        entityManager.clear();
+
+        Subject loaded = subjectRepository.findImportCandidatesBySemester("2026-1")
+                .stream()
+                .filter(subject -> "AI01001001".equals(subject.getCourseCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(loaded.getSchedules().get(0).getRoomSegments())
+                .extracting(
+                        ScheduleRoomSegment::getRoom,
+                        ScheduleRoomSegment::getStartTime,
+                        ScheduleRoomSegment::getEndTime)
+                .containsExactly(tuple("05-432", 4.0, 5.5));
+    }
+
+    @Test
     void countByActiveTrueExcludesInactiveSubjects() {
         persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
         persistSubject("AI01001002", "2026-1", false, "화", 1.0, 3.0);
@@ -97,6 +124,21 @@ class SubjectRepositoryIntegrationTest {
     }
 
     @Test
+    void findDistinctDepartmentsBySemesterExcludesOtherSemestersAndIncludesLegacySubjects() {
+        Subject firstSemester = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        firstSemester.setDepartment("컴퓨터공학부");
+        Subject secondSemester = persistSubject("AI01001002", "2026-2", true, "화", 1.0, 3.0);
+        secondSemester.setDepartment("경제학과(야)");
+        Subject legacySemester = persistSubject("AI01001003", null, true, "수", 1.0, 3.0);
+        legacySemester.setDepartment("지능형로봇시스템연계전공");
+
+        entityManager.flush();
+
+        assertThat(subjectRepository.findDistinctDepartmentsBySemester("2026-2"))
+                .containsExactly("경제학과(야)", "지능형로봇시스템연계전공");
+    }
+
+    @Test
     void findIdsWithFiltersCanFindOnlineAndUnscheduledSubjects() {
         Subject scheduledOffline = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
         Subject unscheduledOffline = persistSubject("AI01001002", "2026-1", true, null, null, null);
@@ -107,13 +149,77 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> unassignedTimeIds = subjectRepository.findIdsWithFilters(
-                null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
-                true, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                true, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(unassignedTimeIds.getContent())
                 .containsExactlyInAnyOrder(unscheduledOffline.getId(), scheduledOnline.getId())
                 .doesNotContain(scheduledOffline.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersCanSearchByCourseCode() {
+        Subject matched = persistSubject("AIA6086001", "2026-1", true, "월", 4.0, 7.0);
+        persistSubject("XYZ0000001", "2026-1", true, "화", 1.0, 3.0);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
+                null, null, null, "AIA6086", null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
+
+        assertThat(subjectIds.getContent()).containsExactly(matched.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersMatchesSubjectNameIgnoringEnglishCase() {
+        Subject matched = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        matched.setSubjectName("AI Ethics");
+        persistSubject("AI01001002", "2026-1", true, "화", 1.0, 3.0)
+                .setSubjectName("Advanced AI Ethics");
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = findIdsWithSearchFilters("ai ethics", null, null, 1);
+
+        assertThat(subjectIds.getContent()).containsExactly(matched.getId());
+        assertThat(subjectIds.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void findIdsWithFiltersMatchesProfessorIgnoringEnglishCase() {
+        Subject matched = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        matched.setProfessor("Alice Kim");
+        persistSubject("AI01001002", "2026-1", true, "화", 1.0, 3.0)
+                .setProfessor("홍길동");
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = findIdsWithSearchFilters(null, "alice kim", null);
+
+        assertThat(subjectIds.getContent()).containsExactly(matched.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersMatchesCourseCodeIgnoringEnglishCase() {
+        Subject matched = persistSubject("AIA6086001", "2026-1", true, "월", 4.0, 7.0);
+        persistSubject("XYZ0000001", "2026-1", true, "화", 1.0, 3.0);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = findIdsWithSearchFilters(null, null, "aia6086");
+
+        assertThat(subjectIds.getContent()).containsExactly(matched.getId());
     }
 
     @Test
@@ -129,9 +235,11 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
-                null, null, null, null, Arrays.asList("컴퓨터공학부", "임베디드시스템공학과"), 2, null,
+                null, null, null, null, null, Arrays.asList("컴퓨터공학부", "임베디드시스템공학과"), 2, null,
                 null, null, null, null, null, null,
-                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(subjectIds.getContent())
                 .containsExactlyInAnyOrder(computer.getId(), embedded.getId())
@@ -139,20 +247,46 @@ class SubjectRepositoryIntegrationTest {
     }
 
     @Test
+    void findIdsWithFiltersMatchesSingleDepartmentExactly() {
+        Subject economics = persistSubject("AI01001001", "2026-2", true, "월", 4.0, 7.0);
+        economics.setDepartment("경제학과");
+        Subject nightEconomics = persistSubject("AI01001002", "2026-2", true, "화", 1.0, 3.0);
+        nightEconomics.setDepartment("경제학과(야)");
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
+                "2026-2", null, null, null, "경제학과",
+                Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
+
+        assertThat(subjectIds.getContent())
+                .containsExactly(economics.getId())
+                .doesNotContain(nightEconomics.getId());
+    }
+
+    @Test
     void findIdsWithFiltersCanFilterBySemester() {
         Subject firstSemester = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
         Subject secondSemester = persistSubject("AI01001002", "2026-2", true, "화", 1.0, 3.0);
+        Subject legacySemester = persistSubject("AI01001003", null, true, "수", 1.0, 3.0);
 
         entityManager.flush();
         entityManager.clear();
 
         Page<Long> firstSemesterIds = subjectRepository.findIdsWithFilters(
-                "2026-1", null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                "2026-1", null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
-                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(firstSemesterIds.getContent())
-                .containsExactly(firstSemester.getId())
+                .containsExactlyInAnyOrder(firstSemester.getId(), legacySemester.getId())
                 .doesNotContain(secondSemester.getId());
     }
 
@@ -165,12 +299,90 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
-                null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
-                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(subjectIds.getContent())
                 .containsExactlyInAnyOrder(firstSemester.getId(), secondSemester.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersKeepsOnlySubjectsFullyContainedInTimeBlocks() {
+        // 사용자 시나리오: 수 12~18시(4~10교시), 금 12~17시(4~9교시) 선택
+        Subject fridayContained = persistSubject("AI01001001", "2026-1", true, "금", 7.0, 9.0);
+        Subject tuesdayOnly = persistSubject("AI01001002", "2026-1", true, "화", 1.0, 2.0);
+        Subject fridayOverflow = persistSubject("AI01001003", "2026-1", true, "수", 5.0, 7.0);
+        persistSchedule(fridayOverflow, "금", 8.0, 10.0);
+        Subject unscheduled = persistSubject("AI01001004", "2026-1", true, null, null, null);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = findIdsWithWedFriTimeBlocks(4.0, 10.0, 4.0, 9.0);
+
+        assertThat(subjectIds.getContent())
+                .containsExactlyInAnyOrder(fridayContained.getId(), unscheduled.getId())
+                .doesNotContain(tuesdayOnly.getId(), fridayOverflow.getId());
+    }
+
+    @Test
+    void findIdsWithFiltersWithoutTimeBlocksReturnsAllActiveSubjects() {
+        Subject monday = persistSubject("AI01001001", "2026-1", true, "월", 4.0, 7.0);
+        Subject tuesday = persistSubject("AI01001002", "2026-1", true, "화", 1.0, 2.0);
+        Subject unscheduled = persistSubject("AI01001003", "2026-1", true, null, null, null);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
+
+        assertThat(subjectIds.getContent())
+                .containsExactlyInAnyOrder(monday.getId(), tuesday.getId(), unscheduled.getId());
+    }
+
+    private Page<Long> findIdsWithWedFriTimeBlocks(
+            Double wedStart, Double wedEnd, Double friStart, Double friEnd) {
+        return subjectRepository.findIdsWithFilters(
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE,
+                true,
+                null, null,
+                null, null,
+                wedStart, wedEnd,
+                null, null,
+                friStart, friEnd,
+                null, null,
+                PageRequest.of(0, 10));
+    }
+
+    private Page<Long> findIdsWithSearchFilters(
+            String subjectName,
+            String professor,
+            String courseCode) {
+        return findIdsWithSearchFilters(subjectName, professor, courseCode, 10);
+    }
+
+    private Page<Long> findIdsWithSearchFilters(
+            String subjectName,
+            String professor,
+            String courseCode,
+            int pageSize) {
+        return subjectRepository.findIdsWithFilters(
+                null, subjectName, professor, courseCode, null,
+                Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, null,
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, pageSize));
     }
 
     @Test
@@ -241,9 +453,11 @@ class SubjectRepositoryIntegrationTest {
         entityManager.clear();
 
         Page<Long> subjectIds = subjectRepository.findIdsWithFilters(
-                null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
+                null, null, null, null, null, Collections.singletonList("__unused_department__"), 0, null,
                 null, null, null, null, null, null,
-                null, ClassMethod.ONLINE, PageRequest.of(0, 10));
+                null, ClassMethod.ONLINE,
+                false, null, null, null, null, null, null, null, null, null, null, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(subjectIds.getContent())
                 .containsExactly(popular.getId(), multiSchedule.getId(), quiet.getId());

@@ -5,23 +5,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
 @Service
 public class AdminOperationLockService {
 
-    private final Set<String> runningOperations = ConcurrentHashMap.newKeySet();
+    private final DistributedOperationLockProvider lockProvider;
+
+    public AdminOperationLockService(DistributedOperationLockProvider lockProvider) {
+        this.lockProvider = lockProvider;
+    }
 
     public <T> T runExclusive(String operationKey, CheckedSupplier<T> supplier) throws IOException {
-        if (!runningOperations.add(operationKey)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Same admin operation is already running");
-        }
-        try {
+        DistributedOperationLockProvider.LockHandle lockHandle =
+                lockProvider.tryAcquire(operationKey).orElseThrow(() ->
+                        new ResponseStatusException(HttpStatus.CONFLICT,
+                                "Same admin operation is already running"));
+        try (lockHandle) {
             return supplier.get();
-        } finally {
-            runningOperations.remove(operationKey);
         }
     }
 

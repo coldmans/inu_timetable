@@ -13,6 +13,8 @@ public class OfficialSubjectImportResponse {
 
     private boolean applied;
     private String semester;
+    // 감지된 업로드 파일 형식: OFFICIAL_TIMETABLE(종합강의시간표) | SYLLABUS(강의계획서 조회)
+    private String sourceFormat;
     private int totalRows;
     private int addedCount;
     private int modifiedCount;
